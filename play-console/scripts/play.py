@@ -10,6 +10,7 @@ developer accounts. Uses the Google Play Android Developer API v3 with a service
     python play.py push-listing [--app ...] [--yes]     texts, video and images (only what changed)
     python play.py release  <app.aab> [--app ...] [--track internal] [--rollout 0.1] [--yes]
     python play.py promote  --from internal --to production [--rollout 0.1] [--app ...] [--yes]
+    python play.py retire   --track alpha [--app ...] [--yes]   halt a testing track's releases (never production)
 
 Nothing is published without --yes: every change is built in an "edit" (a draft), validated by
 Google and shown; without --yes the edit is deleted. Production also needs --yes.
@@ -532,6 +533,44 @@ def cmd_promote(args):
         api.discard()
 
 
+def cmd_retire(args):
+    """Halts every release of a testing track (internal, alpha, beta, a closed track): its testers stop
+    getting that version (Play ignores an empty list of releases). Only the track's current release can
+    be halted: Play then shows the previous one again, and refuses to halt that one ("no matching in
+    progress release") - harmless, since users get the highest versionCode of every track they are in
+    (production is usually higher). To close the track itself: Play Console -> Closed testing -> the
+    track -> remove its testers. Never production: replace it with a new release, or halt it in Play
+    Console."""
+    if args.track == "production":
+        fail("retire does not touch production: publish a new release, or halt its rollout in Play Console")
+    cfg = find_app(args.app)
+    api = Api(cfg["profile"], cfg["package"])
+    api.open()
+    try:
+        track = api.call("GET", api.e(f"/tracks/{args.track}"))
+        releases = track.get("releases", [])
+        if not releases:
+            print(f"{args.track} has no releases.")
+            return
+        # An empty list of releases is ignored by Play; a release is withdrawn by halting it.
+        live = [r for r in releases if r.get("status") != "halted"]
+        if not live:
+            print(f"{args.track}: every release is already halted.")
+            return
+        for r in live:
+            print(f"{args.track}: {r.get('status')} versions {r.get('versionCodes')} {r.get('name', '')} -> halted")
+            r["status"] = "halted"
+        api.call("PUT", api.e(f"/tracks/{args.track}"), {"track": args.track, "releases": releases})
+        api.call("POST", api.e(":validate"))
+        if not args.yes:
+            print("Validated by Google, NOT published (dry run). Run again with --yes to publish.")
+            return
+        api.commit()
+        print(f"OK: {args.track} halted.")
+    finally:
+        api.discard()
+
+
 def main():
     # Windows consoles default to cp1252: print accents and any Unicode from the API safely.
     for stream in (sys.stdout, sys.stderr):
@@ -553,8 +592,10 @@ def main():
     pr = sub.add_parser("promote"); pr.add_argument("--app")
     pr.add_argument("--from", dest="source", required=True); pr.add_argument("--to", dest="target", required=True)
     pr.add_argument("--rollout", type=float, default=None); pr.add_argument("--yes", action="store_true")
+    rt = sub.add_parser("retire"); rt.add_argument("--track", required=True); rt.add_argument("--app")
+    rt.add_argument("--yes", action="store_true")
     args = p.parse_args()
-    {"auth": cmd_auth, "register": cmd_register, "status": cmd_status, "pull": cmd_pull, "diff": cmd_diff,
+    {"retire": cmd_retire, "auth": cmd_auth, "register": cmd_register, "status": cmd_status, "pull": cmd_pull, "diff": cmd_diff,
      "push-listing": cmd_push_listing, "release": cmd_release, "promote": cmd_promote}[args.cmd](args)
 
 

@@ -46,6 +46,7 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 | `push-listing [--yes]` | Sube solo lo que cambió |
 | `release <app.aab> [--track internal] [--rollout 0.1] [--yes]` | Sube el AAB y lo pone en una pista con las notas de `changelogs/` |
 | `promote --from internal --to production [--rollout 0.1] [--yes]` | Pasa la versión de una pista a otra |
+| `retire --track alpha [--yes]` | Detiene (*halt*) la versión actual de una pista de prueba. Nunca producción |
 
 ## Reglas
 
@@ -71,6 +72,8 @@ La API no crea apps. Orden:
 | HTTP 403 | La cuenta de servicio no está invitada en Play Console o no tiene permiso para esa app (SETUP.md paso 3). Los permisos nuevos pueden tardar en activarse |
 | HTTP 404 al abrir la edición | La app no existe en esa cuenta, o aún no tiene su primera versión subida a mano |
 | "No key for the profile" | Falta `play.py auth` para ese perfil en esta PC |
+| `retire`: "Cannot halt release, no matching in progress release found" | Solo se puede detener la versión **actual** de la pista; al detenerla, Play vuelve a mostrar la anterior y esa ya no se puede detener por API. No afecta a nadie: cada usuario recibe el versionCode más alto de las pistas donde está (normalmente el de producción). Para cerrar la pista: Play Console → Prueba cerrada → la pista → quitar los testers |
+| Una lista de versiones vacía no cambia nada | Play ignora `releases: []`: una versión se retira deteniéndola (`retire`) |
 | Validación de imágenes | Tamaños de Play: ícono 512×512, imagen destacada 1024×500 sin alfa, capturas de 2 a 8 por tipo con lados de 320 a 3840 px (la proporción la valida Google al preparar la edición) |
 
 ## Archivos
