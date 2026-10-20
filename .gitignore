@@ -1,0 +1,6 @@
+**/node_modules/
+*.pyc
+__pycache__/
+apps.json
+client_secret*.json
+remotion/node_modules/
