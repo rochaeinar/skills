@@ -5,6 +5,7 @@ developer accounts. Uses the Google Play Android Developer API v3 with a service
     python play.py auth     <service-account.json> --profile <name>      once per developer account
     python play.py register <data folder> [--package com.x.y] [--profile name]
     python play.py status   [--app <data folder>]
+    python play.py versions [--app ...]                 every versionCode Play knows, as JSON
     python play.py pull     [--app ...] [--images]      the published listing -> files (start here)
     python play.py diff     [--app ...]                 what push-listing would change
     python play.py push-listing [--app ...] [--yes]     texts, video and images (only what changed)
@@ -344,6 +345,28 @@ def cmd_status(args):
             print(f"  {t['track']:12} {r.get('status')}{frac}  versions {r.get('versionCodes')}  {r.get('name', '')}")
 
 
+def cmd_versions(args):
+    """Every versionCode Play knows (releases of every track, uploaded bundles and APKs) as JSON, so a
+    new build can take a code Play has never seen: a code once uploaded can never be reused."""
+    print(json.dumps(known_versions(find_app(args.app)), indent=2, ensure_ascii=False))
+
+
+def known_versions(cfg):
+    api = Api(cfg["profile"], cfg["package"])
+    api.open()
+    try:
+        tracks = api.call("GET", api.e("/tracks")).get("tracks", [])
+        uploaded = [int(b["versionCode"]) for b in api.call("GET", api.e("/bundles")).get("bundles", [])]
+        uploaded += [int(a["versionCode"]) for a in api.call("GET", api.e("/apks")).get("apks", [])]
+    finally:
+        api.discard()
+    releases = [{"track": t["track"], "status": r.get("status"), "versionCodes": [int(v) for v in r.get("versionCodes", [])],
+                 "name": r.get("name", ""), "userFraction": r.get("userFraction")}
+                for t in tracks for r in t.get("releases", [])]
+    codes = uploaded + [v for r in releases for v in r["versionCodes"]]
+    return {"package": cfg["package"], "maxVersionCode": max(codes, default=0), "releases": releases}
+
+
 def cmd_pull(args):
     cfg = find_app(args.app)
     api = Api(cfg["profile"], cfg["package"])
@@ -493,6 +516,8 @@ def cmd_release(args):
         bundle = api.call("POST", api.e("/bundles"), raw=aab.read_bytes(), content_type="application/octet-stream",
                           upload=True, query="?uploadType=media")
         vc = bundle["versionCode"]
+        if getattr(args, "version_code", None) and int(vc) != int(args.version_code):
+            fail(f"The bundle has versionCode {vc}, expected {args.version_code}: rebuild it")
         notes = release_notes(cfg, vc)
         if not notes:
             print(f"  (no release notes: add changelogs/<lang>/{vc}.txt or default.txt)")
@@ -580,7 +605,7 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("auth"); a.add_argument("key"); a.add_argument("--profile", required=True)
     r = sub.add_parser("register"); r.add_argument("folder"); r.add_argument("--package"); r.add_argument("--profile")
-    for name in ("status", "pull", "diff", "push-listing"):
+    for name in ("status", "versions", "pull", "diff", "push-listing"):
         s = sub.add_parser(name); s.add_argument("--app")
         if name == "pull":
             s.add_argument("--images", action="store_true")
@@ -589,13 +614,15 @@ def main():
     rl = sub.add_parser("release"); rl.add_argument("bundle"); rl.add_argument("--app")
     rl.add_argument("--track", default="internal"); rl.add_argument("--rollout", type=float, default=None)
     rl.add_argument("--name"); rl.add_argument("--yes", action="store_true")
+    rl.add_argument("--version-code", type=int, help="fail unless the bundle has this versionCode")
     pr = sub.add_parser("promote"); pr.add_argument("--app")
     pr.add_argument("--from", dest="source", required=True); pr.add_argument("--to", dest="target", required=True)
     pr.add_argument("--rollout", type=float, default=None); pr.add_argument("--yes", action="store_true")
     rt = sub.add_parser("retire"); rt.add_argument("--track", required=True); rt.add_argument("--app")
     rt.add_argument("--yes", action="store_true")
     args = p.parse_args()
-    {"retire": cmd_retire, "auth": cmd_auth, "register": cmd_register, "status": cmd_status, "pull": cmd_pull, "diff": cmd_diff,
+    {"retire": cmd_retire, "auth": cmd_auth, "register": cmd_register, "status": cmd_status, "versions": cmd_versions,
+     "pull": cmd_pull, "diff": cmd_diff,
      "push-listing": cmd_push_listing, "release": cmd_release, "promote": cmd_promote}[args.cmd](args)
 
 

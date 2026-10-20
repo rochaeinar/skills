@@ -41,6 +41,7 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 |---|---|
 | `register <carpeta> --package <id> --profile <perfil>` | Crea o actualiza `play.json` y registra la app en esta PC |
 | `status` | Idiomas de la ficha y versiones de cada pista (interna, cerrada, abierta, producción) con su % |
+| `versions` | Todo versionCode que Play conoce (versiones de cada pista y todo AAB/APK subido), en JSON. Lo usa el skill `android-release` |
 | `pull [--images]` | **Descarga la ficha publicada** a los archivos. Empezar siempre por aquí con una app existente |
 | `diff` | Qué cambiaría `push-listing`: textos (antes → después) e imágenes (por SHA-256) |
 | `push-listing [--yes]` | Sube solo lo que cambió |
