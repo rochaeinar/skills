@@ -1,5 +1,7 @@
 # Configuración desde cero (otra PC u otra cuenta)
 
+> Los comandos son para **PowerShell** (`$env:USERPROFILE`). En `cmd` se escribe `%USERPROFILE%`.
+
 Todo lo que hay que tener antes de usar el skill. Hacerlo una vez por PC y por cuenta. Las claves nunca van en archivos ni en el chat: viven en el **Administrador de credenciales de Windows** (o en variables de entorno en otros sistemas).
 
 Orden recomendado: 1 → 2 → 3 (lo mínimo para un video sin IA ni voz), luego 4 y 5 (voz, música y gancho con IA), y 6 solo para subir a YouTube por API.
@@ -13,9 +15,9 @@ Orden recomendado: 1 → 2 → 3 (lo mínimo para un video sin IA ni voz), luego
 | Python 3.10+ con Pillow | Todos los scripts | python.org; `pip install pillow` | `python -c "import PIL"` |
 | Node.js 20+ | Remotion (render) | nodejs.org | `node --version` |
 | ffmpeg y ffprobe | Recortar, medir, normalizar volumen | Windows: `winget install Gyan.FFmpeg` | `ffmpeg -version` (en una terminal nueva) |
-| Android SDK platform-tools (adb) | Grabar el teléfono | Android Studio | `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe devices` |
+| Android SDK platform-tools (adb) | Grabar el teléfono | Android Studio | `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe devices` |
 | JDK | Maestro | El de Android Studio (`C:\Program Files\Android\Android Studio\jbr`) | — |
-| Maestro CLI | Manejar la app mientras graba | github.com/mobile-dev-inc/maestro/releases → `maestro.zip` → `%USERPROFILE%\.maestro\bin` | `%USERPROFILE%\.maestro\bin\maestro.bat --version` |
+| Maestro CLI | Manejar la app mientras graba | github.com/mobile-dev-inc/maestro/releases → `maestro.zip` → `$env:USERPROFILE\.maestro\bin` | `$env:USERPROFILE\.maestro\bin\maestro.bat --version` |
 | Módulo PowerShell CredentialManager | Guardar claves | `Install-Module CredentialManager -Scope CurrentUser` | `Get-Module -ListAvailable CredentialManager` |
 
 Las dependencias de Remotion se instalan solas la primera vez que se renderiza (`npm install` en `remotion/`, ~260 paquetes).
@@ -97,7 +99,7 @@ Con la **misma cuenta** del canal:
 ### 6.3 Autorizar (una vez por PC)
 
 ```
-python -I "%USERPROFILE%\.claude\skills\app-promo-video\scripts\publish.py" auth "<ruta>\client_secret.json"
+python -I "$env:USERPROFILE\.claude\skills\app-promo-video\scripts\publish.py" auth "<ruta>\client_secret.json"
 ```
 
 Se abre el navegador: elegir la cuenta del canal → aviso **"Google no verificó esta app" / "Google hasn't verified this app"** (normal, la app es propia) → **Avanzado / Advanced → Ir a ... (no seguro) / Go to ... (unsafe)** → aceptar los permisos (**Continuar / Continue**). Debe terminar con `OK: authorized for the channel '<canal>'`. Guarda `PromoVideo-YouTube-Client` (id y secreto del cliente) y `PromoVideo-YouTube` (token de actualización).
@@ -116,7 +118,7 @@ La generación (ElevenLabs, fal.ai) es compartida por todas las apps. Lo que cam
 1. Con la **otra cuenta de Google**, repetir 6.1 (canal) y 6.2 (proyecto, API, pantalla de consentimiento con esa cuenta en **Test users**, cliente de escritorio) y descargar **su** JSON.
 2. Autorizar con el nombre del perfil:
    ```
-   python -I "%USERPROFILE%\.claude\skills\app-promo-video\scripts\publish.py" auth "<ruta>\client_secret.json" --no-browser --profile otrodev
+   python -I "$env:USERPROFILE\.claude\skills\app-promo-video\scripts\publish.py" auth "<ruta>\client_secret.json" --no-browser --profile otrodev
    ```
    Abrir el enlace en el navegador (o contenedor) donde está iniciada **esa** cuenta. Guarda `PromoVideo-YouTube-Client@otrodev` y `PromoVideo-YouTube@otrodev`.
 3. En el `video.json` de cada app que sube a ese canal: `"youtube_profile": "otrodev"`. Sin esa línea se usa la cuenta sin perfil (la primera que se configuró).

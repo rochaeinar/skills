@@ -1,5 +1,7 @@
 # Configuración desde cero (otra PC u otra cuenta)
 
+> Los comandos son para **PowerShell** (`$env:USERPROFILE`). En `cmd` se escribe `%USERPROFILE%`.
+
 Este skill no usa cuentas ni claves: todo se genera en la PC.
 
 | Requisito | Para qué | Instalar | Comprobar |
@@ -17,7 +19,7 @@ Este skill no usa cuentas ni claves: todo se genera en la PC.
 ## Probar
 
 ```
-python -I "%USERPROFILE%\.claude\skills\play-feature-graphic\scripts\build_feature_graphic.py" <config.json>
+python -I "$env:USERPROFILE\.claude\skills\play-feature-graphic\scripts\build_feature_graphic.py" <config.json>
 ```
 
 Debe escribir `feature-graphic-<locale>.png` de 1024×500. Subirla en Play Console → **Presencia en Play Store → Ficha principal → Gráficos → Gráfico de funciones**, una por idioma.

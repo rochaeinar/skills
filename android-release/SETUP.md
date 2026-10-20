@@ -1,11 +1,13 @@
 # Configuración (otra PC, otra app u otra cuenta)
 
+> Los comandos son para **PowerShell** (`$env:USERPROFILE`). En `cmd` se escribe `%USERPROFILE%`.
+
 ## 1. La PC
 
 | Requisito | Comprobar |
 |---|---|
-| Skill `play-console` instalado y configurado (su `SETUP.md` completo: `cryptography`, `auth` del perfil) | `python "%USERPROFILE%\.claude\skills\play-console\scripts\play.py" status --app <datos>` |
-| JDK para Gradle: `JAVA_HOME`, o Android Studio instalado (se usa su `jbr` si `JAVA_HOME` no está) | `echo %JAVA_HOME%` |
+| Skill `play-console` instalado y configurado (su `SETUP.md` completo: `cryptography`, `auth` del perfil) | `python "$env:USERPROFILE\.claude\skills\play-console\scripts\play.py" status --app <datos>` |
+| JDK para Gradle: `JAVA_HOME`, o Android Studio instalado (se usa su `jbr` si `JAVA_HOME` no está) | `echo $env:JAVA_HOME` |
 | git | `git --version` |
 
 ## 2. Cada app

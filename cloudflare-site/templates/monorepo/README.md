@@ -16,11 +16,11 @@ Todo se maneja con el skill **`cloudflare-site`** de Claude Code (`web.py`): cre
 
 ```
 npm install
-python "%USERPROFILE%\.claude\skills\cloudflare-site\scripts\web.py" status
-python "%USERPROFILE%\.claude\skills\cloudflare-site\scripts\web.py" build <app>
-python "%USERPROFILE%\.claude\skills\cloudflare-site\scripts\web.py" deploy <app>                 vista previa
-python "%USERPROFILE%\.claude\skills\cloudflare-site\scripts\web.py" deploy <app> --prod --yes     producción
-python "%USERPROFILE%\.claude\skills\cloudflare-site\scripts\web.py" deploy --changed --prod --yes solo los que cambiaron
+python "$env:USERPROFILE\.claude\skills\cloudflare-site\scripts\web.py" status
+python "$env:USERPROFILE\.claude\skills\cloudflare-site\scripts\web.py" build <app>
+python "$env:USERPROFILE\.claude\skills\cloudflare-site\scripts\web.py" deploy <app>                 vista previa
+python "$env:USERPROFILE\.claude\skills\cloudflare-site\scripts\web.py" deploy <app> --prod --yes     producción
+python "$env:USERPROFILE\.claude\skills\cloudflare-site\scripts\web.py" deploy --changed --prod --yes solo los que cambiaron
 ```
 
 Local: `npm run dev -w sites/<app>`.

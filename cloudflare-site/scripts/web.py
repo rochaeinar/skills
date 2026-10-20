@@ -197,8 +197,7 @@ def cmd_auth(args):
         account = input("Account ID (dashboard -> the account -> Overview, right column): ").strip()
         token = getpass.getpass("API token (hidden, paste with right click): ").strip()
         if not re.fullmatch(r"[0-9a-f]{32}", account) or len(token) < 30:
-            input("That does not look like an Account ID (32 hex) and a token. Enter to close.")
-            sys.exit(1)
+            fail("That does not look like an Account ID (32 hex characters) and a token")
         cf = Cloudflare(args.profile, account, token)
         cf.call("GET", f"/accounts/{account}/pages/projects")  # Pages permission on that account
         zones = [z["name"] for z in cf.call("GET", f"/zones?account.id={account}&per_page=50") or []]
@@ -210,9 +209,9 @@ def cmd_auth(args):
         print(f"\nOK: saved as {CRED.format(args.profile)}. Zones the token sees: {', '.join(zones) or 'none'}")
         input("Enter to close this window.")
         return
-    cmd = [sys.executable, str(Path(__file__).resolve()), "auth", "--profile", args.profile, "--store"]
-    if args.repo:
-        cmd += ["--repo", args.repo]
+    cmd = [sys.executable, str(Path(__file__).resolve())]
+    cmd += ["--repo", str(repo(args.repo))]  # --repo is a global option: before the command
+    cmd += ["auth", "--profile", args.profile, "--store"]
     subprocess.Popen(cmd, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
     print("A new window asks for the Account ID and the token (SETUP.md step 3). Check afterwards with: web.py status")
 
@@ -641,6 +640,16 @@ def main():
     s.add_argument("--prod", action="store_true"); s.add_argument("--yes", action="store_true")
     s = sub.add_parser("domain"); s.add_argument("slug"); s.add_argument("--yes", action="store_true")
     sub.add_parser("status")
+    if "--store" in sys.argv:  # the separate auth window: keep it open on any error so it can be read
+        try:
+            args = ap.parse_args()
+            return cmd_auth(args)
+        except BaseException as e:
+            if not isinstance(e, (KeyboardInterrupt, SystemExit)):  # fail() already printed its message
+                import traceback
+                traceback.print_exc()
+            input("\nEnter to close this window.")
+            raise
     args = ap.parse_args()
     if args.cmd == "init":
         return cmd_init(args)

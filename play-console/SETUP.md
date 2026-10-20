@@ -1,5 +1,7 @@
 # Configuración desde cero (otra PC u otra cuenta de desarrollador)
 
+> Los comandos son para **PowerShell** (`$env:USERPROFILE`). En `cmd` se escribe `%USERPROFILE%`.
+
 Una vez por PC (paso 1) y una vez por **cuenta de desarrollador de Play Console** (pasos 2 a 4). Cada cuenta es un **perfil** con su propia cuenta de servicio. Nombres de la interfaz en español / inglés.
 
 ## 1. La PC
@@ -50,7 +52,7 @@ Para dar acceso a otra app de la misma cuenta más adelante: **Usuarios y permis
 ## 4. Guardar la clave en el skill (una vez por PC y cuenta)
 
 ```
-python "%USERPROFILE%\.claude\skills\play-console\scripts\play.py" auth "<ruta>\clave.json" --profile <perfil>
+python "$env:USERPROFILE\.claude\skills\play-console\scripts\play.py" auth "<ruta>\clave.json" --profile <perfil>
 ```
 
 - Comprueba la clave contra Google y la guarda en el **Administrador de credenciales de Windows** como `PlayConsole@<perfil>` (cifrada por Windows, solo legible por tu usuario), junto a las demás claves. Guarda solo lo necesario (correo, clave privada y dirección del token, ~1,9 KB en UTF-8), por el límite de 2.560 bytes de cada credencial.
@@ -59,9 +61,9 @@ python "%USERPROFILE%\.claude\skills\play-console\scripts\play.py" auth "<ruta>\
 ## 5. Registrar cada app
 
 ```
-python "%USERPROFILE%\.claude\skills\play-console\scripts\play.py" register "D:\Documents\<App>\play" --package <applicationId> --profile <perfil>
-python "%USERPROFILE%\.claude\skills\play-console\scripts\play.py" status --app "D:\Documents\<App>\play"
-python "%USERPROFILE%\.claude\skills\play-console\scripts\play.py" pull --app "D:\Documents\<App>\play" --images
+python "$env:USERPROFILE\.claude\skills\play-console\scripts\play.py" register "D:\Documents\<App>\play" --package <applicationId> --profile <perfil>
+python "$env:USERPROFILE\.claude\skills\play-console\scripts\play.py" status --app "D:\Documents\<App>\play"
+python "$env:USERPROFILE\.claude\skills\play-console\scripts\play.py" pull --app "D:\Documents\<App>\play" --images
 ```
 
 `status` debe listar los idiomas y las versiones de cada pista. Si da 403, falta el paso 3 o todavía no se activó. Si da 404, la app no existe en esa cuenta o no tiene su primera versión (ver "Primer lanzamiento" en SKILL.md).
