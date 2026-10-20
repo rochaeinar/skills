@@ -1,0 +1,54 @@
+---
+// A screenshot in its device frame, in the theme of the page: src/assets/<screens|tablet>/<lang>/<name>-light.jpg
+// and <name>-dark.jpg. A missing theme uses the other one; a missing language uses Spanish, with a
+// build warning (the screenshot still has to be taken in that language).
+import { Picture } from "astro:assets";
+
+interface Props { name: string; lang: string; alt: string; size?: "md" | "sm"; device?: "phone" | "tablet"; eager?: boolean; class?: string }
+const { name, lang, alt, size = "md", device = "phone", eager = false, class: cls } = Astro.props;
+const all = import.meta.glob<{ default: ImageMetadata }>("../assets/{screens,tablet}/*/*.{jpg,png,webp}", { eager: true });
+const folder = device === "tablet" ? "tablet" : "screens";
+const find = (l: string, mode: string) => Object.entries(all).find(([p]) => p.includes(`/${folder}/${l}/${name}-${mode}.`))?.[1].default;
+const of = (l: string) => {
+  const light = find(l, "light"), dark = find(l, "dark");
+  return light || dark ? { light: light ?? dark!, dark: dark ?? light! } : null;
+};
+let shot = of(lang);
+if (!shot) {
+  shot = of("es");
+  console.warn(`[WARN] [Shot] no "${name}" ${device} screenshot in ${lang}: using the Spanish one`);
+}
+if (!shot) throw new Error(`[Shot] no ${device} screenshot named "${name}"`);
+const sets = {
+  phone: { sm: [[240, 480], "(max-width: 900px) 200px, 236px"], md: [[300, 600], "(max-width: 900px) 240px, 280px"] },
+  tablet: { sm: [[400, 800], "(max-width: 900px) calc(100vw - 48px), 360px"], md: [[800, 1600], "(max-width: 900px) calc(100vw - 48px), 1100px"] },
+} as const;
+const [widths, sizes] = sets[device][size];
+const pic = { alt, formats: ["avif", "webp"] as const, widths: [...widths], sizes };
+---
+<div class:list={[device, size, cls]}>
+  {shot.light === shot.dark ? (
+    <Picture src={shot.light} {...pic} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} />
+  ) : (
+    <>
+      <Picture class="only-light" src={shot.light} {...pic} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} />
+      <Picture class="only-dark" src={shot.dark} {...pic} loading="lazy" />
+    </>
+  )}
+</div>
+<style>
+  .phone { width: 280px; flex: 0 0 auto; border-radius: 44px; padding: 9px; background: var(--phone);
+           box-shadow: var(--shadow), inset 0 0 0 1px rgb(255 255 255 / .06); }
+  .phone.sm { width: 236px; border-radius: 38px; padding: 8px; }
+  .phone :global(img) { width: 100%; border-radius: 36px; }
+  .phone.sm :global(img) { border-radius: 31px; }
+  .tablet { width: 100%; border-radius: 30px; padding: 14px; background: var(--phone);
+            box-shadow: var(--shadow), inset 0 0 0 1px rgb(255 255 255 / .06); }
+  .tablet :global(img) { width: 100%; height: auto; border-radius: 18px; }
+  .tablet.sm { border-radius: 20px; padding: 9px; }
+  .tablet.sm :global(img) { border-radius: 12px; }
+  @media (max-width: 900px) {
+    .phone { width: 240px; } .phone.sm { width: 200px; }
+    .tablet { padding: 8px; border-radius: 18px; } .tablet :global(img) { border-radius: 11px; }
+  }
+</style>

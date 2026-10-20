@@ -1,0 +1,6 @@
+---
+// Sets <html data-theme> from the visitor's saved choice before the page paints (no flash).
+---
+<script is:inline>
+  try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>

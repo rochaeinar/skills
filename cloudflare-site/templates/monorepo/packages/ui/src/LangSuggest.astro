@@ -1,0 +1,51 @@
+---
+// A discreet suggestion when the browser's language is another of the site's languages: never an
+// automatic redirect (that hurts search engines and visitors who chose this page). Dismissal is kept.
+interface Props {
+  lang: string;
+  path: string;
+  locales: string[];
+  defaultLocale: string;
+  /** Per language: the sentence and the link text shown to speakers of that language. */
+  texts: Record<string, { text: string; link: string; close: string }>;
+}
+const { lang, path, locales, defaultLocale, texts } = Astro.props;
+const targets = Object.fromEntries(locales.filter((l) => l !== lang && texts[l])
+  .map((l) => [l, { href: (l === defaultLocale ? "" : `/${l}`) + path, ...texts[l] }]));
+---
+<aside class="lang-suggest" hidden data-lang={lang} data-targets={JSON.stringify(targets)}>
+  <span class="ls-text"></span> <a class="ls-link" href="#"></a>
+  <button type="button" class="ls-close" aria-label="Close">×</button>
+</aside>
+<script>
+  const el = document.querySelector<HTMLElement>(".lang-suggest");
+  if (el) {
+    const targets = JSON.parse(el.dataset.targets || "{}");
+    let dismissed = false;
+    try { dismissed = localStorage.getItem("lang-suggest") === "off"; } catch {}
+    const wanted = (navigator.languages || [navigator.language]).map((l) => l.toLowerCase().split("-")[0]);
+    const pick = wanted.find((l) => l !== el.dataset.lang && targets[l]);
+    if (pick && !dismissed && wanted[0] !== el.dataset.lang) {
+      const t = targets[pick];
+      el.querySelector(".ls-text")!.textContent = t.text;
+      const a = el.querySelector<HTMLAnchorElement>(".ls-link")!;
+      a.textContent = t.link; a.href = t.href; a.hreflang = pick; a.lang = pick;
+      el.querySelector(".ls-close")!.setAttribute("aria-label", t.close);
+      el.lang = pick;
+      el.hidden = false;
+      el.querySelector(".ls-close")!.addEventListener("click", () => {
+        el.hidden = true;
+        try { localStorage.setItem("lang-suggest", "off"); } catch {}
+      });
+    }
+  }
+</script>
+<style>
+  .lang-suggest { position: fixed; z-index: 50; left: 50%; bottom: 20px; translate: -50% 0; display: flex; align-items: center;
+                  gap: 10px; padding: 10px 10px 10px 18px; border-radius: 999px; font-size: 15px; max-width: calc(100vw - 32px);
+                  background: var(--surface-strong, #1E2420); color: var(--on-strong, #fff); box-shadow: 0 12px 32px -12px rgb(0 0 0 / .4); }
+  .lang-suggest[hidden] { display: none; }
+  .ls-link { color: inherit; font-weight: 600; }
+  .ls-close { width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgb(255 255 255 / .12); color: inherit;
+              font-size: 18px; line-height: 1; cursor: pointer; }
+</style>

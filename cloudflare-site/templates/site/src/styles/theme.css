@@ -1,43 +1,97 @@
-/* Design tokens of this site: replace them with the palette and type of the approved mockup. */
+/* Design tokens: replace them with the palette and type of the approved mockup (light and dark).
+   Dark applies when the system is dark unless the visitor chose light, or when the visitor chose dark. */
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/newsreader/opsz.css";
+@import "@fontsource-variable/newsreader/opsz-italic.css";
 
 :root {
-  --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --bg: #ffffff;
-  --surface: #f6f7f9;
-  --text: #0f172a;
-  --muted: #5b6474;
-  --accent: #0f766e;
-  --accent-contrast: #ffffff;
-  --border: rgb(15 23 42 / .08);
-  --radius: 22px;
-  --shadow: 0 20px 60px -20px rgb(15 23 42 / .25);
-  --max: 1160px;
-  color-scheme: light dark;
+  --serif: "Newsreader Variable", Georgia, "Times New Roman", serif;
+  --sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #F3F5F4;
+  --surface: #FFFFFF;
+  --text: #1E2420;
+  --body: #3E4641;
+  --muted: #5E6660;
+  --accent: #2F7A63;
+  --brand: #1F5547;
+  --on-brand: #FFFFFF;
+  --on-brand-muted: #CFE3DC;
+  --border: rgb(30 36 32 / .09);
+  --header: rgb(243 245 244 / .86);
+  --phone: #0E1213;
+  --shadow: 0 40px 80px -30px rgb(18 40 34 / .45);
+  --surface-strong: #1E2420;
+  --on-strong: #FFFFFF;
+  --max: 1180px;
+  color-scheme: light;
 }
 
+/* Dark: the system's choice unless the visitor picked light, or the visitor picked dark. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0f14;
-    --surface: #131a22;
-    --text: #e7ecf2;
-    --muted: #9aa5b4;
-    --accent: #5eead4;
-    --accent-contrast: #062925;
+  :root:not([data-theme="light"]) {
+    --bg: #12181A;
+    --surface: #1A2224;
+    --text: #ECECEA;
+    --body: #C3CCC8;
+    --muted: #9AA6A2;
+    --accent: #82BFAB;
+    --brand: #1F4A40;
+    --on-brand: #FFFFFF;
+    --on-brand-muted: #CFE3DC;
     --border: rgb(255 255 255 / .08);
-    --shadow: 0 20px 60px -20px rgb(0 0 0 / .6);
+    --header: rgb(18 24 26 / .84);
+    --phone: #050707;
+    --shadow: 0 40px 90px -30px rgb(0 0 0 / .75);
+    --surface-strong: #2A3437;
+    --on-strong: #ECECEA;
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #12181A;
+  --surface: #1A2224;
+  --text: #ECECEA;
+  --body: #C3CCC8;
+  --muted: #9AA6A2;
+  --accent: #82BFAB;
+  --brand: #1F4A40;
+  --on-brand: #FFFFFF;
+  --on-brand-muted: #CFE3DC;
+  --border: rgb(255 255 255 / .08);
+  --header: rgb(18 24 26 / .84);
+  --phone: #050707;
+  --shadow: 0 40px 90px -30px rgb(0 0 0 / .75);
+  --surface-strong: #2A3437;
+  --on-strong: #ECECEA;
+  color-scheme: dark;
+}
+
+/* Screenshots in both themes: each <Shot> renders a light and a dark picture. */
+.only-dark { display: none; }
+:root[data-theme="dark"] .only-dark { display: block; }
+:root[data-theme="dark"] .only-light { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .only-dark { display: block; }
+  :root:not([data-theme="light"]) .only-light { display: none; }
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6;
-       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; scroll-padding-top: 80px; }
+body { margin: 0; font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.6;
+       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; transition: background-color .25s ease, color .25s ease; }
 img, video { max-width: 100%; height: auto; display: block; }
-a { color: inherit; }
-h1, h2, h3 { line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 .5em; text-wrap: balance; }
+a { color: var(--accent); }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
 p { text-wrap: pretty; }
-.container { width: min(100% - 32px, var(--max)); margin-inline: auto; }
-.muted { color: var(--muted); }
+.wrap { width: min(100% - 32px, var(--max)); margin-inline: auto; }
+.eyebrow { margin: 0 0 16px; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.display { font-family: var(--serif); font-weight: 400; letter-spacing: -0.022em; line-height: 1.05; }
+.display em { font-style: italic; color: var(--accent); }
+.lead { font-size: clamp(1.08rem, 1.6vw, 1.25rem); line-height: 1.65; color: var(--body); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Used by the starting Home.astro */
+:root { --radius: 22px; --accent-contrast: #ffffff; }
+.container { width: min(100% - 32px, var(--max)); margin-inline: auto; }
+.muted { color: var(--muted); }

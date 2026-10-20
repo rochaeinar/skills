@@ -47,6 +47,19 @@ BADGES = {"en": "https://play.google.com/intl/en_us/badges/static/images/badges/
           "es": "https://play.google.com/intl/en_us/badges/static/images/badges/es-419_badge_web_generic.png"}
 
 
+def tool(name):
+    """ffmpeg/ffprobe: on PATH, or where winget installs them (not always added to PATH)."""
+    found = shutil.which(name)
+    if found:
+        return found
+    import glob
+    pattern = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg_*", "ffmpeg-*", "bin")
+    for d in sorted(glob.glob(pattern), reverse=True):
+        if Path(d, name + ".exe").exists():
+            return str(Path(d, name + ".exe"))
+    fail(f"{name} not found: winget install Gyan.FFmpeg")
+
+
 def fail(message):
     print(f"ERROR: {message}", file=sys.stderr)
     sys.exit(1)
@@ -247,7 +260,7 @@ VID = {".mp4", ".mov", ".webm", ".mkv"}
 
 def probe(path):
     if path.suffix.lower() in VID:
-        r = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+        r = run([tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
                  "stream=width,height:format=duration", "-of", "json", str(path)], check=False, capture=True)
         try:
             d = json.loads(r.stdout)
@@ -273,7 +286,8 @@ def cmd_assets(args):
         fail(f"{folder} does not exist")
     rows = []
     for p in sorted(folder.rglob("*")):
-        if p.is_file() and p.suffix.lower() in IMG | VID and "node_modules" not in p.parts:
+        skip = {"node_modules", "work", "remotion", "upload", ".git"}  # build folders of other skills
+        if p.is_file() and p.suffix.lower() in IMG | VID and not skip & set(p.parts) and ".proxy." not in p.name:
             rows.append((p.relative_to(folder).as_posix(), probe(p), p.stat().st_size))
     out = cfg["_dir"] / "content" / "assets-inventory.md"
     out.parent.mkdir(exist_ok=True)
@@ -296,11 +310,11 @@ def cmd_import(args):
         if f.suffix.lower() in VID:
             target = cfg["_dir"] / "public" / "media" / f"{name}.mp4"
             target.parent.mkdir(parents=True, exist_ok=True)
-            run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(f), "-an", "-vf",
+            run([tool("ffmpeg"), "-y", "-loglevel", "error", "-i", str(f), "-an", "-vf",
                  "scale='min(1080,iw)':-2,fps=30", "-c:v", "libx264", "-crf", "28", "-preset", "slow",
                  "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(target)])
             poster = target.with_suffix(".jpg")
-            run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(target), "-frames:v", "1", "-q:v", "3", str(poster)])
+            run([tool("ffmpeg"), "-y", "-loglevel", "error", "-i", str(target), "-frames:v", "1", "-q:v", "3", str(poster)])
             size = target.stat().st_size
             print(f"  video {f.name} -> {target.relative_to(root)} ({size / 1048576:.1f} MB) + poster")
             if size > MAX_FILE:
@@ -308,8 +322,25 @@ def cmd_import(args):
         else:
             target = cfg["_dir"] / "src" / "assets" / args.to / f"{name}{f.suffix.lower().replace('.jpeg', '.jpg')}"
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, target)
-            print(f"  image {f.name} -> {target.relative_to(root)}")
+            if args.trim:
+                trim_phone(f, target)
+            else:
+                shutil.copy2(f, target)
+            print(f"  image {f.name} -> {target.relative_to(root)}" + (" (trimmed)" if args.trim else ""))
+
+
+def trim_phone(src, target):
+    """A phone screenshot without the system bars: the black band at the top (status bar hidden or
+    camera cutout) and the navigation bar at the bottom (48 dp, the width taken as ~411 dp)."""
+    from PIL import Image
+    with Image.open(src) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        top = 0
+        while top < h // 8 and max(max(im.getpixel((x, top))) for x in range(0, w, max(1, w // 24))) < 14:
+            top += 1
+        nav = round(48 * w / 411)
+        im.crop((0, top, w, h - nav)).save(target, quality=92)
 
 
 def adb(*a, capture=True):
@@ -371,7 +402,7 @@ def check_dist(dist, cfg):
         if "TODO" in visible:
             problems.append(f"{rel}: placeholder text (TODO) left in the page")
         for img in re.findall(r"<img\b[^>]*>", html):
-            if not re.search(r'\balt="', img):
+            if not re.search(r'\salt(=|\s|/?>)', img):  # alt="" may be minified to a bare alt
                 problems.append(f"{rel}: <img> without alt: {img[:90]}")
         for href in re.findall(r'(?:href|src)="(/[^"#?]*)', html):
             target = dist / href.lstrip("/")
@@ -383,7 +414,10 @@ def check_dist(dist, cfg):
 def build(root, slug):
     cfg = site(root, slug)
     print(f"> build {slug}", flush=True)
-    run([NPM, "run", "build", "-w", f"sites/{slug}"], cwd=root, capture=True)
+    out = run([NPM, "run", "build", "-w", f"sites/{slug}"], cwd=root, capture=True)
+    warnings = sorted({l.strip() for l in (out.stdout + out.stderr).splitlines() if re.search(r"\bwarn|\[WARN\]", l, re.I)})
+    for w in warnings:
+        print(f"  WARNING {w}")
     dist = cfg["_dir"] / "dist"
     problems, files, total, pages = check_dist(dist, cfg)
     print(f"  {pages} pages, {files} files, {total / 1048576:.1f} MB")
@@ -451,32 +485,51 @@ def cmd_qa(args):
     server, base = serve(dist)
     pages = sorted("/" + p.parent.relative_to(dist).as_posix().strip(".") for p in dist.rglob("index.html"))
     pages = [p.replace("//", "/").rstrip("/") + "/" for p in pages]
+    if args.pages:
+        wanted = {p.strip() if p.strip().endswith("/") else p.strip() + "/" for p in args.pages.split(",")}
+        pages = [p for p in pages if p in wanted]
     try:
         for page in pages:
             name = page.strip("/").replace("/", "_") or "home"
-            for label, (w, h) in {"desktop": (1440, args.height), "phone": (390, args.height)}.items():
-                target = out / f"{name}-{label}.png"
-                url = base + page
-                if w < 600:  # headless windows are never narrower than ~500 px: lay the page out in an iframe
-                    url = f"{base}/__frame/{w}/{h}{page}"
-                run([browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--window-size={max(w, 800)},{h}",
-                     "--force-device-scale-factor=1", f"--screenshot={target}", "--virtual-time-budget=4000",
-                     url], capture=True, check=False)
-                if w < 600 and target.exists():
-                    from PIL import Image
-                    with Image.open(target) as im:
-                        im.crop((0, 0, w, h)).save(target)
-            print(f"  {page} -> {name}-desktop.png, {name}-phone.png")
+            themes = ["light", "dark"] if args.theme == "both" else [args.theme]
+            shots = []
+            for theme in themes:
+                for label, (w, h) in {"desktop": (1440, args.height), "phone": (390, args.height)}.items():
+                    target = out / f"{name}-{label}-{theme}.png"
+                    url = base + page
+                    if w < 600:  # headless windows are never narrower than ~500 px: lay the page out in an iframe
+                        url = f"{base}/__frame/{w}/{h}{page}"
+                    # prefers-color-scheme for the page: Blink's preferredColorScheme 0 = dark, 1 = light
+                    scheme = "0" if theme == "dark" else "1"
+                    run([browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--window-size={max(w, 800)},{h}",
+                         "--force-device-scale-factor=1", f"--blink-settings=preferredColorScheme={scheme}",
+                         f"--screenshot={target}", "--virtual-time-budget=4000", url], capture=True, check=False)
+                    if w < 600 and target.exists():
+                        from PIL import Image
+                        with Image.open(target) as im:
+                            im.crop((0, 0, w, h)).save(target)
+                    shots.append(target.name)
+            print(f"  {page} -> {', '.join(shots)}")
         if args.lighthouse:
             env = {**os.environ, "CHROME_PATH": browser}
             for page in pages[: args.lighthouse_pages]:
                 report = out / f"lighthouse-{page.strip('/').replace('/', '_') or 'home'}.json"
-                run([NPX, "--yes", "lighthouse@13", base + page, "--quiet", "--output=json", f"--output-path={report}",
-                     "--only-categories=performance,accessibility,best-practices,seo", "--form-factor=mobile",
-                     "--chrome-flags=--headless=new"], env=env, capture=True, check=False)
-                if report.exists():
-                    cats = json.loads(report.read_text(encoding="utf-8"))["categories"]
-                    print(f"  lighthouse {page}: " + ", ".join(f"{k} {round((v['score'] or 0) * 100)}" for k, v in cats.items()))
+                r = run([NPX, "--yes", "lighthouse@13", base + page, "--quiet", "--output=json", f"--output-path={report}",
+                         "--only-categories=performance,accessibility,best-practices,seo", "--form-factor=mobile",
+                         "--chrome-flags=--headless=new"], env=env, capture=True, check=False)
+                if not report.exists():
+                    print(f"  lighthouse {page}: failed\n{(r.stderr or r.stdout)[-1500:]}")
+                    continue
+                data = json.loads(report.read_text(encoding="utf-8"))
+                print(f"  lighthouse {page}: " + ", ".join(f"{k} {round((v['score'] or 0) * 100)}" for k, v in data["categories"].items()))
+                a = data["audits"]
+                print("    " + ", ".join(f"{k} {a[k]['displayValue']}" for k in ("first-contentful-paint", "largest-contentful-paint",
+                                                                            "cumulative-layout-shift", "total-blocking-time")))
+                # The local server sends no compression or cache headers: those audits are fine on Pages.
+                weak = [v["title"] for k, v in a.items() if v.get("score") is not None and v["score"] < 0.9
+                        and k not in ("cache-insight", "document-latency-insight", "uses-long-cache-ttl", "uses-text-compression")]
+                if weak:
+                    print("    to improve: " + "; ".join(weak[:8]))
     finally:
         server.shutdown()
     print(f"OK: {out}  (review the screenshots with Read; content/ is not published)")
@@ -630,11 +683,14 @@ def main():
     s.add_argument("--package"); s.add_argument("--name"); s.add_argument("--project"); s.add_argument("--app-project"); s.add_argument("--assets")
     s = sub.add_parser("assets"); s.add_argument("slug"); s.add_argument("--folder")
     s = sub.add_parser("import"); s.add_argument("slug"); s.add_argument("files", nargs="+"); s.add_argument("--to", default="screens"); s.add_argument("--name")
+    s.add_argument("--trim", action="store_true", help="phone screenshots: cut the status and navigation bars")
     s = sub.add_parser("capture"); s.add_argument("slug"); s.add_argument("kind", choices=["shot", "record"]); s.add_argument("name")
     s.add_argument("--seconds", type=int, default=20)
     s = sub.add_parser("build"); s.add_argument("slug", nargs="?"); s.add_argument("--all", action="store_true")
     s = sub.add_parser("preview"); s.add_argument("slug")
     s = sub.add_parser("qa"); s.add_argument("slug"); s.add_argument("--height", type=int, default=5200)
+    s.add_argument("--theme", choices=["light", "dark", "both"], default="both")
+    s.add_argument("--pages", help="only these pages, comma separated (e.g. /,/es/)")
     s.add_argument("--lighthouse", action="store_true"); s.add_argument("--lighthouse-pages", type=int, default=2)
     s = sub.add_parser("deploy"); s.add_argument("slug", nargs="?"); s.add_argument("--changed", action="store_true")
     s.add_argument("--prod", action="store_true"); s.add_argument("--yes", action="store_true")

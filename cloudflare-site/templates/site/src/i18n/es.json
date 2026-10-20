@@ -3,7 +3,20 @@
     "title": "TODO Nombre de la app - promesa en una línea",
     "description": "TODO 140-160 caracteres: qué hace la app y para quién, con las palabras clave principales."
   },
-  "nav": { "features": "Funciones", "screens": "Pantallas", "video": "Video", "faq": "Preguntas", "download": "Descargar" },
+  "nav": {
+    "home": "Inicio",
+    "download": "Descargar",
+    "links": [
+      {
+        "id": "features",
+        "label": "Funciones"
+      },
+      {
+        "id": "faq",
+        "label": "Preguntas"
+      }
+    ]
+  },
   "hero": {
     "eyebrow": "TODO Gratis en Android",
     "title": "TODO La promesa de la app",
@@ -14,27 +27,76 @@
     "title": "TODO Todo lo que necesitas",
     "subtitle": "TODO",
     "items": [
-      { "icon": "Sparkles", "title": "TODO Función", "text": "TODO Qué hace por el usuario." },
-      { "icon": "Zap", "title": "TODO Función", "text": "TODO Qué hace por el usuario." },
-      { "icon": "Shield", "title": "TODO Función", "text": "TODO Qué hace por el usuario." }
+      {
+        "icon": "Sparkles",
+        "title": "TODO Función",
+        "text": "TODO Qué hace por el usuario."
+      },
+      {
+        "icon": "Zap",
+        "title": "TODO Función",
+        "text": "TODO Qué hace por el usuario."
+      },
+      {
+        "icon": "Shield",
+        "title": "TODO Función",
+        "text": "TODO Qué hace por el usuario."
+      }
     ]
   },
-  "screens": { "title": "TODO Mírala en acción", "subtitle": "TODO" },
-  "video": { "title": "TODO Mira el video" },
+  "screens": {
+    "title": "TODO Mírala en acción",
+    "subtitle": "TODO"
+  },
+  "video": {
+    "title": "TODO Mira el video"
+  },
   "faq": {
     "title": "Preguntas frecuentes",
     "items": [
-      { "q": "TODO ¿Es gratis?", "a": "TODO" }
+      {
+        "q": "TODO ¿Es gratis?",
+        "a": "TODO"
+      }
     ]
   },
-  "cta": { "title": "TODO Descárgala ahora", "text": "TODO" },
-  "footer": { "privacy": "Política de privacidad", "rights": "Todos los derechos reservados." },
-  "privacy": {
-    "title": "Política de privacidad",
-    "updated": "TODO Última actualización: fecha",
-    "sections": [
-      { "h": "TODO Qué datos usa la app", "p": "TODO Según el análisis: permisos, analítica, anuncios, sincronización, cuentas." }
-    ]
+  "cta": {
+    "title": "TODO Descárgala ahora",
+    "text": "TODO"
   },
-  "notFound": { "title": "Página no encontrada", "text": "Esta página no existe.", "home": "Ir al inicio" }
+  "footer": {
+    "privacy": "Privacidad",
+    "terms": "Términos",
+    "credits": "Créditos",
+    "rights": "TODO Company name"
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "text": "Esta página no existe.",
+    "home": "Ir al inicio"
+  },
+  "theme": {
+    "light": "Cambiar a modo claro",
+    "dark": "Cambiar a modo oscuro"
+  },
+  "langSuggest": {
+    "text": "Esta página también está en español.",
+    "link": "Ver en español",
+    "close": "Cerrar"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Política de privacidad",
+      "description": "TODO"
+    },
+    "terms": {
+      "title": "Términos y condiciones",
+      "description": "TODO"
+    },
+    "credits": {
+      "title": "Créditos",
+      "description": "TODO"
+    },
+    "back": "Volver al inicio"
+  }
 }

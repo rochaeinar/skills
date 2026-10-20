@@ -1,0 +1,6 @@
+---
+import Legal from "../../components/Legal.astro";
+import { otherLocales } from "../../i18n";
+export const getStaticPaths = otherLocales;
+---
+<Legal lang={Astro.params.lang!} doc="terms" />

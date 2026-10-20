@@ -3,7 +3,20 @@
     "title": "TODO App name - one line promise",
     "description": "TODO 140-160 characters: what the app does and for whom, with the main keywords."
   },
-  "nav": { "features": "Features", "screens": "Screens", "video": "Video", "faq": "FAQ", "download": "Download" },
+  "nav": {
+    "home": "Home",
+    "download": "Download",
+    "links": [
+      {
+        "id": "features",
+        "label": "Features"
+      },
+      {
+        "id": "faq",
+        "label": "FAQ"
+      }
+    ]
+  },
   "hero": {
     "eyebrow": "TODO Free on Android",
     "title": "TODO The promise of the app",
@@ -14,27 +27,76 @@
     "title": "TODO Everything you need",
     "subtitle": "TODO",
     "items": [
-      { "icon": "Sparkles", "title": "TODO Feature", "text": "TODO What it does for the user." },
-      { "icon": "Zap", "title": "TODO Feature", "text": "TODO What it does for the user." },
-      { "icon": "Shield", "title": "TODO Feature", "text": "TODO What it does for the user." }
+      {
+        "icon": "Sparkles",
+        "title": "TODO Feature",
+        "text": "TODO What it does for the user."
+      },
+      {
+        "icon": "Zap",
+        "title": "TODO Feature",
+        "text": "TODO What it does for the user."
+      },
+      {
+        "icon": "Shield",
+        "title": "TODO Feature",
+        "text": "TODO What it does for the user."
+      }
     ]
   },
-  "screens": { "title": "TODO See it in action", "subtitle": "TODO" },
-  "video": { "title": "TODO Watch the video" },
+  "screens": {
+    "title": "TODO See it in action",
+    "subtitle": "TODO"
+  },
+  "video": {
+    "title": "TODO Watch the video"
+  },
   "faq": {
     "title": "Frequently asked questions",
     "items": [
-      { "q": "TODO Is it free?", "a": "TODO" }
+      {
+        "q": "TODO Is it free?",
+        "a": "TODO"
+      }
     ]
   },
-  "cta": { "title": "TODO Download it now", "text": "TODO" },
-  "footer": { "privacy": "Privacy policy", "rights": "All rights reserved." },
-  "privacy": {
-    "title": "Privacy policy",
-    "updated": "TODO Last updated: date",
-    "sections": [
-      { "h": "TODO What data the app uses", "p": "TODO From the analysis: permissions, analytics, ads, sync, accounts." }
-    ]
+  "cta": {
+    "title": "TODO Download it now",
+    "text": "TODO"
   },
-  "notFound": { "title": "Page not found", "text": "This page does not exist.", "home": "Go to the home page" }
+  "footer": {
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "credits": "Credits",
+    "rights": "TODO Company name"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "text": "This page does not exist.",
+    "home": "Go to the home page"
+  },
+  "theme": {
+    "light": "Switch to light mode",
+    "dark": "Switch to dark mode"
+  },
+  "langSuggest": {
+    "text": "This page is also in English.",
+    "link": "View in English",
+    "close": "Close"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Privacy policy",
+      "description": "TODO"
+    },
+    "terms": {
+      "title": "Terms and conditions",
+      "description": "TODO"
+    },
+    "credits": {
+      "title": "Credits",
+      "description": "TODO"
+    },
+    "back": "Back to the home page"
+  }
 }

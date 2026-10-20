@@ -1,0 +1,37 @@
+---
+// Privacy, terms and image credits: the same Markdown the app ships (assets/legal/*.md and
+// assets/credits/photo_credits_*.md), copied to src/legal/<doc>.<lang>.md. A language without its
+// own copy shows the English one. Keep them in sync with the app when they change.
+import Layout from "./Layout.astro";
+import { t, localePath, site } from "../i18n";
+
+type Doc = "privacy" | "terms" | "credits";
+interface Props { lang: string; doc: Doc }
+const { lang, doc } = Astro.props;
+const tx = t(lang);
+const files = import.meta.glob<{ Content: any }>("../legal/*.md", { eager: true });
+const file = files[`../legal/${doc}.${lang}.md`] ?? files[`../legal/${doc}.en.md`];
+const { Content } = file;
+const meta = tx.legal[doc];
+---
+<Layout lang={lang} path={`/${doc}/`} title={`${meta.title} · ${site.name}`} description={meta.description}>
+  <article class="wrap legal">
+    <a class="back" href={localePath(lang)}>← {tx.legal.back}</a>
+    <h1 class="display">{meta.title}</h1>
+    <div class="prose"><Content /></div>
+  </article>
+</Layout>
+<style>
+  .legal { max-width: 780px; padding-top: 56px; }
+  .back { font-size: 14px; text-decoration: none; color: var(--muted); }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); margin: 20px 0 8px; }
+  .prose { font-size: 17px; line-height: 1.7; color: var(--body); }
+  .prose :global(h2) { font-family: var(--serif); font-weight: 500; font-size: 1.6rem; color: var(--text); margin: 2.2em 0 .5em; }
+  .prose :global(hr) { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+  .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 15px; display: block; overflow-x: auto; }
+  .prose :global(th), .prose :global(td) { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .prose :global(blockquote) { margin: 1.4em 0; padding: 14px 18px; border-radius: 14px; background: var(--surface); color: var(--muted); }
+  .prose :global(li) { margin: .35em 0; }
+  .prose :global(a) { word-break: break-word; }
+  .prose :global(code) { font-size: .92em; }
+</style>

@@ -7,7 +7,8 @@ export default defineConfig({
   site: `https://${site.domain}`,
   output: "static",
   trailingSlash: "always",
-  build: { format: "directory" },
+  // CSS inside each page: no render-blocking request before the first paint.
+  build: { format: "directory", inlineStylesheets: "always" },
   i18n: {
     locales: site.locales,
     defaultLocale: site.default_locale,

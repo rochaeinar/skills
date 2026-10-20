@@ -2,43 +2,90 @@
 import "../styles/theme.css";
 import Seo from "@sites/ui/Seo.astro";
 import Analytics from "@sites/ui/Analytics.astro";
-import LangSwitch from "@sites/ui/LangSwitch.astro";
-import { t, locales, defaultLocale, localePath, site } from "../i18n";
+import ThemeScript from "@sites/ui/ThemeScript.astro";
+import ThemeToggle from "@sites/ui/ThemeToggle.astro";
+import LangSuggest from "@sites/ui/LangSuggest.astro";
+import { Image } from "astro:assets";
+import logo from "../assets/logo.svg";
+import { existsSync } from "node:fs";
+// Preload the fonts of the design (here Inter and Newsreader); preloaded so the headline and body text do not shift when the fonts arrive (Latin only: the
+// other subsets load on demand through unicode-range).
+import serifFont from "@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url";
+import sansFont from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import { t, locales, defaultLocale, localePath, rtl, suggestions, site } from "../i18n";
 
-interface Props { lang: string; path: string; title?: string; description?: string }
-const { lang, path, title, description } = Astro.props;
+interface Props { lang: string; path: string; title?: string; description?: string; home?: boolean }
+const { lang, path, title, description, home = false } = Astro.props;
 const tx = t(lang);
+const names: Record<string, string> = { en: "English", es: "Español" };
+// Share image per language: public/og-<lang>.png, else public/og.png.
+const ogImage = lang !== defaultLocale && existsSync(`public/og-${lang}.png`) ? `/og-${lang}.png` : "/og.png";
+const anchor = (id: string) => (home ? `#${id}` : `${localePath(lang)}#${id}`);
 ---
 <!doctype html>
-<html lang={lang}>
+<html lang={lang} dir={rtl.has(lang) ? "rtl" : "ltr"}>
   <head>
+    <ThemeScript />
+    <link rel="preload" href={serifFont} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={sansFont} as="font" type="font/woff2" crossorigin />
     <Seo title={title ?? tx.meta.title} description={description ?? tx.meta.description} lang={lang} path={path}
-         locales={locales} defaultLocale={defaultLocale} themeColor={site.theme_color}
+         locales={locales} defaultLocale={defaultLocale} themeColor={site.theme_color} image={ogImage}
          app={{ name: site.name, package: site.play.package, category: site.category }} />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body>
     <header class="top">
-      <div class="container bar">
-        <a class="brand" href={localePath(lang)}>{site.name}</a>
-        <LangSwitch lang={lang} path={path} locales={locales} defaultLocale={defaultLocale} />
+      <div class="wrap bar">
+        <a class="brand" href={localePath(lang)} aria-label={site.name}>
+          <Image src={logo} alt="" width={32} height={32} loading="eager" />
+          <span>{site.name}</span>
+        </a>
+        <nav class="links" aria-label={tx.nav.home}>
+          {tx.nav.links.map((l) => <a href={anchor(l.id)}>{l.label}</a>)}
+        </nav>
+        <div class="tools">
+          {locales.filter((l) => l !== lang).map((l) => (
+            <a class="lang" href={localePath(l, path)} hreflang={l} lang={l}>{names[l] ?? l.toUpperCase()}</a>
+          ))}
+          <ThemeToggle labels={tx.theme} />
+          <a class="cta" href={anchor("download")}>{tx.nav.download}</a>
+        </div>
       </div>
     </header>
     <main><slot /></main>
     <footer class="foot">
-      <div class="container bar">
-        <span class="muted">© {new Date().getFullYear()} {site.name}. {tx.footer.rights}</span>
-        <a href={localePath(lang, "/privacy/")}>{tx.footer.privacy}</a>
+      <div class="wrap bar">
+        <span>© {new Date().getFullYear()} {tx.footer.rights}</span>
+        <nav aria-label="Legal">
+          <a href={localePath(lang, "/privacy/")}>{tx.footer.privacy}</a>
+          <a href={localePath(lang, "/terms/")}>{tx.footer.terms}</a>
+          <a href={localePath(lang, "/credits/")}>{tx.footer.credits}</a>
+        </nav>
       </div>
     </footer>
+    <LangSuggest lang={lang} path={path} locales={locales} defaultLocale={defaultLocale} texts={suggestions} />
     <Analytics token={site.analytics_token} />
   </body>
 </html>
 <style>
-  .top { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(1.6) blur(14px);
-         background: color-mix(in srgb, var(--bg) 78%, transparent); border-bottom: 1px solid var(--border); }
-  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; }
-  .brand { font-weight: 700; text-decoration: none; letter-spacing: -0.01em; }
-  .top :global(.lang-switch a) { text-decoration: none; color: var(--muted); font-size: .95rem; }
-  .foot { border-top: 1px solid var(--border); margin-top: 96px; font-size: .95rem; }
+  .top { position: sticky; top: 0; z-index: 20; background: var(--header); backdrop-filter: saturate(1.4) blur(12px);
+         -webkit-backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); font-weight: 600;
+           font-size: 17px; letter-spacing: -0.01em; }
+  .brand :global(img) { width: 32px; height: 32px; border-radius: 9px; }
+  .links { display: flex; gap: 32px; font-size: 15px; }
+  .links a, .lang { text-decoration: none; color: var(--body); }
+  .links a:hover, .lang:hover { color: var(--accent); }
+  .tools { display: flex; align-items: center; gap: 8px; }
+  .lang { font-size: 14px; padding: 0 8px; }
+  .cta { background: var(--brand); color: var(--on-brand); text-decoration: none; padding: 11px 18px; border-radius: 999px;
+         font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .cta:hover { filter: brightness(1.08); }
+  .foot { margin-top: 96px; border-top: 1px solid var(--border); font-size: 14px; color: var(--muted); }
+  .foot .bar { flex-wrap: wrap; padding: 28px 0; }
+  .foot nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
   .foot a { color: var(--muted); }
+  @media (max-width: 960px) { .links { display: none; } }
+  @media (max-width: 420px) { .brand span { display: none; } }
 </style>
