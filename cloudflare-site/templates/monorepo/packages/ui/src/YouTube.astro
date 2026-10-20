@@ -1,0 +1,35 @@
+---
+// Lightweight YouTube embed: only a thumbnail until clicked (no YouTube scripts or cookies on load),
+// then the privacy-enhanced player (youtube-nocookie.com).
+interface Props { id: string; title: string; vertical?: boolean }
+const { id, title, vertical = false } = Astro.props;
+---
+<lite-youtube data-id={id} data-title={title} class:list={{ vertical }}>
+  <button type="button" aria-label={title}>
+    <img src={`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`} alt={title} loading="lazy" decoding="async" />
+    <span class="play" aria-hidden="true"></span>
+  </button>
+</lite-youtube>
+<script>
+  for (const el of document.querySelectorAll<HTMLElement>("lite-youtube")) {
+    el.querySelector("button")!.addEventListener("click", () => {
+      const f = document.createElement("iframe");
+      f.src = `https://www.youtube-nocookie.com/embed/${el.dataset.id}?autoplay=1&rel=0`;
+      f.title = el.dataset.title ?? "";
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      f.allowFullscreen = true;
+      el.replaceChildren(f);
+    }, { once: true });
+  }
+</script>
+<style>
+  lite-youtube { display: block; position: relative; aspect-ratio: 16 / 9; border-radius: inherit; overflow: hidden; background: #000; }
+  lite-youtube.vertical { aspect-ratio: 9 / 16; }
+  lite-youtube button { all: unset; cursor: pointer; position: absolute; inset: 0; }
+  lite-youtube img, lite-youtube :global(iframe) { width: 100%; height: 100%; object-fit: cover; border: 0; display: block; }
+  .play { position: absolute; inset: 50% auto auto 50%; translate: -50% -50%; width: 72px; height: 72px; border-radius: 50%;
+          background: rgb(0 0 0 / .6); backdrop-filter: blur(6px); transition: transform .2s; }
+  .play::after { content: ""; position: absolute; inset: 50% auto auto 54%; translate: -50% -50%;
+                 border-style: solid; border-width: 12px 0 12px 20px; border-color: transparent transparent transparent #fff; }
+  button:hover .play, button:focus-visible .play { transform: scale(1.08); }
+</style>

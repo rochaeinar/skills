@@ -1,0 +1,12 @@
+{
+  "name": "websites",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "sites/*"],
+  "devDependencies": {
+    "astro": "^7.4.1",
+    "@astrojs/sitemap": "^3.7.4",
+    "sharp": "^0.35.5",
+    "wrangler": "^4.151.3"
+  }
+}

@@ -1,0 +1,9 @@
+---
+// Cloudflare Web Analytics: free, no cookies (no consent banner needed). The token is public: it
+// comes from the dashboard (Analytics & Logs -> Web Analytics -> Add a site) and goes in site.json.
+interface Props { token?: string }
+const { token } = Astro.props;
+---
+{token && (
+  <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token })}></script>
+)}

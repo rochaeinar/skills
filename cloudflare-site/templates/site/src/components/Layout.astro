@@ -1,0 +1,44 @@
+---
+import "../styles/theme.css";
+import Seo from "@sites/ui/Seo.astro";
+import Analytics from "@sites/ui/Analytics.astro";
+import LangSwitch from "@sites/ui/LangSwitch.astro";
+import { t, locales, defaultLocale, localePath, site } from "../i18n";
+
+interface Props { lang: string; path: string; title?: string; description?: string }
+const { lang, path, title, description } = Astro.props;
+const tx = t(lang);
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <Seo title={title ?? tx.meta.title} description={description ?? tx.meta.description} lang={lang} path={path}
+         locales={locales} defaultLocale={defaultLocale} themeColor={site.theme_color}
+         app={{ name: site.name, package: site.play.package, category: site.category }} />
+  </head>
+  <body>
+    <header class="top">
+      <div class="container bar">
+        <a class="brand" href={localePath(lang)}>{site.name}</a>
+        <LangSwitch lang={lang} path={path} locales={locales} defaultLocale={defaultLocale} />
+      </div>
+    </header>
+    <main><slot /></main>
+    <footer class="foot">
+      <div class="container bar">
+        <span class="muted">© {new Date().getFullYear()} {site.name}. {tx.footer.rights}</span>
+        <a href={localePath(lang, "/privacy/")}>{tx.footer.privacy}</a>
+      </div>
+    </footer>
+    <Analytics token={site.analytics_token} />
+  </body>
+</html>
+<style>
+  .top { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(1.6) blur(14px);
+         background: color-mix(in srgb, var(--bg) 78%, transparent); border-bottom: 1px solid var(--border); }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; }
+  .brand { font-weight: 700; text-decoration: none; letter-spacing: -0.01em; }
+  .top :global(.lang-switch a) { text-decoration: none; color: var(--muted); font-size: .95rem; }
+  .foot { border-top: 1px solid var(--border); margin-top: 96px; font-size: .95rem; }
+  .foot a { color: var(--muted); }
+</style>

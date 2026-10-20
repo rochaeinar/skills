@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "title": "TODO Nombre de la app - promesa en una línea",
+    "description": "TODO 140-160 caracteres: qué hace la app y para quién, con las palabras clave principales."
+  },
+  "nav": { "features": "Funciones", "screens": "Pantallas", "video": "Video", "faq": "Preguntas", "download": "Descargar" },
+  "hero": {
+    "eyebrow": "TODO Gratis en Android",
+    "title": "TODO La promesa de la app",
+    "subtitle": "TODO Una o dos frases con los beneficios principales, verificados en el código.",
+    "note": "TODO Gratis · Sin crear cuenta"
+  },
+  "features": {
+    "title": "TODO Todo lo que necesitas",
+    "subtitle": "TODO",
+    "items": [
+      { "icon": "Sparkles", "title": "TODO Función", "text": "TODO Qué hace por el usuario." },
+      { "icon": "Zap", "title": "TODO Función", "text": "TODO Qué hace por el usuario." },
+      { "icon": "Shield", "title": "TODO Función", "text": "TODO Qué hace por el usuario." }
+    ]
+  },
+  "screens": { "title": "TODO Mírala en acción", "subtitle": "TODO" },
+  "video": { "title": "TODO Mira el video" },
+  "faq": {
+    "title": "Preguntas frecuentes",
+    "items": [
+      { "q": "TODO ¿Es gratis?", "a": "TODO" }
+    ]
+  },
+  "cta": { "title": "TODO Descárgala ahora", "text": "TODO" },
+  "footer": { "privacy": "Política de privacidad", "rights": "Todos los derechos reservados." },
+  "privacy": {
+    "title": "Política de privacidad",
+    "updated": "TODO Última actualización: fecha",
+    "sections": [
+      { "h": "TODO Qué datos usa la app", "p": "TODO Según el análisis: permisos, analítica, anuncios, sincronización, cuentas." }
+    ]
+  },
+  "notFound": { "title": "Página no encontrada", "text": "Esta página no existe.", "home": "Ir al inicio" }
+}

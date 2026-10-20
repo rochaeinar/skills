@@ -1,0 +1,10 @@
+---
+// Links to the same page in the other languages.
+interface Props { lang: string; path: string; locales: string[]; defaultLocale: string; class?: string }
+const { lang, path, locales, defaultLocale, class: cls } = Astro.props;
+const names: Record<string, string> = { en: "English", es: "Español", pt: "Português", fr: "Français", de: "Deutsch" };
+const href = (l: string) => (l === defaultLocale ? "" : `/${l}`) + path;
+---
+<nav class:list={["lang-switch", cls]} aria-label="Language">
+  {locales.filter((l) => l !== lang).map((l) => <a href={href(l)} hreflang={l} lang={l}>{names[l] ?? l.toUpperCase()}</a>)}
+</nav>

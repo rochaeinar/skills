@@ -1,0 +1,49 @@
+---
+// Every head tag a landing page needs: title, description, canonical, hreflang alternates,
+// Open Graph / Twitter cards and the SoftwareApplication structured data of the app.
+interface Props {
+  title: string;
+  description: string;
+  lang: string;
+  path: string;                       // this page without the language prefix, e.g. "/" or "/privacy/"
+  locales: string[];
+  defaultLocale: string;
+  image?: string;                     // absolute or root-relative, 1200x630
+  app?: { name: string; package?: string; category?: string; rating?: number; ratingCount?: number };
+  themeColor?: string;
+}
+const { title, description, lang, path, locales, defaultLocale, image = "/og.png", app, themeColor } = Astro.props;
+const site = Astro.site!;
+const href = (l: string) => new URL((l === defaultLocale ? "" : `/${l}`) + path, site).href;
+const ogImage = new URL(image, site).href;
+const ld = app && {
+  "@context": "https://schema.org",
+  "@type": "MobileApplication",
+  name: app.name,
+  operatingSystem: "Android",
+  applicationCategory: app.category ?? "LifestyleApplication",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  ...(app.package && { installUrl: `https://play.google.com/store/apps/details?id=${app.package}` }),
+  ...(app.rating && { aggregateRating: { "@type": "AggregateRating", ratingValue: app.rating, ratingCount: app.ratingCount } }),
+  description,
+  image: ogImage,
+};
+---
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={href(lang)} />
+{locales.map((l) => <link rel="alternate" hreflang={l} href={href(l)} />)}
+<link rel="alternate" hreflang="x-default" href={href(defaultLocale)} />
+<meta property="og:type" content="website" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={href(lang)} />
+<meta property="og:image" content={ogImage} />
+<meta property="og:locale" content={lang} />
+<meta name="twitter:card" content="summary_large_image" />
+{themeColor && <meta name="theme-color" content={themeColor} />}
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="sitemap" href="/sitemap-index.xml" />
+{ld && <script type="application/ld+json" set:html={JSON.stringify(ld)} />}

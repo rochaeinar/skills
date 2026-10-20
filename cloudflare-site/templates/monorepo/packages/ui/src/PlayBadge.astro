@@ -1,0 +1,22 @@
+---
+// The official "Get it on Google Play" badge (Google's brand guidelines: unchanged artwork, at least
+// 40 px tall in digital media, linked to the app's store page).
+import { Image } from "astro:assets";
+import en from "./assets/google-play-badge-en.png";
+import es from "./assets/google-play-badge-es.png";
+
+interface Props { pkg: string; lang: string; height?: number; utm?: string; class?: string }
+const { pkg, lang, height = 64, utm = "website", class: cls } = Astro.props;
+const badges: Record<string, ImageMetadata> = { en, es };
+const badge = badges[lang.split("-")[0]] ?? en;
+const url = `https://play.google.com/store/apps/details?id=${pkg}&hl=${lang}&utm_source=${utm}&utm_medium=badge`;
+const alt = lang.startsWith("es") ? "Disponible en Google Play" : "Get it on Google Play";
+---
+<a href={url} class:list={["play-badge", cls]} rel="noopener" aria-label={alt}>
+  <Image src={badge} alt={alt} height={height} widths={[badge.width / 2, badge.width]} sizes={`${Math.round(height * badge.width / badge.height)}px`} loading="eager" />
+</a>
+<style>
+  .play-badge { display: inline-block; line-height: 0; transition: transform .2s ease; }
+  .play-badge:hover { transform: translateY(-2px); }
+  .play-badge :global(img) { height: auto; width: auto; max-height: var(--badge-h, 64px); }
+</style>

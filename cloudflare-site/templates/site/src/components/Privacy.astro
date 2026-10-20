@@ -1,0 +1,22 @@
+---
+// Privacy policy (Google Play requires one per app). Its content comes from the analysis of the app
+// (permissions, analytics, ads, sync, accounts) and the user must review it: it is not legal advice.
+import Layout from "./Layout.astro";
+import { t } from "../i18n";
+
+interface Props { lang: string }
+const { lang } = Astro.props;
+const tx = t(lang);
+---
+<Layout lang={lang} path="/privacy/" title={tx.privacy.title} description={tx.privacy.sections[0]?.p.slice(0, 155)}>
+  <article class="container legal">
+    <h1>{tx.privacy.title}</h1>
+    <p class="muted">{tx.privacy.updated}</p>
+    {tx.privacy.sections.map((s) => (<section><h2>{s.h}</h2><p set:html={s.p} /></section>))}
+  </article>
+</Layout>
+<style>
+  .legal { max-width: 760px; padding-top: 64px; }
+  .legal h1 { font-size: clamp(2rem, 5vw, 3rem); }
+  .legal h2 { font-size: 1.25rem; margin-top: 36px; }
+</style>

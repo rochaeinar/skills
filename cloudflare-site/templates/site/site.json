@@ -1,0 +1,16 @@
+{
+  "slug": "",
+  "name": "",
+  "profile": "",
+  "project": "",
+  "domain": "",
+  "locales": ["en", "es"],
+  "default_locale": "en",
+  "theme_color": "#0f172a",
+  "category": "LifestyleApplication",
+  "play": { "package": "" },
+  "youtube": {},
+  "analytics_token": "",
+  "app_project": "",
+  "assets_dir": ""
+}

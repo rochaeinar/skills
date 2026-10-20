@@ -1,0 +1,12 @@
+---
+import Layout from "../components/Layout.astro";
+import { t, defaultLocale, localePath } from "../i18n";
+const tx = t(defaultLocale);
+---
+<Layout lang={defaultLocale} path="/404/" title={tx.notFound.title} description={tx.notFound.text}>
+  <section class="container" style="padding: 120px 0; text-align: center">
+    <h1>{tx.notFound.title}</h1>
+    <p class="muted">{tx.notFound.text}</p>
+    <a href={localePath(defaultLocale)}>{tx.notFound.home}</a>
+  </section>
+</Layout>

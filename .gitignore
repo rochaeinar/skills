@@ -4,3 +4,4 @@ __pycache__/
 apps.json
 client_secret*.json
 remotion/node_modules/
+cloudflare-site/config.json

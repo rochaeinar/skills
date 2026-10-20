@@ -1,0 +1,43 @@
+/* Design tokens of this site: replace them with the palette and type of the approved mockup. */
+@import "@fontsource-variable/inter";
+
+:root {
+  --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #ffffff;
+  --surface: #f6f7f9;
+  --text: #0f172a;
+  --muted: #5b6474;
+  --accent: #0f766e;
+  --accent-contrast: #ffffff;
+  --border: rgb(15 23 42 / .08);
+  --radius: 22px;
+  --shadow: 0 20px 60px -20px rgb(15 23 42 / .25);
+  --max: 1160px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f14;
+    --surface: #131a22;
+    --text: #e7ecf2;
+    --muted: #9aa5b4;
+    --accent: #5eead4;
+    --accent-contrast: #062925;
+    --border: rgb(255 255 255 / .08);
+    --shadow: 0 20px 60px -20px rgb(0 0 0 / .6);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6;
+       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+img, video { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+h1, h2, h3 { line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 .5em; text-wrap: balance; }
+p { text-wrap: pretty; }
+.container { width: min(100% - 32px, var(--max)); margin-inline: auto; }
+.muted { color: var(--muted); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
