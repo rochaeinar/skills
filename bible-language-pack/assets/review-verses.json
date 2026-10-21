@@ -1,0 +1,31 @@
+{
+  "_comment": "Verses every reviewer reads next to the KJV before approving a Bible. 'doctrine' marks the passages where a translation shows its theology (see healthReport.md); 'check' is what to look for.",
+  "verses": [
+    {"ref": "GEN 1:1-3", "check": "Creación: Dios crea por su palabra"},
+    {"ref": "EXO 20:3-5", "doctrine": true, "check": "Prohíbe toda imagen (no solo 'ídolos') y postrarse ante ellas"},
+    {"ref": "PSA 23:1-6", "check": "Salmo 23 completo, numeración correcta (no el 22 de la Septuaginta)"},
+    {"ref": "ISA 7:14", "doctrine": true, "check": "'Virgen' (no solo 'joven')"},
+    {"ref": "ISA 9:6", "doctrine": true, "check": "'Dios fuerte, Padre eterno'"},
+    {"ref": "ISA 53:4-6", "check": "Sustitución: 'herido por nuestras rebeliones'"},
+    {"ref": "MAL 4:5-6", "check": "Último versículo del AT en su lugar (Malaquías 4, no 3:23-24)"},
+    {"ref": "MAT 1:23-25", "doctrine": true, "check": "'Hasta que dio a luz' y 'primogénito' (sin cortar la frase)"},
+    {"ref": "MAT 16:18", "check": "Literal: 'sobre esta roca'"},
+    {"ref": "LUK 1:28", "doctrine": true, "check": "'Muy favorecida' (no un título de María)"},
+    {"ref": "JHN 1:1-3", "doctrine": true, "check": "'El Verbo era Dios' (no 'un dios')"},
+    {"ref": "JHN 3:16", "check": "Versículo conocido: comparar con lo que el lector espera"},
+    {"ref": "JHN 14:6", "check": "Cristo único camino"},
+    {"ref": "ACT 4:12", "check": "No hay otro nombre"},
+    {"ref": "ROM 3:23-28", "doctrine": true, "check": "Justificados por la fe, sin las obras de la ley"},
+    {"ref": "ROM 5:1", "check": "Justificados por la fe, paz con Dios"},
+    {"ref": "ROM 9:5", "doctrine": true, "check": "Cristo 'Dios sobre todas las cosas'"},
+    {"ref": "1CO 3:15", "doctrine": true, "check": "Sin agregar purgatorio"},
+    {"ref": "GAL 2:16", "doctrine": true, "check": "Por la fe de Jesucristo, no por las obras"},
+    {"ref": "EPH 2:8-9", "doctrine": true, "check": "Por gracia, por medio de la fe, no por obras"},
+    {"ref": "1TI 2:5", "doctrine": true, "check": "Un solo mediador"},
+    {"ref": "TIT 1:5", "check": "'Ancianos' (presbíteros), no 'sacerdotes'"},
+    {"ref": "TIT 2:13", "doctrine": true, "check": "'Nuestro gran Dios y Salvador Jesucristo'"},
+    {"ref": "HEB 9:27", "check": "Morir una vez y después el juicio"},
+    {"ref": "1JN 5:7", "check": "Coma joánica: presente o no según el texto base (informativo)"},
+    {"ref": "REV 22:21", "check": "Último versículo de la Biblia presente"}
+  ]
+}

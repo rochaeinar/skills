@@ -5,3 +5,4 @@ apps.json
 client_secret*.json
 remotion/node_modules/
 cloudflare-site/config.json
+bible-language-pack/scripts/config.json

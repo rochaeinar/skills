@@ -9,12 +9,13 @@ Copia de seguridad de los skills propios. Claude Code los carga desde `%USERPROF
 | `android-release` | Versión nueva a Google Play de punta a punta: versión = fecha de hoy y código verificado contra Play, tests, AAB release firmado, notas por idioma y publicación con `play-console` | `android-release/SETUP.md` |
 | `cloudflare-site` | Web oficial de cada app (Astro estático, un subdominio por app) en Cloudflare Pages desde un monorepo, con varias cuentas de Cloudflare: análisis de la app, capturas, mockups en Claude Design, controles de calidad y deploy con wrangler | `cloudflare-site/SETUP.md` |
 | `app-promo-video` | Videos promocionales de apps (TikTok, Reels, Shorts, YouTube y Google Play): grabación con Maestro, voz y música con ElevenLabs, gancho con IA (fal.ai), edición con Remotion, control de calidad y subida a YouTube | `app-promo-video/SETUP.md` |
+| `bible-language-pack` | Idiomas nuevos de Bible Versions, uno a la vez: Biblias descargadas → numeración KJV, validación de calidad (reporte + hoja de revisión humana), paquete `.obb` con la Biblia en el idioma y el resto en inglés, subida a R2 y manifest | `bible-language-pack/SETUP.md` |
 
 ## Instalar en otra PC
 
 1. Copiar cada carpeta de skill a `%USERPROFILE%\.claude\skills\`:
    ```powershell
-   Copy-Item -Recurse D:\Projects\skills\app-promo-video, D:\Projects\skills\play-feature-graphic, D:\Projects\skills\play-console, D:\Projects\skills\android-release, D:\Projects\skills\cloudflare-site "$env:USERPROFILE\.claude\skills\"
+   Copy-Item -Recurse D:\Projects\skills\app-promo-video, D:\Projects\skills\play-feature-graphic, D:\Projects\skills\play-console, D:\Projects\skills\android-release, D:\Projects\skills\cloudflare-site, D:\Projects\skills\bible-language-pack "$env:USERPROFILE\.claude\skills\"
    ```
 2. Seguir el `SETUP.md` de cada skill (herramientas, cuentas y claves). **Las claves nunca están en esta carpeta**: se crean de nuevo en cada PC, en el Administrador de credenciales de Windows.
 3. Abrir una sesión nueva de Claude Code: los skills aparecen en la lista. Para usarlos, pedir por ejemplo "haz un video promocional de mi app" o "genera la imagen destacada de Play".
