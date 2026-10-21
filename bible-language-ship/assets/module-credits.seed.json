@@ -1,0 +1,229 @@
+{
+  "_comment": "Credits shown in About > Bibles and commentaries (assets/legal/bible_modules_<ui>.md). One entry per module that is mentioned: the English pack and the lite Spanish pack (first run), then every new language. NEVER the full Spanish pack. status: ok = shown; hidden = never shown (an editorial copyright or a permission is needed: user's decision 2026-10-21); review = facts missing, ask the user before showing it. Copied to <app>/cdn/bible/module-credits.json on the first run; after that the app repo copy is the source. Text fields (language, year, by, licence, notes) are a plain string, the same in every document, or {\"en\": ..., \"es\": ...}: the documents are only in English and Spanish (user's decision 2026-10-21).",
+  "modules": [
+    {
+      "id": 13,
+      "pack": "en",
+      "type": "bible",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "KJV",
+      "name": "King James Version",
+      "year": {
+        "en": "1611, 1769 edition",
+        "es": "1611, edición de 1769"
+      },
+      "by": {
+        "en": "Translators appointed by King James I",
+        "es": "Traductores del rey Jacobo I"
+      },
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader / eBible.org",
+      "status": "ok"
+    },
+    {
+      "id": 42,
+      "pack": "en",
+      "type": "bible",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "ASV",
+      "name": "American Standard Version",
+      "year": "1901",
+      "by": {
+        "en": "American committee of the English Revised Version",
+        "es": "Comité americano de la revisión de la versión inglesa"
+      },
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader / eBible.org",
+      "status": "ok"
+    },
+    {
+      "id": 39,
+      "pack": "en",
+      "type": "bible",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "WEB",
+      "name": "World English Bible",
+      "year": "2000–2020",
+      "by": {
+        "en": "Michael Paul Johnson and volunteers (eBible.org), a revision of the ASV",
+        "es": "Michael Paul Johnson y voluntarios (eBible.org), revisión del ASV"
+      },
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "eBible.org",
+      "status": "ok"
+    },
+    {
+      "id": 41,
+      "pack": "en",
+      "type": "bible",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "GEN",
+      "name": "Geneva Bible",
+      "year": "1587",
+      "by": {
+        "en": "Protestant exiles in Geneva (William Whittingham and others)",
+        "es": "Exiliados protestantes en Ginebra (William Whittingham y otros)"
+      },
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader",
+      "status": "ok"
+    },
+    {
+      "id": 40,
+      "pack": "en",
+      "type": "bible",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "TYN",
+      "name": "Tyndale Bible",
+      "year": "1526–1534",
+      "by": "William Tyndale",
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader",
+      "status": "ok"
+    },
+    {
+      "id": 37,
+      "pack": "en",
+      "type": "commentary",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "JFB",
+      "name": "Jamieson, Fausset and Brown Commentary",
+      "year": "1871",
+      "by": {
+        "en": "Robert Jamieson, A. R. Fausset and David Brown",
+        "es": "Robert Jamieson, A. R. Fausset y David Brown"
+      },
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader",
+      "status": "ok"
+    },
+    {
+      "id": 38,
+      "pack": "en",
+      "type": "commentary",
+      "language": {
+        "en": "English",
+        "es": "Inglés"
+      },
+      "abbreviation": "Matthew Henry",
+      "name": "Matthew Henry's Commentary on the Whole Bible",
+      "year": "1706",
+      "by": "Matthew Henry",
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader",
+      "status": "ok"
+    },
+    {
+      "id": 12,
+      "pack": "esp",
+      "type": "bible",
+      "language": {
+        "en": "Spanish",
+        "es": "Español"
+      },
+      "abbreviation": "RV 1909",
+      "name": "Reina-Valera 1909",
+      "year": "1909",
+      "by": {
+        "en": "Casiodoro de Reina and Cipriano de Valera, 1909 revision",
+        "es": "Casiodoro de Reina y Cipriano de Valera, revisión de 1909"
+      },
+      "licence": {
+        "en": "Public domain",
+        "es": "Dominio público"
+      },
+      "source": "Simple Bible Reader",
+      "status": "ok"
+    },
+    {
+      "id": 11,
+      "pack": "esp",
+      "type": "bible",
+      "language": {
+        "en": "Spanish",
+        "es": "Español"
+      },
+      "abbreviation": "VBL",
+      "name": "Versión Biblia Libre",
+      "year": "",
+      "by": "",
+      "licence": "",
+      "source": "Simple Bible Reader",
+      "status": "hidden",
+      "hidden_reason": "Confirmar autor, año y licencia de la Versión Biblia Libre antes de mostrarla."
+    },
+    {
+      "id": 36,
+      "pack": "esp",
+      "type": "commentary",
+      "language": {
+        "en": "Spanish",
+        "es": "Español"
+      },
+      "abbreviation": "JFB",
+      "name": "Comentario Exegético y Explicativo de la Biblia (Jamieson-Fausset-Brown)",
+      "year": "",
+      "by": "Robert Jamieson, A. R. Fausset y David Brown (traducción al español)",
+      "licence": "",
+      "source": "",
+      "status": "hidden",
+      "hidden_reason": "La traducción al español tiene editorial: confirmar el permiso y el texto de créditos exacto."
+    },
+    {
+      "id": 34,
+      "pack": "esp",
+      "type": "commentary",
+      "language": {
+        "en": "Spanish",
+        "es": "Español"
+      },
+      "abbreviation": "Henry",
+      "name": "Comentario de toda la Biblia de Matthew Henry",
+      "year": "1999",
+      "by": "Matthew Henry",
+      "licence": "© 1999 Editorial Unilit. Usada con permiso. Derechos reservados.",
+      "source": "Editorial Unilit",
+      "status": "hidden",
+      "hidden_reason": "Tiene copyright (Editorial Unilit, según el propio módulo): confirmar que el permiso cubre la app antes de mencionarlo."
+    }
+  ]
+}

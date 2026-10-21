@@ -1622,7 +1622,8 @@ def cmd_publish(a):
                         "--file", str(obb), "--content-type", "application/octet-stream", "--remote"], env=env, shell=True)
     if r.returncode:
         fail("wrangler upload failed")
-    req = urllib.request.Request(url, method="HEAD")
+    # Cloudflare's bot protection answers 403 to Python's default User-Agent.
+    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (bible-versions publish check)"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         length = int(resp.headers.get("Content-Length", "0"))
     if length != b["size"]:

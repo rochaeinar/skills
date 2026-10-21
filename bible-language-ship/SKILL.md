@@ -1,0 +1,85 @@
+---
+name: bible-language-ship
+description: Deja un idioma nuevo de Bible Versions listo para publicar, después del skill bible-language-pack - sube el .obb validado a Cloudflare y publica el manifiesto, integra el idioma en la app (paquete, voz con aviso amable si Android no tiene ese idioma, interfaz traducida, el apartado "Biblias y comentarios" con los créditos de los módulos; los documentos quedan en inglés), la interfaz de la web (solo el repo, sin deploy), la ficha de Play (textos, notas de versión y las 8 capturas en el idioma con Maestro) y un test Maestro que garantiza que el texto bíblico se ve igual que en el módulo; corrige la causa raíz de lo que falle (skill bugfix). Pensado para correr sin parar (/loop) idioma por idioma del tracker. Úsalo cuando pidan "integrar el idioma X en la app", "dejar listo el idioma X para publicar", "siguiente idioma", "procesar todos los idiomas" o "correr la cadena de idiomas".
+---
+
+# Idiomas nuevos de Bible Versions: del paquete a "listo para publicar"
+
+Todo pasa por `scripts/ship.py` (con `python`). Rutas en `scripts/config.json` (`SETUP.md`). Viene **después** de `bible-language-pack` (que valida la Biblia, hace el paso de criterio y arma el `.obb`): si un idioma no tiene paquete aprobado, este skill empieza por ese otro.
+
+**Lo que este skill nunca hace**: publicar en Play (eso es `android-release`/`play-console`, con el usuario), hacer deploy de la web (`cloudflare-site`), ni push. Sí publica en el CDN (el `.obb` y el manifiesto): la app publicada ignora los idiomas que no conoce, así que no cambia nada para los usuarios.
+
+**Commits**: el usuario autorizó (2026-10-21) **commits directos a `master`**, sin push, en el repo de la app y en el de la web: uno al terminar cada etapa que los cambia (`app_core`, `app_language`+`strings`+`legal`+`about`, `web`, la corrección de un bug), con un mensaje que diga el idioma y la etapa. Antes de cada commit: tests unitarios verdes y `git status` sin archivos ajenos a la etapa.
+
+**Todo en el idioma**: la interfaz de la app y la de la web, la ficha, las notas, las capturas de teléfono y la imagen destacada. **Los documentos no** (privacidad, términos, licencias, créditos de imágenes y "Biblias y comentarios"): en la app y en la web se muestran en inglés. Solo lo que Play exige y no se produce por idioma (las capturas de tablet de 7" y 10") se deja con el inglés, que Play usa cuando falta en una traducción.
+
+## Cómo se usa sin parar
+
+`ship.py next` dice cuál es el próximo paso: primero termina los idiomas empezados, después el siguiente del tracker. En modo continuo (el usuario lo pide con `/loop`): ejecutar `next`, hacer ese paso, `ship.py check <idioma>` (o `mark`), y repetir. Si un paso necesita el teléfono y no hay ninguno conectado, o queda una decisión del usuario (licencias en `review`), saltarlo, anotarlo y seguir con lo que no lo necesita; avisar al usuario en el resumen.
+
+`ship.py status` lista los idiomas y su avance; `ship.py report <idioma>` dice qué falta.
+
+## Etapas (en orden)
+
+| Etapa | Cómo | Se comprueba |
+|---|---|---|
+| `pack` | Skill `bible-language-pack` (init → import → validate → criteria → apply → approve → build) | Sola: aprobado, armado y el `.obb` sin cambios |
+| `cdn` | `ship.py cdn <idioma>`: `pack.py publish --yes`, `publish-manifest.ps1 -DryRun` y luego real | Sola: el manifiesto publicado tiene el idioma con el sha256 del build |
+| `app_core` | **Una sola vez** (ver abajo) y `ship.py mark _ app_core` | A mano |
+| `app_language` | La entrada del idioma en `app/src/main/assets/languages.json` (solo los idiomas nuevos: `es`, `esp` y `en` están en el código): `code`, `nativeName` (el nombre en su idioma, "Русский"), `defaultBible` y `dailyBible` (el id del módulo de `pack.json` → `build`), `defaultCommentary` 38, `dailyImage` 43, `quiz` 44, `reference` 47 (los del inglés mientras el idioma no tenga los suyos), `requires: ["en"]` (la app baja el paquete inglés antes), `sizeInBytes` (el del build), `tts` (las voces de `locales.json`) y `rtl` | Sola |
+| `strings` | Traducir `values/strings.xml` (el inglés, respaldo) → `values-<xx>/strings.xml`, sin las cadenas `*_file` ni las `translatable="false"` (carpeta en `assets/locales.json`) y `ship.py strings <idioma>` | Sola: claves, `%1$s`/`{0}`, plurales del idioma (CLDR), arrays (66 `book_names`), apóstrofos, nada sin traducir, archivos `*_file` existentes |
+| `legal` | **Los documentos no se traducen** (decisión del usuario, 2026-10-21): privacidad, términos, licencias, créditos de imágenes y "Biblias y comentarios" se muestran en inglés. `values-<xx>` no lleva las cadenas `*_file`, así se usan las del respaldo inglés (`values/`, que apuntan a los `*_en.md`) | Sola |
+| `about` | Agregar la Biblia nueva a `cdn/bible/module-credits.json` (datos de `pack.json`: nombre, sigla, año, traductor/editor, licencia, fuente, notas como "edición de 66 libros; agregados de la Septuaginta entre corchetes"; `language`, `year`, `by`, `licence` y `notes` como `{"en": ..., "es": ...}`, porque los documentos son en inglés y en español) con `status: ok`, y `ship.py about` (regenera `bible_modules_en.md` y `bible_modules_es.md`, los únicos) | Sola |
+| `web` | Traducir **solo la interfaz**: `src/i18n/en.json` → `src/i18n/<código>.json` (incluye los títulos de las páginas legales), agregar el código a `site.json` `locales`, y `ship.py web <idioma>` (build, **sin deploy**). Los documentos legales de la web quedan en inglés (`Legal.astro` ya usa el `.en.md` si no hay copia del idioma): no copiar nada a `src/legal/` | Sola |
+| `play` | `play/listing/<locale Play>/{title,short,full}.txt` (≤30, ≤80, ≤4000; traducción natural de la ficha inglesa, sin nombrar versiones con derechos), `play/changelogs/<locale>/<versionCode>.txt` (el mismo número que el último en-US, ≤500) y el locale en `play.json` | Sola. Si Play no tiene ese idioma (`play: null` en `locales.json`): no hay ficha; anotar palabras clave para la ficha inglesa |
+| `unit` | `./gradlew :app:testDebugUnitTest` y `assembleDebug`; luego `ship.py mark <idioma> unit` | A mano |
+| `tts` | En el teléfono (ver "Teléfono"): abrir Juan 3 y "Escuchar"; con voz debe leer en el idioma; sin voz, el aviso amable (y su botón abre la instalación de voces de Android: no instalar nada). `mark` con lo que pasó (y la voz usada). En `logcat`, `SamsungTTS: [IsAvailable] rus-RUS-null is LANG_NOT_SUPPORTED` dice qué pasó | A mano |
+| `device_text` | `ship.py flows <idioma>` genera `.maestro/languages/<código>/verify_text.yaml` (14 versículos clave: primeras palabras del módulo y ninguna marca rara en pantalla); correrlo con `.\scripts\ui-test.ps1 -Flow ...`; si pasa, `mark` | A mano (si falla: ver "Si algo se ve mal") |
+| `screenshots` | Antes, en el teléfono, unos marcadores del idioma (la 04 muestra los del teléfono; el script restaura los datos al final). Correr `.\scripts\ui-test.ps1 -Flow .maestro\languages\<código>\screenshots.yaml` (las 8 capturas **de teléfono**), luego `ship.py shots <idioma>` (pasa las más nuevas de `build/maestro/**/screenshots/<código>/` a `play/images/<locale>/phoneScreenshots/01-08.png`, 1080×2340). Revisarlas con Read: idioma correcto **en todo** (nombres de libros, fechas, versículo del día, marcadores), sin textos rotos, datos realistas. Si algo sale en otro idioma es un error de la app: buscar la causa con `bugfix` (con el ruso aparecieron tres: los nombres de los libros guardados una sola vez, la versión del día de otro idioma y las fechas de los marcadores en español). Sin voz en el teléfono, la 01 sale sin los controles de audio (avisar al usuario). Las de tablet no se hacen | Sola |
+| `feature` | Imagen destacada: traducir los textos de `en-US` (título, lema y 3 funciones, cortos y grandes) en `Images/feature-graphic/feature-graphic.json` para el locale de Play, y `ship.py feature <idioma>` (usa las capturas 03, 01 y 05 del idioma, corre el skill `play-feature-graphic` y la copia a `play/images/<locale>/featureGraphic.png`). Revisarla con Read | Sola |
+| `ready` | `ship.py report <idioma>`: si todo está, marca el idioma listo y actualiza el tracker | Sola |
+
+## `app_core`: la preparación de una sola vez
+
+Se hace antes del primer idioma nuevo, con las reglas del `CLAUDE.md` de la app (tests unitarios en JUnit puro para cada lógica nueva, extraída en clases pequeñas). Después de esto, agregar un idioma es solo datos y traducciones.
+
+1. **Idiomas como datos**: `app/src/main/assets/languages.json` con `es`, `esp`, `en` y los nuevos (`code`, `nativeName`, `defaultBible`, `defaultCommentary`, `dailyBible`, `dailyImage`, `quiz`, `reference`, `sizeInBytes`, `tts`: lista de locales, `rtl`). `LanguageManager` lo carga (manteniendo la lógica de `esp`/`SpanishVariant`); `getDisplayName` usa `nativeName` para los nuevos; `getDefaultLanguageForDevice` elige el idioma cuyo código coincide con el del teléfono (o la app, ver punto 5) y si no, inglés. `TTSLocaleConfig` toma las voces de `tts`.
+2. **Voz amable**: antes de leer, `TextToSpeech.isLanguageAvailable` con los locales del idioma. Si no hay ninguno: no leer con otra voz; mostrar un aviso ("La lectura en voz alta no está disponible en <idioma> en este teléfono") con un botón que abre `TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA` (o los ajustes de texto a voz) y otro para cerrar. Si hay voz pero sin datos descargados, el mismo aviso con "Descargar voz". La lógica de elección, en una clase pura con su test.
+3. **Acerca de → "Biblias y comentarios"**: una fila nueva (como las de privacidad o licencias) que abre `MarkdownFragment` con la cadena `bible_modules_file` (`legal/bible_modules_<ui>.md`). Copiar `assets/module-credits.seed.json` del skill a `cdn/bible/module-credits.json` del repo; `ship.py about` genera los `.md` (inglés y español lite la primera vez; después solo se agregan las Biblias nuevas). **Nunca se menciona el paquete completo en español.** Lo que tenga copyright de una editorial o requiera permiso queda **`status: hidden` y nunca se muestra** (decisión del usuario, 2026-10-21: el Matthew Henry y el JFB del español lite, y la Versión Biblia Libre mientras no se sepa su licencia). `review` es para datos que faltan: se pregunta al usuario.
+4. **Interfaz por idioma de la app**: `androidResources { generateLocaleConfig = true }` en `app/build.gradle` (y `res/resources.properties` con `unqualifiedResLocale=en`): Android 13+ muestra la app en el idioma elegido para ella (Ajustes → Idioma de la app). Para las pruebas, la build debug tiene el enlace `timelessbible-test://locale?tag=ru` (`tag=` vacío: el del teléfono), que usa AppCompat y sirve también en Android 12, donde no existe `cmd locale`; se aplica al reiniciar la app.
+5. **Inglés como idioma de respaldo** (decisión del usuario, 2026-10-21): hoy `values/` (sin calificar) está en español, así que un teléfono en un idioma sin traducción ve la app en español. Pasar el contenido de `values-en/` a `values/` y el español actual a `values-es/` (todas las carpetas `values*` que tengan textos, no los colores ni las dimensiones), `unqualifiedResLocale=en` en `res/resources.properties`, y que `getDefaultLanguageForDevice` devuelva inglés para cualquier idioma sin paquete. Comprobar en el teléfono que el español y el inglés se siguen viendo igual que antes.
+6. **Maestro**: `.maestro/screenshots/` con las 8 capturas de Play (se corren con `.maestro/languages/<código>/screenshots.yaml`, que genera `ship.py flows` con `LANG`, `BIBLE` y `GENESIS`: PowerShell 5.1 estropea el cirílico y los acentos en la línea de comandos), en el orden de la ficha actual (01 lectura con comentario y audio abierto en Génesis 1, 02 ajustes de lectura, 03 inicio, 04 marcadores, 05 planes, 06 lectura paralela con el panel "Vista", 07 comentario del capítulo, 08 quiz con una respuesta), usando los subflujos de `.maestro/subflows/` y los de `.maestro/promo/`, con `takeScreenshot` a `build/maestro/screenshots/${LANG}/0N`. Sin textos en español dentro de los selectores (por `id`), para que sirvan en todos los idiomas.
+7. Correr la suite unitaria y el smoke de Maestro; `ship.py mark _ app_core --note "..."`.
+
+## Teléfono
+
+- `ship.py device <idioma> prep`: comprueba el teléfono, **respalda** `data.db` y las preferencias, y cambia el idioma **de la app** (no del teléfono) con el enlace de prueba `timelessbible-test://locale` (necesita la build debug). Luego instalar la build debug (`adb install -r -t`, conserva los datos), abrir la app, ir a Idiomas, **descargar el paquete nuevo** (viene del CDN real) y elegirlo; si la lista o los textos no cambian, cerrar y abrir la app (`am force-stop`).
+- Al terminar (o si algo se corta): `ship.py device <idioma> restore` devuelve el idioma y los datos. Reglas del `CLAUDE.md` de la app (adb, `run-as`, nunca los flujos de Drive fuera del script).
+
+## Lo que hay que saber del teléfono de pruebas
+
+- **Drive**: la app del teléfono está conectada a la cuenta de prueba de Maestro y sincroniza los marcadores. El script restaura `data.db` al final, pero lo que ya subió a Drive vuelve en la siguiente sincronización. Por eso la captura 04 borra al final los marcadores que crea y espera a que el borrado llegue a Drive. Si aparecen marcadores de pruebas viejas, borrarlos en la app (solo los de la Biblia del idioma) y abrir de nuevo Marcadores hasta que `syncStatus` sea 1, antes de restaurar.
+- **Android 12** (Samsung A21s): no existe `cmd locale`; el idioma de la app se cambia con el enlace de prueba, y AppCompat lo guarda en segundo plano (`ship.py device prep` espera a que esté guardado antes de cerrar la app). La app aplica ese idioma a todo el proceso (`AppLocale`).
+- **Corchetes**: la Sinodal marca con `[ ]` las palabras agregadas por los traductores y la app los muestra; el test de versículos clave los compara tal cual.
+
+## Si algo se ve mal
+
+Caracteres raros, marcas (`{\i`, `<`, `&#`), corchetes sin cerrar, letras cortadas, escritura de derecha a izquierda invertida, fuentes que no tienen la escritura: **buscar la causa raíz** con el skill `bugfix` (el renderizado en `rtf/`, `VerseMarkup`, la fuente, el módulo), con su test de regresión, no parches de un idioma. Si el problema es del texto del módulo: volver a `bible-language-pack` (criterio, `apply`, `build`, `cdn`) con una versión nueva del `.obb` (`-v2`).
+
+## Pendientes para revisiones futuras
+
+Anotados en `D:\Projects\Android\bible-versions\plans\idiomas-pendientes.md` (decisión del usuario, 2026-10-21): **escritura de derecha a izquierda** (árabe, persa) y **búsqueda** en idiomas nuevos (acentos, «ё/е», idiomas sin espacios entre palabras). Al llegar a un idioma afectado: avisar al usuario, no darlo por listo sin esa revisión, y seguir con el siguiente.
+
+## Reglas
+
+- Un idioma termina antes de empezar otro. Nada se da por hecho sin su comprobación.
+- Traducciones (interfaz de la app y de la web, ficha de Play, imagen destacada): naturales, no literales; nombres de los libros como en la Biblia de ese idioma (los de getBible/eBible); plurales con todas las formas del idioma; respetar `%1$s`. Los documentos nunca se traducen.
+- No inventar datos de licencias: lo que no esté claro queda en `status: review` y se le pregunta al usuario.
+- Claves: nunca en el chat ni en archivos (Cloudflare: `BibleVersions-Cloudflare`).
+- Respaldo del skill: `D:\Projects\skills\bible-language-ship` (sin `config.json`).
+
+## Archivos
+
+- `scripts/ship.py`, `scripts/config.json` (por PC).
+- `assets/locales.json`: por idioma, la carpeta de Android, el locale de Play (o `null`), las formas de plural, el locale para adb, si es de derecha a izquierda y las voces a probar.
+- `assets/module-credits.seed.json`: los créditos iniciales (inglés y español lite).
