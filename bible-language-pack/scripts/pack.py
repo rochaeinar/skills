@@ -3,12 +3,15 @@ module the app downloads from the CDN (cdn.timelesslabs.app/bible/modules/<lang>
 
   pack.py status                         every language of the tracker and how far it got
   pack.py init <lang>                    packs/<lang>/pack.json with the candidate Bibles
+  pack.py fetch <lang> getbible:<abbr>   downloads a whole Bible from getBible in ONE request (a better copy of the same
+                                         version, e.g. the Synodal with its brackets) into BibleVersionsSelected + manifest + pack.json
   pack.py import <lang>                  reads the chosen Bibles, cleans them and maps them to the app's versification
   pack.py validate <lang>                quality checks -> report.md, review.html; exit 1 if there are errors
   pack.py criteria <lang> [--fetch N]    the pastor's step: criteria.json with every problem and key verse, evidence
                                          from the same version online (cached, rate limited) and proposed solutions
   pack.py verify <lang> <REF> [--bible id]   one verse in our copy, the same version online, RV1960 and KJV
   pack.py apply <lang>                   applies the decisions of criteria.json (only allowed fixes), imports and validates
+  pack.py review <lang>                  writes review.html and report.md again (after deciding), without touching the approval
   pack.py approve <lang> --by <name>     records the review (needs 0 errors and every problem of criteria.json decided)
   pack.py build <lang>                   .bblx modules + the English modules -> <lang>-vN.obb, verified like the app reads it
   pack.py publish <lang> [--yes]         uploads the .obb to R2 and adds it to cdn/bible/manifest.json (without --yes: the plan)
@@ -166,18 +169,38 @@ def health_notes(c, sid):
 
 
 # ---------------------------------------------------------------------------------------------- versification
+# Lines of SIL's tables that are wrong, checked verse by verse against the RV1960 (SIL warns its mappings are not
+# validated). Sinodal ISA 3:19 = RV 3:19-20, so 3:20 "перстни и кольца в носу" = RV 3:21 "los anillos..." (rsc.vrs has
+# the right line).
+VRS_FIXES = {"rso": {"ISA 3:20-25 = ISA 3:16-21": "ISA 3:20-25 = ISA 3:21-26"}}
+
+
+_PAIRS = {}  # every mapping line of each table, in order (one verse may appear in several)
+
+
 def parse_vrs(name):
     counts, maps = {}, {}
     for line in (ASSETS / "vrs" / f"{name}.vrs").read_text(encoding="utf-8").split("\n"):
-        line = line.strip()
+        line = VRS_FIXES.get(name, {}).get(line.strip(), line.strip())
         m = re.match(r"^([1-4A-Z]{3}) (\d+):(\d+)(?:-(\d+))? = ([1-4A-Z]{3}) (\d+):(\d+)(?:-(\d+))?\s*$", line)
         if m:
             b1, c1, v1, v1e, b2, c2, v2, v2e = m.groups()
-            if b1 not in BOOKNUM or b2 not in BOOKNUM:
+            if b1 not in BOOKNUM:
+                continue
+            if b2 not in BOOKNUM:
+                # Inside a canonical book, a deuterocanonical addition ("DAN 3:24-90 = DAG 3:24-90", the Prayer of
+                # Azariah): None = not part of the 66 books, dropped on import.
+                for k in range(int(v1e or v1) - int(v1) + 1):
+                    maps.setdefault((b1, int(c1), int(v1) + k), None)
                 continue
             n = int(v1e or v1) - int(v1) + 1
             for k in range(n):
-                maps[(b1, int(c1), int(v1) + k)] = (b2, int(c2), int(v2) + k)
+                # One verse of this scheme = two of the other ("LEV 14:55 = LEV 14:55" and "= LEV 14:56"):
+                # it goes to the first one; the second stays empty (combined verse). All the pairs are kept for
+                # the way back: "PSA 51:0 = PSA 51:1" and "= PSA 51:2" (a two-verse Hebrew title) both go to 51:0.
+                pair = ((b1, int(c1), int(v1) + k), (b2, int(c2), int(v2) + k))
+                maps.setdefault(*pair)
+                _PAIRS.setdefault(name, []).append(pair)
             continue
         p = line.split()
         if p and p[0] in BOOKNUM and len(p) > 1 and re.match(r"^\d+:\d+$", p[1]):
@@ -199,7 +222,9 @@ _INV = {}
 
 def eng_from_org():
     if not _INV:
-        _INV.update({o: e for e, o in vrs("eng")[1].items()})
+        vrs("eng")
+        for e, o in _PAIRS.get("eng", []):
+            _INV.setdefault(o, e)  # every org verse of a mapping, also the second of a split title
     return _INV
 
 
@@ -212,9 +237,12 @@ def app_counts():
 
 
 def to_app(ref, scheme):
-    """(book, ch, v) in `scheme` -> (book, ch, v) in the app's numbering (v may be 0: a Psalm title)."""
+    """(book, ch, v) in `scheme` -> (book, ch, v) in the app's numbering (v may be 0: a Psalm title), or None for a
+    deuterocanonical addition inside a canonical book."""
     if scheme != "eng":
         ref = vrs(scheme)[1].get(ref, ref)  # scheme -> org
+        if ref is None:
+            return None
         ref = eng_from_org().get(ref, ref)  # org -> eng
     b, ch, v = ref
     if (b, ch, v) == ("3JN", 1, 15):
@@ -269,6 +297,22 @@ def read_ebible(path):
             skipped[b] += 1
             continue
         verses.append((b, int(m.group(2)), int(m.group(3)), m.group(4)))
+    return verses, skipped
+
+
+def read_getbible(path):
+    """A whole translation from api.getbible.net/v2/<abbr>.json: books by KJV number (1-66), the rest dropped."""
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
+    verses, skipped = [], collections.Counter()
+    for bk in d["books"]:
+        nr = int(bk["nr"])
+        for ch in bk["chapters"]:
+            for v in ch["verses"]:
+                if 1 <= nr <= 66:
+                    text = re.sub(r"<note>.*?</note>", "", html.unescape(v["text"]), flags=re.S)  # editor's notes
+                    verses.append((BOOKS[nr - 1], int(v["chapter"]), int(v["verse"]), text))
+                else:
+                    skipped[str(nr)] += 1
     return verses, skipped
 
 
@@ -393,7 +437,7 @@ def cmd_import(a):
         if b["id"] in gone or b.get("rejected"):
             fail(f"{b['id']} was rejected in healthReport.md: it can't be imported")
         path = c["bibles_dir"] / b["file"]
-        verses, skipped = (read_ebible if path.suffix == ".zip" else read_bss)(path)
+        verses, skipped = {".zip": read_ebible, ".json": read_getbible}.get(path.suffix, read_bss)(path)
         maxv = collections.defaultdict(int)
         for bk, ch, v, _ in verses:
             maxv[(bk, ch)] = max(maxv[(bk, ch)], v)
@@ -413,11 +457,25 @@ def cmd_import(a):
                                                               for (bk, sc), chs in other.items()) if other else "")
         stats = collections.Counter()
         out = collections.OrderedDict()  # app ref -> ([clean texts], [raw texts]), in reading order
-        for bk, ch, v, t in verses:
-            ref = to_app((bk, ch, v), schemes[(bk, ch)])
+        mapped = [to_app((bk, ch, v), schemes[(bk, ch)]) for bk, ch, v, _ in verses]
+        dropped = collections.Counter((bk, ch) for (bk, ch, v, _), ref in zip(verses, mapped) if ref is None)
+        for (bk, ch), n in dropped.items():
+            skipped[f"{bk} {ch} (agregado deuterocanónico)"] += n
+        verses = [x for x, ref in zip(verses, mapped) if ref is not None]
+        mapped = [ref for ref in mapped if ref is not None]
+        taken = set(mapped)
+        order = [(bk, ch, v) for bk in BOOKS for ch in sorted(target[bk]) for v in range(1, target[bk][ch] + 1)]
+        nxt = {order[i]: order[i + 1] for i in range(len(order) - 1)}
+        for (bk, ch, v, t), ref in zip(verses, mapped):
             if ref[2] == 0:  # Psalm title: the app shows it at the start of verse 1, as the KJV module does
                 ref = (ref[0], ref[1], 1)
                 stats["title_merged"] += 1
+            elif ref in out and nxt.get(ref) and nxt[ref] not in taken and nxt[ref][0] == ref[0]:
+                # Two verses on one number (the tables split a verse the source keeps whole): the second
+                # takes the next number nobody maps to, so no text is glued and no slot stays empty.
+                ref = nxt[ref]
+                taken.add(ref)
+                stats["shifted"] += 1
             if ref in out:
                 stats["merged"] += 1
             texts, raws = out.setdefault(ref, ([], []))
@@ -436,6 +494,20 @@ def cmd_import(a):
                 last = (ref[0], ref[1], target[ref[0]][ref[1]])
                 out.setdefault(last, ([], []))[0].extend(out.pop(ref)[0])
                 stats["extra_appended"] += 1
+        # Renumbering decided in the criteria step: {"ISA 3:26": "ISA 3:25"} = the text of 3:25 goes to 3:26 (text unchanged).
+        moves = b.get("criteria_moves") or {}
+        if moves:
+            snapshot = {k: (list(x[0]), list(x[1])) for k, x in out.items()}
+            for dst, srcref in moves.items():
+                sb, scv = srcref.split(" ")
+                sch, sv = map(int, scv.split(":"))
+                db_, dcv = dst.split(" ")
+                dch, dv = map(int, dcv.split(":"))
+                moved = snapshot.get((sb, sch, sv), ([], []))
+                out[(db_, dch, dv)] = (list(moved[0]), list(moved[1]))
+                if srcref not in moves:  # its own text did not move in from somewhere else: it is now empty
+                    out[(sb, sch, sv)] = ([], [])
+                con.execute("insert into log values (?,?,?)", (b["id"], "move", f"{dst} | texto de {srcref} (sin cambios)"))
         # Manual fixes from pack.json: {"ISA 3:23": "text", ...}. Logged, and shown in the report.
         for r, text in list((b.get("overrides") or {}).items()) + list((b.get("criteria_overrides") or {}).items()):
             bk, cv = r.split(" ")
@@ -494,8 +566,20 @@ def pearson(xs, ys):
     return 1.0 if sx == 0 or sy == 0 else sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (sx * sy)
 
 
+def sample_refs(pack, sid, rows):
+    """The random verses of the review: the same every time for a Bible (seeded with its id), only verses with text,
+    none of the key passages. How many: pack.json review_sample, else review-verses.json random_sample (80)."""
+    rv = json.loads((ASSETS / "review-verses.json").read_text(encoding="utf-8"))
+    n = int(pack.get("review_sample") or rv.get("random_sample", 80))
+    keys = {r for item in rv["verses"] for r in expand_ref(item["ref"])}
+    pool = sorted(r for r, t in rows.items() if t and r not in keys)
+    return sorted(random.Random(sid).sample(pool, min(n, len(pool))), key=lambda r: (BOOKNUM[r[0]], r[1], r[2]))
+
+
 def norm_cmp(t):
-    """Text for comparing two copies: same dashes, quotes and spacing (typography is not a typo)."""
+    """Text for comparing two copies: same dashes, quotes, spacing and \u0451/\u0435, and without the brackets of words added by
+    the translators (the Synodal marks them, some copies lost the marks): typography is not a typo."""
+    t = re.sub(r"[\[\]]", "", t).replace("\u0451", "\u0435").replace("\u0401", "\u0415")
     t = re.sub(r"[\u2010-\u2015\u2212]", "-", t)
     t = re.sub(r"[\u00ab\u00bb\u201c\u201d\u201e\u2018\u2019\u201a\"']", "", t)
     t = re.sub(r"\s*([-,.;:!?()])\s*", r"\1", t)
@@ -532,6 +616,9 @@ def cmd_validate(a):
         sid = b["id"]
         rows = {(bk, ch, v): t for bk, ch, v, t in con.execute("select book, chapter, verse, text from verses where sid=?", (sid,))}
         texts[sid] = rows
+        if b.get("role") == "reference":
+            add("I", sid, "referencia", "", "Solo de referencia (role: reference): se compara y se usa en el paso de criterio, no se publica")
+            continue
         # --- health and licence
         if sid in gone or b.get("rejected"):
             add("E", sid, "salud", "", "Rechazada en healthReport.md")
@@ -564,8 +651,8 @@ def cmd_validate(a):
                         add("W", sid, "estructura", r, "Vacío: la traducción lo une al versículo anterior (versículos combinados)")
                     else:
                         add("E", sid, "estructura", r, "Versículo vacío o faltante")
-        for (bk, ch, v) in rows:
-            if v > target.get(bk, {}).get(ch, 0):
+        for (bk, ch, v), t in rows.items():
+            if v > target.get(bk, {}).get(ch, 0) and t.strip():  # an emptied one (moved by the criteria step) is not built
                 add("E", sid, "versificación", f"{bk} {ch}:{v}", "Versículo de más, fuera de la numeración de la app (no se mostraría). "
                     "Si es una adición de la Septuaginta: extra_verses \"drop\" en pack.json (\"append\" lo une al último versículo): "
                     + rows[(bk, ch, v)][:120])
@@ -586,6 +673,11 @@ def cmd_validate(a):
                     script_bad += 1
                     if script_bad <= 5:
                         add("W", sid, "escritura", r, f"Letras fuera de {pack['script']}: {t[:80]}")
+            for blk in re.findall(r"\[[^\]]{150,}\]?", t):
+                add("W", sid, "agregado", r, f"Texto largo entre corchetes ({len(blk)} letras): en la Sinodal marca un agregado de la "
+                    f"Septuaginta o deuterocanónico (p. ej. las adiciones griegas de Ester): {blk[:120]}")
+            if re.search(r"В Славянской Библии|по переводу 70-ти|Synodal note|note:", t):
+                add("W", sid, "agregado", r, f"Nota del editor dentro del versículo (no es texto bíblico): {t[:120]}")
             rep_m = re.search(r"(?i)\b(\w{5,})\s+\1\b", t)  # short ones ("nous nous", "его его") are grammar
             if rep_m:
                 add("W", sid, "repetición", r, f"Palabra repetida: {rep_m.group(0)}")
@@ -643,6 +735,8 @@ def cmd_validate(a):
                 add("I", sid, "versificación", "", f"Numeración de origen: {detail}")
             elif kind.startswith("clean:"):
                 add("I", sid, "limpieza", "", f"{kind[6:]}: {detail} versículos corregidos")
+            elif kind == "move":
+                add("W", sid, "corrección manual", detail.split(" | ")[0], "Renumerado: " + detail.split(" | ", 1)[1])
             elif kind == "override":
                 add("W", sid, "corrección manual", detail.split(" | ")[0], detail.split(" | ", 1)[1])
             elif kind == "extra_dropped":
@@ -650,7 +744,7 @@ def cmd_validate(a):
                 add("W", sid, "versificación", ref_part, "Versículo de más descartado (extra_verses=drop): " + text_part[:150])
             elif kind == "skipped_book":
                 code = detail.split(" ")[0]
-                if code in DEUTERO or code.isdigit():
+                if code in DEUTERO or code.isdigit() or "deuterocanónico" in detail:
                     add("I", sid, "canon", "", f"Libro fuera de los 66 descartado: {detail}")
                 else:
                     add("E", sid, "canon", "", f"Código de libro desconocido, no importado: {detail} (agregarlo a ALIASES si es uno de los 66)")
@@ -682,11 +776,22 @@ def cmd_validate(a):
         add("W", "", "app", "", "Escritura de derecha a izquierda: comprobar en el teléfono que la app la muestra bien antes de publicar")
     if not pack.get("default_bible") or pack["default_bible"] not in [b["id"] for b in sids]:
         add("E", "", "módulo", "", "default_bible en pack.json debe ser el id de una Biblia incluida")
-    errors = sum(1 for x in issues if x[0] == "E")
+    # An error the criteria step accepted with a note (a combined verse, a book title printed as a heading) no longer
+    # blocks: the report shows it as accepted, with the note.
+    crit_path = d / "criteria.json"
+    accepted = {}
+    if crit_path.exists():
+        for e in json.loads(crit_path.read_text(encoding="utf-8")).get("issues", []):
+            dec = e.get("decision") or {}
+            if dec.get("action") == "accept" and dec.get("note"):
+                accepted[e["key"]] = dec["note"]
+    errors = sum(1 for x in issues if x[0] == "E" and issue_key(x) not in accepted)
     warns = sum(1 for x in issues if x[0] == "W")
     (d / "issues.json").write_text(json.dumps([{"key": issue_key(x), "level": x[0], "bible": x[1], "check": x[2], "ref": x[3],
                                                 "detail": x[4]} for x in issues], ensure_ascii=False, indent=1), encoding="utf-8")
-    write_report(c, pack, d, issues, texts, ref_kjv)
+    shown = [(x[0], x[1], x[2], x[3], x[4] + f" — ACEPTADO POR CRITERIO: {accepted[issue_key(x)]}") if x[0] == "E" and issue_key(x) in accepted
+             else x for x in issues]
+    write_report(c, pack, d, shown, texts, ref_kjv)
     pack["validation"] = {"date": TODAY, "errors": errors, "warnings": warns,
                           "report_sha256": sha256_file(d / "report.md"), "work_sha256": sha256_file(d / "work.db")}
     pack.pop("approval", None)
@@ -702,7 +807,8 @@ def issue_key(x):
 def write_report(c, pack, d, issues, texts, ref_kjv):
     lines = [f"# Validación {pack['lang']} ({pack['language_name']})", "", f"Fecha: {TODAY}. Biblias: "
              + ", ".join(b["id"] for b in pack["bibles"] if b["include"]) + ".", "",
-             f"**{sum(1 for x in issues if x[0] == 'E')} errores** (bloquean el build), "
+             f"**{sum(1 for x in issues if x[0] == 'E' and 'ACEPTADO POR CRITERIO' not in x[4])} errores** (bloquean el build; "
+             f"{sum(1 for x in issues if x[0] == 'E' and 'ACEPTADO POR CRITERIO' in x[4])} más aceptados por criterio), "
              f"**{sum(1 for x in issues if x[0] == 'W')} advertencias** (revisarlas una por una), "
              f"{sum(1 for x in issues if x[0] == 'I')} notas.", ""]
     for level, title in (("E", "Errores"), ("W", "Advertencias"), ("I", "Notas")):
@@ -726,7 +832,8 @@ def write_report(c, pack, d, issues, texts, ref_kjv):
     rv = json.loads((ASSETS / "review-verses.json").read_text(encoding="utf-8"))["verses"]
     crit = json.loads((d / "criteria.json").read_text(encoding="utf-8")) if (d / "criteria.json").exists() else {}
     verdicts = {e["key"]: e for e in crit.get("key_verses", [])}
-    decided = {e["key"]: e for e in crit.get("issues", []) + crit.get("resolved", [])}
+    decided = {e["key"]: e for e in crit.get("issues", [])}
+    history = [e for e in crit.get("resolved", []) if e["key"] not in decided]
     rtl = bool(set(SCRIPTS.get(pack["script"].lower(), [])) & RTL)
     h = ["<!doctype html><meta charset='utf-8'><title>Revisión " + html.escape(pack["lang"]) + "</title>",
          "<style>body{font:15px/1.5 system-ui;margin:24px;max-width:1300px}table{border-collapse:collapse;width:100%}"
@@ -737,6 +844,8 @@ def write_report(c, pack, d, issues, texts, ref_kjv):
          "marcar cada casilla solo si la traducción dice lo mismo que el original. Al terminar: "
          f"<code>pack.py approve {html.escape(pack['lang'])} --by &lt;nombre&gt;</code>.</p>"]
     for sid, rows in texts.items():
+        if next((b for b in pack["bibles"] if b["id"] == sid), {}).get("role") == "reference":
+            continue
         h.append(f"<h2>{html.escape(sid)}</h2><table><tr><th>✓</th><th>Ref.</th><th>{html.escape(sid)}</th><th>RV1960</th><th>KJV</th>"
                  "<th>Qué revisar</th><th>Bitácora de criterio</th></tr>")
         for item in rv:
@@ -749,25 +858,65 @@ def write_report(c, pack, d, issues, texts, ref_kjv):
             log = (f"<b>{html.escape(vd['verdict'])}</b>: {html.escape(vd.get('note', ''))}" if vd.get("verdict") else "<i>pendiente</i>")
             h.append(f"<tr class='{'doc' if item.get('doctrine') else ''}'><td><input type=checkbox></td><td class=ref>{item['ref']}</td>"
                      f"<td class=t>{t}</td><td>{es}</td><td>{k}</td><td>{html.escape(item['check'])}</td><td>{log}</td></tr>")
-        h.append("</table><h3>Muestra al azar (30 versículos)</h3><table><tr><th>✓</th><th>Ref.</th><th>Texto</th><th>RV1960</th><th>KJV</th></tr>")
+        sample = sample_refs(pack, sid, rows)
+        h.append(f"</table><h3>Muestra al azar ({len(sample)} versículos)</h3><table><tr><th>✓</th><th>Ref.</th><th>Texto</th><th>RV1960</th>"
+                 "<th>KJV</th><th>Bitácora de criterio</th></tr>")
         rv60 = local_bible(c, "ES-Spanish/reina-valera-1960.bblx")
-        for r in random.Random(sid).sample(sorted(rows), min(30, len(rows))):
-            h.append(f"<tr><td><input type=checkbox></td><td class=ref>{r[0]} {r[1]}:{r[2]}</td><td class=t>{html.escape(rows[r])}</td>"
-                     f"<td>{html.escape(rv60.get(r, ''))}</td><td>{html.escape(ref_kjv.get(r, ''))}</td></tr>")
+        for r in sample:
+            ref = f"{r[0]} {r[1]}:{r[2]}"
+            vd = verdicts.get(f"sample|{sid}|{ref}", {})
+            log = (f"<b>{html.escape(vd['verdict'])}</b>: {html.escape(vd.get('note', ''))}" if vd.get("verdict") else "<b>PENDIENTE</b>")
+            h.append(f"<tr><td><input type=checkbox></td><td class=ref>{ref}</td><td class=t>{html.escape(rows[r])}</td>"
+                     f"<td>{html.escape(rv60.get(r, ''))}</td><td>{html.escape(ref_kjv.get(r, ''))}</td><td>{log}</td></tr>")
         h.append("</table>")
     if decided:
-        h.append("<h2>Problemas del reporte y cómo se resolvieron</h2><table><tr><th>Nivel</th><th>Biblia</th><th>Control</th>"
+        pend = sum(1 for e in decided.values() if not e.get("decision"))
+        h.append(f"<h2>Problemas del reporte y cómo se resolvieron</h2><p>{len(decided)} problemas de la última validación, "
+                 f"{pend} sin decisión.</p><table><tr><th>Nivel</th><th>Biblia</th><th>Control</th>"
                  "<th>Ref.</th><th>Problema</th><th>Bitácora de criterio</th><th>Evidencia</th></tr>")
         for e in sorted(decided.values(), key=lambda e: (e["level"], e["bible"], e["check"], e["ref"])):
             dec = e.get("decision") or {}
-            log = (f"<b>{html.escape(dec.get('action', ''))}</b> — {html.escape(dec.get('note', ''))}"
-                   + (f" <i>({html.escape(e.get('status', ''))})</i>" if e.get("status") else "")) if dec else "<i>pendiente</i>"
+            log = (f"<b>{html.escape(dec.get('action', ''))}</b> — {html.escape(dec.get('note', ''))}") if dec else "<b>PENDIENTE DE DECISIÓN</b>"
             ev = "<br>".join(f"<a href='{html.escape(x.get('url', ''))}'>{html.escape(x['source'])}</a> v{x.get('verse', '')}: "
                              f"{html.escape((x.get('text') or '')[:160])}" for x in e.get("evidence", []))
             h.append(f"<tr><td>{e['level']}</td><td>{html.escape(e['bible'])}</td><td>{html.escape(e['check'])}</td>"
                      f"<td class=ref>{html.escape(e['ref'])}</td><td class=t>{html.escape(e['detail'][:300])}</td><td>{log}</td><td>{ev}</td></tr>")
         h.append("</table>")
+    if history:
+        h.append(f"<details><summary><b>Historial: {len(history)} problemas de pasadas anteriores que ya no aparecen</b></summary>"
+                 "<p>Aparecieron en una validación anterior y desaparecieron solos al cambiar de copia o corregir la numeración: "
+                 "no hay nada que decidir.</p><table><tr><th>Nivel</th><th>Biblia</th><th>Control</th><th>Ref.</th><th>Problema</th>"
+                 "<th>Por qué ya no aplica</th></tr>")
+        used = {b["id"] for b in pack["bibles"] if b["include"]}
+        for e in sorted(history, key=lambda e: (e["bible"], e["check"], e["ref"])):
+            dec = e.get("decision") or {}
+            why = (f"<b>{html.escape(dec.get('action', ''))}</b> — {html.escape(dec.get('note', ''))}" if dec else
+                   ("Esa copia ya no está en el paquete (descartada o solo de referencia)." if e["bible"] not in used or
+                    next((b for b in pack["bibles"] if b["id"] == e["bible"]), {}).get("role") == "reference" else
+                    "Se resolvió al corregir la conversión o con otra decisión (ya no aparece en la validación)."))
+            h.append(f"<tr><td>{e['level']}</td><td>{html.escape(e['bible'])}</td><td>{html.escape(e['check'])}</td>"
+                     f"<td class=ref>{html.escape(e['ref'])}</td><td class=t>{html.escape(e['detail'][:200])}</td><td>{why}</td></tr>")
+        h.append("</table></details>")
     (d / "review.html").write_text("\n".join(h), encoding="utf-8")
+
+
+def cmd_review(a):
+    """Writes report.md and review.html again from issues.json and criteria.json: the validation, the approval and
+    the build stay as they are (the text did not change)."""
+    c = cfg()
+    pack = load_pack(c, a.lang)
+    d = pack_dir(c, a.lang)
+    issues = [(x["level"], x["bible"], x["check"], x["ref"], x["detail"]) for x in json.loads((d / "issues.json").read_text(encoding="utf-8"))]
+    crit = json.loads((d / "criteria.json").read_text(encoding="utf-8")) if (d / "criteria.json").exists() else {}
+    accepted = {e["key"]: e["decision"]["note"] for e in crit.get("issues", [])
+                if (e.get("decision") or {}).get("action") == "accept" and e["decision"].get("note")}
+    shown = [(x[0], x[1], x[2], x[3], x[4] + f" — ACEPTADO POR CRITERIO: {accepted[issue_key(x)]}") if x[0] == "E" and issue_key(x) in accepted
+             else x for x in issues]
+    con = sqlite3.connect(d / "work.db")
+    texts = {b["id"]: {(bk, ch, v): t for bk, ch, v, t in con.execute("select book, chapter, verse, text from verses where sid=?", (b["id"],))}
+             for b in pack["bibles"] if b["include"]}
+    write_report(c, pack, d, shown, texts, kjv(c))
+    print(f"OK: {d / 'review.html'} and report.md written again")
 
 
 def cmd_approve(a):
@@ -872,15 +1021,18 @@ def cmd_build(a):
     out.mkdir(parents=True)
     con = sqlite3.connect(d / "work.db")
     built = []
-    for b in [x for x in pack["bibles"] if x["include"]]:
+    for b in [x for x in pack["bibles"] if x["include"] and x.get("role") != "reference"]:
         prev = next((m for m in reg["modules"] if m.get("source") == b["id"] and m["language"] == lang), None)
         mid = prev["id"] if prev else max([FIRST_NEW_ID - 1] + [i for i in used if i >= FIRST_NEW_ID]) + 1
         used.add(mid)
-        fname = f"{lang}-{slug(b['abbreviation'] or b['id'])}.bblx"
+        name = slug(b["abbreviation"] or "")
+        fname = f"{lang}-{name if name != 'bible' else slug(b['id'])}.bblx"  # a Cyrillic abbreviation has no ASCII slug
         rows = list(con.execute("select book, chapter, verse, text from verses where sid=? and text<>''", (b["id"],)))
         write_bblx(out / fname, b, rows, lang, mid)
         built.append({"id": mid, "file": fname, "source": b["id"], "abbreviation": b["abbreviation"], "verses": len(rows)})
-        if not prev:
+        if prev:
+            prev["file"] = fname
+        else:
             reg["modules"].append({"id": mid, "language": lang, "file": fname, "abbreviation": b["abbreviation"],
                                    "pack": a.lang, "source": b["id"], "added": TODAY})
     con.close()
@@ -1070,6 +1222,19 @@ def page_url(src, book, ch):
                                                               booknum=BOOKNUM[book], ch=ch)
 
 
+def sources_of(sid):
+    """The online copies of the same version. A Bible downloaded with `fetch getbible:<abbr>` takes those of any
+    Bible that lists that getBible text, without the getBible chapter itself (it is the same file)."""
+    known = sources()["bibles"].get(sid)
+    if known is not None or not sid.startswith("getbible_"):
+        return known or []
+    abbr = sid[len("getbible_"):]
+    for lst in sources()["bibles"].values():
+        if any(x["site"] == "getbible" and x.get("abbr") == abbr for x in lst):
+            return [x for x in lst if not (x["site"] == "getbible" and x.get("abbr") == abbr)]
+    return []
+
+
 def evidence_for(fetcher, sid, ref, ours, max_sources=2, with_rv=True):
     """The verse in the same version online (same number, or the closest text in that chapter when the
     site numbers it differently) and in the RV1960 and the KJV."""
@@ -1078,7 +1243,7 @@ def evidence_for(fetcher, sid, ref, ours, max_sources=2, with_rv=True):
         return []
     book, ch, v = m.group(1), int(m.group(2)), int(m.group(3))
     out = []
-    for src in sorted(sources()["bibles"].get(sid, []), key=lambda x: x.get("match") != "exact")[:max_sources]:
+    for src in sorted(sources_of(sid), key=lambda x: x.get("match") != "exact")[:max_sources]:
         verses = fetcher.chapter(src, book, ch)
         if not verses:
             continue
@@ -1146,6 +1311,49 @@ def propose(e, texts):
     return {"action": "accept", "why": "advertencia informativa: confirmar leyendo el versículo"}
 
 
+def cmd_fetch(a):
+    """One request for the whole Bible (api.getbible.net/v2/<abbr>.json), never chapter by chapter."""
+    c = cfg()
+    site, _, abbr = a.source.partition(":")
+    if site != "getbible" or not abbr:
+        fail("Source like getbible:synodal (the abbreviation of api.getbible.net/v2/translations.json)")
+    mpath = c["bibles_dir"] / "bibles-manifest.json"
+    manifest = json.loads(mpath.read_text(encoding="utf-8"))
+    folder = next((b["folder"] for b in manifest["bibles"] if b["tracker_code"] == a.lang), None)
+    if not folder:
+        fail(f"No folder for {a.lang} in bibles-manifest.json")
+    dest = c["bibles_dir"] / folder / f"getbible_{abbr}.json"
+    url = f"https://api.getbible.net/v2/{abbr}.json"
+    if not dest.exists():
+        print(f"Downloading {url} (one request)...")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (bible-versions; one download)"})
+        dest.write_bytes(urllib.request.urlopen(req, timeout=300).read())
+    d = json.loads(dest.read_text(encoding="utf-8"))
+    canon = [b for b in d["books"] if 1 <= int(b["nr"]) <= 66]
+    sid = f"getbible_{abbr}"
+    entry = {"tracker_code": a.lang, "language": d.get("language", ""), "language_code": d.get("lang", ""), "folder": folder,
+             "file": dest.name, "source": "getBible.net (CrossWire SWORD)", "id": sid,
+             "title": d.get("description") or d.get("translation", ""), "short_title": d.get("translation", ""), "books": len(canon),
+             "copyright": (d.get("distribution_about") or "")[:400], "licence": d.get("distribution_license", ""),
+             "licence_url": f"https://getbible.net/{abbr}", "download_url": url,
+             "format": "getBible v2 JSON: books[nr, chapters[verses[chapter, verse, text]]]", "bytes": dest.stat().st_size,
+             "sha256": sha256_file(dest), "downloaded": TODAY,
+             "notes": f"Source: {d.get('distribution_source', '')}; SWORD {d.get('distribution_abbreviation', '')} "
+                      f"{d.get('distribution_version', '')} ({d.get('distribution_version_date', '')}); versification {d.get('distribution_versification', '')}"}
+    manifest["bibles"] = [b for b in manifest["bibles"] if b["id"] != sid] + [entry]
+    manifest["count"] = len(manifest["bibles"])
+    mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    pack = load_pack(c, a.lang)
+    if not any(b["id"] == sid for b in pack["bibles"]):
+        pack["bibles"].append({"id": sid, "file": f"{folder}/{dest.name}", "source": entry["source"], "title": entry["title"],
+                               "books": len(canon), "licence": entry["licence"], "non_commercial": False, "include": False,
+                               "abbreviation": "", "description": entry["title"], "attribution": entry["copyright"],
+                               "rejected": False, "notes": entry["notes"]})
+        save_pack(c, a.lang, pack)
+    print(f"OK: {dest} ({entry['bytes'] / 1e6:.1f} MB, {len(canon)} books of the 66, licence {entry['licence']}). "
+          f"Added to bibles-manifest.json and to pack.json as {sid} (include=false: choose it there)")
+
+
 def cmd_criteria(a):
     c = cfg()
     pack = load_pack(c, a.lang)
@@ -1172,6 +1380,7 @@ def cmd_criteria(a):
     con = sqlite3.connect(d / "work.db")
     texts = {b["id"]: {(bk, ch, v): t for bk, ch, v, t in con.execute("select book, chapter, verse, text from verses where sid=?", (b["id"],))}
              for b in pack["bibles"] if b["include"]}
+    published = {b["id"] for b in pack["bibles"] if b["include"] and b.get("role") != "reference"}
     fetcher = Fetcher(c, a.fetch)
     need = {"errata", "comparación", "estructura", "versificación", "codificación", "escritura", "alineación"}
     for k, x in current.items():
@@ -1201,6 +1410,8 @@ def cmd_criteria(a):
     rv = json.loads((ASSETS / "review-verses.json").read_text(encoding="utf-8"))["verses"]
     have = {e["key"]: e for e in crit["key_verses"]}
     for sid, rows in texts.items():
+        if sid not in published:
+            continue
         for item in rv:
             key = f"verse|{sid}|{item['ref']}"
             e = have.get(key) or {"key": key, "bible": sid, "ref": item["ref"], "doctrine": bool(item.get("doctrine")),
@@ -1214,12 +1425,24 @@ def cmd_criteria(a):
                 first = f"{refs[0][0]} {refs[0][1]}:{refs[0][2]}"
                 e["evidence"] = evidence_for(fetcher, sid, first, rows.get(refs[0], ""), max_sources=1)
             have[key] = e
-    crit["key_verses"] = list(have.values())
+        rv60 = local_bible(c, "ES-Spanish/reina-valera-1960.bblx")
+        for r in sample_refs(pack, sid, rows):
+            ref = f"{r[0]} {r[1]}:{r[2]}"
+            key = f"sample|{sid}|{ref}"
+            e = have.get(key) or {"key": key, "bible": sid, "ref": ref, "doctrine": False, "sample": True,
+                                  "check": "Muestra al azar: dice lo mismo que la RV1960 y la KJV, sin errores de digitalización",
+                                  "verdict": None, "note": "", "evidence": []}
+            e["text"], e["kjv"], e["rv1960"] = rows.get(r, ""), kjv(c).get(r, ""), rv60.get(r, "")
+            have[key] = e
+    current_keys = {f"verse|{sid}|{item['ref']}" for sid in published for item in rv} | \
+                   {f"sample|{sid}|{r[0]} {r[1]}:{r[2]}" for sid in published for r in sample_refs(pack, sid, texts[sid])}
+    crit["key_verses"] = [e for e in have.values() if e["key"] in current_keys]  # only the published Bibles and current lists
     path.write_text(json.dumps(crit, ensure_ascii=False, indent=1), encoding="utf-8")
     pend = sum(1 for e in crit["issues"] if not e.get("decision"))
     vpend = sum(1 for e in crit["key_verses"] if not e.get("verdict"))
-    print(f"{path}: {len(crit['issues'])} problems ({pend} without decision), {len(crit['key_verses'])} key verses ({vpend} without "
-          f"verdict), {len(crit['resolved'])} resolved. {fetcher.requests} web requests (cache in {fetcher.cache}).")
+    spend = sum(1 for e in crit["key_verses"] if e.get("sample") and not e.get("verdict"))
+    print(f"{path}: {len(crit['issues'])} problems ({pend} without decision), {len(crit['key_verses'])} key and sample verses ({vpend} without "
+          f"verdict, {spend} of them in the random sample), {len(crit['resolved'])} resolved. {fetcher.requests} web requests (cache in {fetcher.cache}).")
     if fetcher.budget <= 0:
         print(f"  The request budget ran out: run again (cached chapters are not asked again) or --fetch more")
 
@@ -1263,7 +1486,8 @@ def cmd_apply(a):
     applied, refused = 0, []
     for e in crit["issues"]:
         dec = e.get("decision") or {}
-        act, sid, ref = dec.get("action"), e["bible"], e["ref"]
+        # A chapter-level problem (punctuation, alignment) names the verse it fixes with "ref".
+        act, sid, ref = dec.get("action"), e["bible"], dec.get("ref") or e["ref"]
         b = bibles.get(sid)
         if not act or act == "accept" or not b:
             if act == "accept" and not dec.get("note"):
@@ -1312,6 +1536,21 @@ def cmd_apply(a):
                 refused.append(f"{ref}: the evidence is verse {ev.get('verse')} of the site; set renumbered_ok: true if that is the same verse")
                 continue
             co[ref] = ev["text"]
+        elif act == "move":
+            # {"from": "ISA 3:25"} moves that verse to this one; {"moves": {"ISA 3:26": "ISA 3:25", ...}} several at once.
+            pairs = dec.get("moves") or {ref: dec.get("from", "")}
+            bad = False
+            for dst, src in pairs.items():
+                sm, tm = re.match(r"^([1-4A-Z]{3}) (\d+):(\d+)$", src), re.match(r"^([1-4A-Z]{3}) (\d+):(\d+)$", dst)
+                if not sm or not tm or sm.group(1) != tm.group(1) or abs(int(sm.group(2)) - int(tm.group(2))) > 1:
+                    refused.append(f"{dst}: move needs a verse of the same book (same or next chapter), not «{src}»")
+                    bad = True
+                elif not verse(sid, src):
+                    refused.append(f"{dst}: {src} is empty")
+                    bad = True
+            if bad:
+                continue
+            b.setdefault("criteria_moves", {}).update(pairs)
         elif act in ("drop_extra", "append_extra"):
             b.setdefault("extra_verses_refs", {})[ref] = "drop" if act == "drop_extra" else "append"
         elif act == "reject_bible":
@@ -1407,11 +1646,13 @@ def main():
     p = sub.add_parser("approve"); p.add_argument("lang"); p.add_argument("--by", required=True); p.add_argument("--notes")
     p = sub.add_parser("criteria"); p.add_argument("lang"); p.add_argument("--fetch", type=int, default=150)
     p = sub.add_parser("verify"); p.add_argument("lang"); p.add_argument("ref"); p.add_argument("--bible")
+    p = sub.add_parser("fetch"); p.add_argument("lang"); p.add_argument("source")
+    sub.add_parser("review").add_argument("lang")
     sub.add_parser("apply").add_argument("lang")
     p = sub.add_parser("publish"); p.add_argument("lang"); p.add_argument("--yes", action="store_true")
     a = ap.parse_args()
     {"status": cmd_status, "init": cmd_init, "import": cmd_import, "validate": cmd_validate, "approve": cmd_approve,
-     "build": cmd_build, "publish": cmd_publish, "criteria": cmd_criteria, "verify": cmd_verify, "apply": cmd_apply}[a.cmd](a)
+     "build": cmd_build, "publish": cmd_publish, "criteria": cmd_criteria, "verify": cmd_verify, "apply": cmd_apply, "fetch": cmd_fetch, "review": cmd_review}[a.cmd](a)
 
 
 if __name__ == "__main__":
