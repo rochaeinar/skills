@@ -703,6 +703,8 @@ def cmd_flows(a):
                f"# build/maestro/screenshots/{code}/ (then  ship.py shots {a.lang}).",
                f"appId: {PACKAGE}", "name: Screenshots " + code, "env:", f"  LANG: \"{code}\"",
                f"  BIBLE: \"{default['abbreviation']}\"", f"  BIBLE_ID: \"{default['id']}\"",
+               # right to left: the line starts on the right (subflows/select_verse.yaml)
+               f"  RTL: \"{'true' if loc.get('rtl') else 'false'}\"",
                f"  GENESIS: \"{names[0]}\"", "---"]
     for name in shots:
         wrapper += ["- runFlow:", f"    file: ../../screenshots/{name}"]

@@ -86,6 +86,8 @@ El usuario no conoce los idiomas: **el criterio lo pongo yo**, como un pastor ev
    | `restore_chars` (`source`) | La copia perdió caracteres y quedaron `?` o `�` (Unión china de BSS) | Toma de la otra copia solo los caracteres en esas posiciones (reemplazos de igual largo alineados); si algo más difiere, se niega y queda `use_source` |
    | `ligature` (`word`, `into`) | Francés: «oeuvre/coeur» perdió la ligadura (control `ligadura`) | Solo `ou`→`œu` en esa palabra |
    | `dedupe` (`word`) | Palabra copiada dos veces seguidas («katika katika») | Quita una de las dos |
+   | `placeholder` | La fuente dejó una nota en lugar del versículo («(ቁጥር 9?)» = «¿versículo 9?», ULB amárica) | Solo si todo el texto es una palabra, el número del versículo y «?»: queda vacío, como un versículo que la edición no trae |
+   | `drop_repeat` | El versículo empieza con el anterior copiado entero y un número suelto («…ናት፡፡” 46. ማርያምም…», Lc 1:46 de la ULB amárica) | Quita esa copia y el número; el texto propio queda igual. Se niega si el versículo no empieza con el anterior completo |
    | `override` con `ocr: true` | La misma versión en línea tiene las erratas de OCR de la fuente («0r» por «Or») | Copia la evidencia corrigiendo solo 0→O y 1→l junto a letras |
 
    Un problema de un capítulo entero (puntuación, alineación) indica el versículo que corrige con `"ref": "PRO 29:6"`.

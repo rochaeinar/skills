@@ -1791,6 +1791,29 @@ def cmd_apply(a):
                 refused.append(f"{ref}: dedupe needs a word written twice in a row in the verse")
                 continue
             co[ref] = new
+        elif act == "placeholder":
+            # The source left a note instead of the verse ("(ቁጥር 9?)" = "(verse 9?)", Amharic ULB): not Bible text.
+            # The verse stays empty, like one the edition lacks. Only when the whole text is a word, the verse
+            # number and a question mark (nothing that could be Scripture).
+            old = co.get(ref) or verse(sid, ref)
+            num = ref.split(":")[-1]
+            if not old or not re.fullmatch(rf"\s*\(?\s*\S{{1,12}}\s*{num}\s*\(?\s*\?\s*\)?\s*\)?\s*", old):
+                refused.append(f"{ref}: placeholder needs a verse whose whole text is a note like «(verse {num}?)»")
+                continue
+            co[ref] = ""
+        elif act == "drop_repeat":
+            # The source pasted the previous verse at the start of this one, then a bare number ("…ናት፡፡” 46. ማርያምም…",
+            # Lk 1:46 of the Amharic ULB): that copy and the number go; the verse's own text stays untouched.
+            old = co.get(ref) or verse(sid, ref)
+            bk, cv = ref.split(" ")
+            ch, v = map(int, cv.split(":"))
+            prev = verse(sid, f"{bk} {ch}:{v - 1}") if v > 1 else ""
+            new = old[len(prev):].lstrip() if prev and old.startswith(prev) else old
+            new = re.sub(rf"^{v}\s*[.:]\s*", "", new)
+            if not prev or not old.startswith(prev) or not new:
+                refused.append(f"{ref}: drop_repeat needs a verse that starts with the whole previous verse")
+                continue
+            co[ref] = new
         elif act == "typo":
             # {"word": "Abrabam", "into": "Abraham"}: a copying error of one letter, when the same Bible writes the word
             # right many times (no other copy has it right). Only that word changes.

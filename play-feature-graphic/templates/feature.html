@@ -29,6 +29,9 @@
   h1 { font-family: '$font_title', Georgia, serif; font-weight: $font_title_weight;
        font-size: ${title_size}px; line-height: 0.95; color: var(--text); letter-spacing: 0.5px; }
   .tagline { margin-top: 16px; font-size: 19px; line-height: 1.4; color: var(--muted); }
+  /* Each text takes its own direction (Arabic, Persian), so the final period stays at its end;
+     the block stays on the left like in every other language. */
+  .tagline, .chip { unicode-bidi: plaintext; text-align: left; }
   .tagline b { color: var(--accent-soft); font-weight: 500; }
   .chips { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
   .chip { font-size: 14px; font-weight: 500; color: var(--text); padding: 8px 14px;

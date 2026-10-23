@@ -47,12 +47,16 @@ SCRIPTS = {
     "Latina": ("LATIN",), "Cirílica": ("CYRILLIC",), "Han": ("CJK",), "Kanji/Kana": ("CJK", "HIRAGANA", "KATAKANA"),
     "Hangul": ("HANGUL",), "Árabe (RTL)": ("ARABIC",), "Devanagari": ("DEVANAGARI",), "Tamil": ("TAMIL",),
     "Telugu": ("TELUGU",), "Kannada": ("KANNADA",), "Malayalam": ("MALAYALAM",), "Birmana": ("MYANMAR",),
+    "Ge'ez (etíope)": ("ETHIOPIC",), "Ge'ez": ("ETHIOPIC",), "Bengalí": ("BENGALI",), "Gujarati": ("GUJARATI",),
+    "Gurmukhi": ("GURMUKHI",), "Tailandesa": ("THAI",), "Jemer": ("KHMER",), "Hebrea": ("HEBREW",), "Griega": ("GREEK",),
 }
 
-SPANISH_WORDS = {"que", "los", "las", "del", "dios", "porque", "también", "nuestra", "nuestro", "señor", "vida", "para"}
+# Palabras que solo tiene el español (para, que, vida... también están en portugués o italiano)
+SPANISH_WORDS = {"dios", "nuestra", "nuestro", "nuestras", "nuestros", "también", "señor", "ustedes", "tienes",
+                 "eres", "hacer", "nosotros", "ellos", "cuando", "siempre", "puedes", "debemos"}
 ENGLISH_WORDS = {"the", "and", "with", "your", "that", "this", "life", "lord", "for", "our", "who", "will"}
 ATTRIBUTIONS = ["Paul Tripp", "C.S. Lewis", "C. S. Lewis", "John Newton", "Spurgeon", "Corrie ten Boom", "Oswald Chambers",
-                "Elizabeth Elliott", "R. C. Sproul", "Kierkegaard"]
+                "Elliot", "R. C. Sproul", "Kierkegaard"]
 
 
 # ---------------------------------------------------------------- configuración y destinos
@@ -351,6 +355,8 @@ def letters_by_script(text):
     for ch in text:
         if ch.isalpha():
             name = unicodedata.name(ch, "")
+            if name.startswith("MODIFIER LETTER"):  # el apóstrofo ʼ del igbo u oromo no es de otra escritura
+                continue
             out[name.split(" ")[0]] = out.get(name.split(" ")[0], 0) + 1
     return out
 
@@ -359,7 +365,10 @@ def validate(c, t, write=True):
     src = source_rows(c)
     state = load_state(t)
     errors, warnings = [], []
-    expected = SCRIPTS.get(t["script"], ("LATIN",))
+    expected = SCRIPTS.get(t["script"]) or SCRIPTS.get(t["script"].split(" (")[0])
+    if not expected:
+        errors.append(f"escritura desconocida '{t['script']}': agregarla a SCRIPTS en coffee.py")
+        expected = ("LATIN",)
     by_es = {}
     for r in src:
         k = str(r["id"])
@@ -383,10 +392,11 @@ def validate(c, t, write=True):
         words = set(re.findall(r"[a-záéíóúñ]+", text.lower()))
         if t["lang"] != "en" and t["script"] == "Latina" and len(words & ENGLISH_WORDS) >= 3:
             warnings.append(f"{k}: ¿quedó en inglés? ({', '.join(sorted(words & ENGLISH_WORDS))})")
-        if t["script"] == "Latina" and len(words & SPANISH_WORDS) >= 3:
+        if t["script"] == "Latina" and len(words & SPANISH_WORDS) >= 2:
             warnings.append(f"{k}: ¿quedó en español? ({', '.join(sorted(words & SPANISH_WORDS))})")
         ratio = len(text) / max(len(r["es"]), 1)
-        lo, hi = (0.2, 0.9) if t["script"] in ("Han", "Kanji/Kana") else (0.55, 1.9)
+        lo, hi = {"Han": (0.2, 0.9), "Kanji/Kana": (0.2, 0.9), "Hangul": (0.3, 1.0),
+                  "Árabe (RTL)": (0.45, 1.6), "Ge'ez (etíope)": (0.3, 1.0)}.get(t["script"], (0.55, 2.0))
         if not lo <= ratio <= hi:
             warnings.append(f"{k}: largo raro ({len(text)} letras contra {len(r['es'])} del español)")
         for num in re.findall(r"\d+", r["es"]):

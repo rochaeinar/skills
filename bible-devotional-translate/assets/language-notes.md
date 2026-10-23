@@ -19,7 +19,7 @@ Punto de partida para el `glossary.md` de cada idioma. La Biblia del paquete man
 | ru | ru | A | ты | Sinodal: «Господь», «благодать», «Дух Святой»; comillas «…» |
 | uk | uk | A | ти | Ucraniano 1871 (Kulish): «Господь», «благодать»; comillas «…» |
 | af | af | A | jy | AOV 1953: «die Here», «genade», «die Heilige Gees» |
-| id | id | A | kamu/engkau | TL: «Tuhan», «Allah» (Dios), «kasih karunia» |
+| id | id | A | kamu | TL: «Tuhan», «Allah» (Dios). Gracia = «kasih karunia», como la Terjemahan Baru (LAI 1974), no «anugerah» de la TL (investigado 2026-10-23) |
 | tl-fil | fil | A | ikaw | ADB: «Panginoon», «biyaya», «Espiritu Santo» |
 | sw | sw | A | wewe | NEN: «Bwana», «Mungu», «neema», «Roho Mtakatifu» |
 | vi | vi | A | bạn | VI1934: «Đức Chúa Trời», «Chúa», «ân điển», «Đức Thánh Linh» |
