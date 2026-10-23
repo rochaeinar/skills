@@ -214,7 +214,20 @@ PH = re.compile(r"%(?:\d+\$)?[sdf]|\{\d\}")
 SAME_IN_EVERY_LANGUAGE = {"app_name", "web", "web_url", "subject", "copyright", "privacy_link", "according"}
 
 
+def ui_of(c, lang):
+    """The interface language from assets/languages.json ("ui"), when the pack has no translation of
+    its own (Quechua and Guarani show Spanish: decided by the user, 2026-10-22). None otherwise."""
+    data = app_languages(c) or {}
+    code = module_lang(c, lang)
+    e = next((x for x in data.get("languages", []) if x.get("code") == code), None)
+    ui = (e or {}).get("ui")
+    return ui if ui and ui != code else None
+
+
 def check_strings(c, lang, verbose=True):
+    ui = ui_of(c, lang)
+    if ui:
+        return True, f"interface in {ui} (\"ui\" in languages.json): no values folder of its own"
     loc = locales().get(module_lang(c, lang))
     if not loc:
         return False, f"{module_lang(c, lang)} is not in assets/locales.json"
@@ -229,6 +242,9 @@ def check_strings(c, lang, verbose=True):
         return False, f"invalid XML: {e}"
     problems = []
     raw = tgt.read_text(encoding="utf-8")
+    # Words that are the same in the language ("Menu", "Quiz" in Portuguese), declared in the file itself:
+    # <!-- same-as-english: menu quiz -->
+    same_ok = set(" ".join(re.findall(r"<!--\s*same-as-english:([^>]*?)-->", raw)).split())
     for n, (text, tr) in E["string"].items():
         if tr == "false" or n.endswith("_file"):
             continue  # documents are not translated: the English fallback (values/) points to the English files
@@ -239,7 +255,7 @@ def check_strings(c, lang, verbose=True):
         if sorted(PH.findall(text)) != sorted(PH.findall(t)):
             problems.append(f"{n}: placeholders {PH.findall(text)} -> {PH.findall(t)}")
         if t.strip() == text.strip() and len(text) > 3 and not re.match(r"^[\W\d_]*$", PH.sub("", text)) \
-                and n not in SAME_IN_EVERY_LANGUAGE:
+                and n not in SAME_IN_EVERY_LANGUAGE and n not in same_ok:
             problems.append(f"{n}: still in English: {text[:60]}")
     for n, items in E["plurals"].items():
         if n not in T["plurals"]:
@@ -269,6 +285,9 @@ def check_strings(c, lang, verbose=True):
 
 
 def check_legal(c, lang):
+    ui = ui_of(c, lang)
+    if ui:
+        return True, f"documents of the {ui} interface (its values folder)"
     loc = locales().get(module_lang(c, lang))
     res = c["app_repo"] / "app" / "src" / "main" / "res" / loc["values"] / "strings.xml"
     if not res.exists():
@@ -307,12 +326,17 @@ def check_about(c, lang):
     md = sorted((c["app_repo"] / "app" / "src" / "main" / "assets" / "legal").glob("bible_modules_*.md"))
     if not md:
         return False, "no bible_modules_<ui>.md: run  ship.py about"
-    abbr = [m["abbreviation"] for m in pk.get("build", {}).get("modules", [])]
+    # Hidden modules (publisher copyright, permission pending) are never listed in the documents.
+    hidden = {m["id"] for m in credits["modules"] if m.get("status") == "hidden"}
+    abbr = [m["abbreviation"] for m in pk.get("build", {}).get("modules", []) if m["id"] not in hidden]
     stale = [f.name for f in md if any(a not in f.read_text(encoding="utf-8") for a in abbr)]
     return (not stale), ("credits and documents up to date" if not stale else f"regenerate (ship.py about): {stale}")
 
 
 def check_web(c, lang):
+    ui = ui_of(c, lang)
+    if ui:
+        return True, f"no page of its own: its readers use the {ui} page"
     code = module_lang(c, lang)
     site = c["website_site"]
     en = site / "src" / "i18n" / "en.json"
@@ -615,7 +639,9 @@ def maestro_regex(text):
     """A regex that matches the start of the verse as the app shows it (the first words, escaped). The brackets
     stay: the app shows them, as the Synodal's mark of the words added by the translators ("[Как]", Mt 1:25)."""
     words = re.sub(r"\s+", " ", text).strip().split(" ")[:6]
-    return ".*" + re.escape(" ".join(words)).replace("\\ ", "\\s+") + ".*"
+    # Python's \s matches the ideographic space (U+3000, "起初，　神" in the Chinese Union Version);
+    # Maestro's regex (Java) does not, so the gaps take it explicitly.
+    return ".*" + re.escape(" ".join(words)).replace("\\ ", "[\\s\\u3000]+") + ".*"
 
 
 def cmd_flows(a):
@@ -625,30 +651,49 @@ def cmd_flows(a):
         fail("No build")
     code = pk["module_language"]
     loc = locales()[code]
-    strings = c["app_repo"] / "app" / "src" / "main" / "res" / loc["values"] / "strings.xml"
+    # A pack shown in another interface language ("ui") uses that language's book names.
+    ui = ui_of(c, a.lang)
+    values = (locales().get(ui) or {}).get("values", f"values-{ui}") if ui else loc["values"]
+    strings = c["app_repo"] / "app" / "src" / "main" / "res" / values / "strings.xml"
     names = parse_strings(strings)["array"].get("book_names") if strings.exists() else None
     if not names or len(names) != 66:
         fail(f"book_names (66) missing in {strings}: translate the UI first (stage strings)")
     default = next(m for m in pk["build"]["modules"] if m["source"] == pk["default_bible"])
-    bblx = c["packs_dir"] / a.lang.replace(" / ", "-") / "build" / default["file"]
-    con = sqlite3.connect(f"file:{bblx}?mode=ro", uri=True)
     d = c["app_repo"] / ".maestro" / "languages" / code
     d.mkdir(parents=True, exist_ok=True)
-    lines = [f"# Generated by bible-language-ship: the key verses of {default['abbreviation']} ({code}) look exactly as in the",
-             "# module (first words), and no verse on screen shows RTF/HTML/markup or replacement characters.",
-             f"appId: {PACKAGE}", "name: Verse text in " + code, "tags:", "  - language", "---",
-             "- runFlow: ../../subflows/launch.yaml"]
-    for bk, ch, v in KEY_VERSES:
-        row = con.execute("select Scripture from Bible where Book=? and Chapter=? and Verse=?", (BOOKS.index(bk) + 1, ch, v)).fetchone()
-        if not row:
-            continue
-        lines += ["- runFlow:", "    file: ../../subflows/open_passage.yaml", "    env:",
-                  f"      BOOK_NUMBER: {BOOKS.index(bk) + 1}", f"      BOOK: \"{names[BOOKS.index(bk)]}\"",
-                  f"      CHAPTER: {ch}", f"      VERSE: {v}", f"      VERSION: \"{default['abbreviation']}\"",
-                  "- assertVisible:", f"    text: {json.dumps(maestro_regex(row[0]), ensure_ascii=False)}",
-                  "- assertNotVisible:", "    text: \".*(\\\\[a-z]+[0-9]*|\\\\{|\\\\}|\\ufffd|&lt;|&#[0-9]+;|\\\\|strong=).*\""]
+    for old in d.glob("verify_*.yaml"):
+        old.unlink()
+    # One flow per Bible of the pack, opened by its module id (short names repeat across languages:
+    # "ULB", "IRV"), and verify_text.yaml that runs them all.
+    per_module = []
+    for mod in pk["build"]["modules"]:
+        bblx = c["packs_dir"] / a.lang.replace(" / ", "-") / "build" / mod["file"]
+        con = sqlite3.connect(f"file:{bblx}?mode=ro", uri=True)
+        lines = [f"# Generated by bible-language-ship: the key verses of {mod['abbreviation']} (module {mod['id']}, {code}) look",
+                 "# exactly as in the module (first words), and no verse on screen shows RTF/HTML/markup or replacement characters.",
+                 f"appId: {PACKAGE}", f"name: Verse text in {code} module {mod['id']}", "tags:", "  - language", "---",
+                 "- runFlow: ../../subflows/launch.yaml"]
+        count = 0
+        for bk, ch, v in KEY_VERSES:
+            row = con.execute("select Scripture from Bible where Book=? and Chapter=? and Verse=?", (BOOKS.index(bk) + 1, ch, v)).fetchone()
+            if not row or not row[0].strip():
+                continue
+            count += 1
+            lines += ["- runFlow:", "    file: ../../subflows/open_passage.yaml", "    env:",
+                      f"      BOOK_NUMBER: {BOOKS.index(bk) + 1}", f"      BOOK: \"{names[BOOKS.index(bk)]}\"",
+                      f"      CHAPTER: {ch}", f"      VERSE: {v}", f"      VERSION: {json.dumps(mod['abbreviation'], ensure_ascii=False)}",
+                      f"      MODULE_ID: {mod['id']}",
+                      "- assertVisible:", f"    text: {json.dumps(maestro_regex(row[0]), ensure_ascii=False)}",
+                      "- assertNotVisible:", "    text: \".*(\\\\[a-z]+[0-9]*|\\\\{|\\\\}|\\ufffd|&lt;|&#[0-9]+;|\\\\|strong=).*\""]
+        con.close()
+        name = f"verify_{mod['id']}.yaml"
+        (d / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        per_module.append((name, mod, count))
+    lines = [f"# Generated by bible-language-ship: the key verses of every Bible of the {code} pack, module by module.",
+             f"appId: {PACKAGE}", "name: Verse text in " + code, "tags:", "  - language", "---"]
+    for name, mod, _ in per_module:
+        lines += ["- runFlow:", f"    file: {name}"]
     (d / "verify_text.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    con.close()
     # The 8 Play screenshots with this language's Bible and book name. The values go in the flow, not on
     # the command line: PowerShell 5.1 garbles non-ASCII arguments (Cyrillic, accents) for native programs.
     shots = sorted(p.name for p in (c["app_repo"] / ".maestro" / "screenshots").glob("0[1-8]_*.yaml"))
@@ -657,11 +702,14 @@ def cmd_flows(a):
     wrapper = [f"# Generated by bible-language-ship: the 8 Play phone screenshots in {code}, saved to",
                f"# build/maestro/screenshots/{code}/ (then  ship.py shots {a.lang}).",
                f"appId: {PACKAGE}", "name: Screenshots " + code, "env:", f"  LANG: \"{code}\"",
-               f"  BIBLE: \"{default['abbreviation']}\"", f"  GENESIS: \"{names[0]}\"", "---"]
+               f"  BIBLE: \"{default['abbreviation']}\"", f"  BIBLE_ID: \"{default['id']}\"",
+               f"  GENESIS: \"{names[0]}\"", "---"]
     for name in shots:
         wrapper += ["- runFlow:", f"    file: ../../screenshots/{name}"]
     (d / "screenshots.yaml").write_text("\n".join(wrapper) + "\n", encoding="utf-8")
-    print(f"OK: {d / 'verify_text.yaml'} ({len(KEY_VERSES)} key verses) and {d / 'screenshots.yaml'}")
+    for name, mod, count in per_module:
+        print(f"  {name}: {mod['abbreviation']} ({count} key verses)")
+    print(f"OK: {d / 'verify_text.yaml'} ({len(per_module)} modules) and {d / 'screenshots.yaml'}")
 
 
 def adb(*args, check=True):
@@ -685,20 +733,47 @@ def cmd_device(a):
             if data:
                 (backup / name).write_bytes(data)
         # The app's language through the debug test link (AppCompat): works on Android 12 too, where
-        # `cmd locale set-app-locales` does not exist. Needs the debug build.
+        # `cmd locale set-app-locales` does not exist. Needs the debug build. With the app stopped,
+        # AppCompat (Android 12) never stores the language: open the app first.
+        # A pack shown in another interface language ("ui": Quechua in Spanish) gets that language,
+        # with the pack's country (es-PE).
+        ui = ui_of(c, a.lang)
+        tag = f"{ui}-{loc['adb'].split('-')[-1]}" if ui else loc["adb"]
+        adb("shell", "monkey", "-p", PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
+        time.sleep(7)
         adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d",
-            f"timelessbible-test://locale?tag={loc['adb']}")
+            f"timelessbible-test://locale?tag={tag}")
         # AppCompat writes the language to its file in the background: stopping the app before that
         # loses it. Wait for the file (up to 10 s).
         record = "files/androidx.appcompat.app.AppCompatDelegate.application_locales_record_file"
         for _ in range(20):
-            if loc["adb"] in adb("shell", "run-as", PACKAGE, "cat", record, check=False):
+            if tag in adb("shell", "run-as", PACKAGE, "cat", record, check=False):
                 break
             time.sleep(0.5)
         else:
             fail("the app did not store its language: is the debug build installed?")
         adb("shell", "am", "force-stop", PACKAGE)
-        print(f"OK: app data backed up in {backup}, app language = {loc['adb']} (per-app locale). Restore with  ship.py device {a.lang} restore")
+        print(f"OK: app data backed up in {backup}, app language = {tag} (per-app locale). Restore with  ship.py device {a.lang} restore")
+    elif a.action == "install":
+        # Downloads and installs the pack from the real CDN with the app's own LanguageDownloader, through the
+        # debug link timelessbible-test://install (no scrolling through the language cards), and waits for it.
+        flag = f'name="language_downloaded_{code}" value="true"'
+        if flag in adb("exec-out", "run-as", PACKAGE, "cat", "shared_prefs/general_settings.xml", check=False):
+            print(f"OK: {code} is already installed")
+            return
+        adb("shell", "monkey", "-p", PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
+        time.sleep(7)
+        adb("logcat", "-c", check=False)
+        adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", f"timelessbible-test://install?lang={code}")
+        for _ in range(180):
+            time.sleep(2)
+            log = adb("logcat", "-d", "-s", "TestInstall:I", check=False)
+            if f"{code} -> " in log:
+                if f"{code} -> true" not in log:
+                    fail(f"the app could not install {code} (logcat: adb logcat -d | grep LanguageDownloader)")
+                print(f"OK: {code} downloaded from the CDN and installed")
+                return
+        fail(f"{code} was not installed within 6 minutes")
     else:
         # Back to the phone's language (an empty tag), through the debug test link as in prep.
         adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d",
@@ -814,7 +889,8 @@ def tracker_ready(c, lang):
     code = module_lang(c, lang)
     for i, line in enumerate(lines):
         cells = line.split("|")
-        if len(cells) != len(names) or cells[names.index("Código")].strip() != code:
+        # The tracker's code is the pack's ("pt-BR", "tl / fil") or the module language's ("ru").
+        if len(cells) != len(names) or cells[names.index("Código")].strip() not in (code, lang):
             continue
         for col in ("UI", "Fuente/Layout", "Ficha Play"):
             if col in names:
@@ -851,7 +927,7 @@ def main():
     for n in ("cdn", "strings", "web", "play", "flows", "shots", "feature", "report"):
         s.add_parser(n).add_argument("lang")
     s.add_parser("about")
-    p = s.add_parser("device"); p.add_argument("lang"); p.add_argument("action", choices=["prep", "restore"])
+    p = s.add_parser("device"); p.add_argument("lang"); p.add_argument("action", choices=["prep", "install", "restore"])
     p = s.add_parser("mark"); p.add_argument("lang"); p.add_argument("stage"); p.add_argument("--note")
     a = ap.parse_args()
     {"status": cmd_status, "next": cmd_next, "check": cmd_check, "cdn": cmd_cdn, "strings": cmd_strings, "about": cmd_about,
