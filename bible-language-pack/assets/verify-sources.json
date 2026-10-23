@@ -1,127 +1,1011 @@
 {
-  "_comment": "Where to read the SAME version of each Bible of the tracker on trustworthy sites, to check a doubtful verse (the criteria step). Researched on 2026-10-21. match: exact = same edition; probable = same translation, the edition is not confirmed (good to separate glued words, not enough alone to replace a verse: a second source or the other copy must agree); orthography = same translation in another spelling (only to confirm words exist). Every request is cached in packs/_cache and spaced by min_interval_s: never fetch a whole Bible.",
-  "sites": {
-    "getbible": {
-      "name": "getBible.net (textos de CrossWire SWORD, dominio público)",
-      "chapter_url": "https://api.getbible.net/v2/{abbr}/{booknum}/{ch}.json",
-      "page_url": "https://getbible.net/{abbr}/{booknum}/{ch}",
-      "min_interval_s": 1.5,
-      "catalogue": "https://api.getbible.net/v2/translations.json"
-    },
-    "bolls": {
-      "name": "Bolls Bible (bolls.life)",
-      "chapter_url": "https://bolls.life/get-text/{abbr}/{booknum}/{ch}/",
-      "page_url": "https://bolls.life/{abbr}/{booknum}/{ch}/",
-      "min_interval_s": 2,
-      "catalogue": "https://bolls.life/static/bolls/app/views/languages.json"
-    },
-    "biblecom": {
-      "name": "Bible.com (YouVersion)",
-      "chapter_url": "https://nodejs.bible.com/api/bible/chapter/3.1?id={vid}&reference={book}.{ch}",
-      "page_url": "https://www.bible.com/bible/{vid}/{book}.{ch}",
-      "min_interval_s": 4,
-      "catalogue": "https://nodejs.bible.com/api/bible/versions/3.1?language_tag=<iso639-3>&type=all",
-      "_note": "Endpoint of bible.com's own web app (not a documented public API): use it last, only for the flagged verses, never in bulk."
-    }
+ "_comment": "Where to read the SAME version of each Bible of the tracker on trustworthy sites, to check a doubtful verse (the criteria step). Researched on 2026-10-21. match: exact = same edition; probable = same translation, the edition is not confirmed (good to separate glued words, not enough alone to replace a verse: a second source or the other copy must agree); orthography = same translation in another spelling (only to confirm words exist). Every request is cached in packs/_cache and spaced by min_interval_s: never fetch a whole Bible.",
+ "sites": {
+  "getbible": {
+   "name": "getBible.net (textos de CrossWire SWORD, dominio público)",
+   "chapter_url": "https://api.getbible.net/v2/{abbr}/{booknum}/{ch}.json",
+   "page_url": "https://getbible.net/{abbr}/{booknum}/{ch}",
+   "min_interval_s": 1.5,
+   "catalogue": "https://api.getbible.net/v2/translations.json"
   },
-  "references": {
-    "_comment": "The pastor's measuring sticks: Reina-Valera 1960 (Spanish) and the KJV (English, local module).",
-    "RV1960": [{"site": "local", "file": "ES-Spanish/reina-valera-1960.bblx"}, {"site": "bolls", "abbr": "RV1960"}, {"site": "biblecom", "vid": 149}],
-    "KJV": [{"site": "local", "file": "EN-English/king-james-version.bblx"}, {"site": "getbible", "abbr": "kjv"}]
+  "bolls": {
+   "name": "Bolls Bible (bolls.life)",
+   "chapter_url": "https://bolls.life/get-text/{abbr}/{booknum}/{ch}/",
+   "page_url": "https://bolls.life/{abbr}/{booknum}/{ch}/",
+   "min_interval_s": 2,
+   "catalogue": "https://bolls.life/static/bolls/app/views/languages.json"
   },
-  "bibles": {
-    "afri": [{"site": "biblecom", "vid": 5, "match": "exact"}, {"site": "bolls", "abbr": "AFR53", "match": "exact"}, {"site": "getbible", "abbr": "aov", "match": "probable"}],
-    "am_amh": [{"site": "biblecom", "vid": 3867, "match": "probable"}],
-    "amh": [{"site": "biblecom", "vid": 3867, "match": "probable"}],
-    "svd": [{"site": "getbible", "abbr": "arabicsv", "match": "exact"}, {"site": "bolls", "abbr": "SVD", "match": "exact"}, {"site": "biblecom", "vid": 13, "match": "exact"}],
-    "arb-vd": [{"site": "getbible", "abbr": "arabicsv", "match": "exact"}, {"site": "bolls", "abbr": "SVD", "match": "exact"}, {"site": "biblecom", "vid": 13, "match": "exact"}],
-    "arbnav": [{"site": "bolls", "abbr": "NAV", "match": "exact"}, {"site": "biblecom", "vid": 101, "match": "exact"}],
-    "cebocb": [{"site": "biblecom", "vid": 9, "match": "probable"}],
-    "elberfelder_1871": [{"site": "getbible", "abbr": "elberfelder", "match": "exact"}, {"site": "bolls", "abbr": "ELB", "match": "exact"}, {"site": "biblecom", "vid": 58, "match": "exact"}],
-    "elberfelder_1905": [{"site": "getbible", "abbr": "elberfelder1905", "match": "exact"}],
-    "deuelo": [{"site": "biblecom", "vid": 57, "match": "exact"}],
-    "deuelbbk": [{"site": "biblecom", "vid": 2351, "match": "exact"}],
-    "luther": [{"site": "getbible", "abbr": "luther1545", "match": "exact"}],
-    "luther_1912": [{"site": "bolls", "abbr": "LUT", "match": "exact"}, {"site": "biblecom", "vid": 51, "match": "exact"}],
-    "deu1912": [{"site": "bolls", "abbr": "LUT", "match": "exact"}, {"site": "biblecom", "vid": 51, "match": "exact"}],
-    "schlachter": [{"site": "getbible", "abbr": "schlachter", "match": "exact"}, {"site": "bolls", "abbr": "SCH", "match": "exact"}, {"site": "biblecom", "vid": 158, "match": "exact"}],
-    "deu1951": [{"site": "getbible", "abbr": "schlachter", "match": "exact"}, {"site": "bolls", "abbr": "SCH", "match": "exact"}, {"site": "biblecom", "vid": 158, "match": "exact"}],
-    "rv_1858": [{"site": "getbible", "abbr": "rv1858", "match": "exact"}],
-    "rv_1909": [{"site": "getbible", "abbr": "valera", "match": "exact"}, {"site": "biblecom", "vid": 1718, "match": "exact"}],
-    "sagradas": [{"site": "getbible", "abbr": "sse", "match": "exact"}],
-    "opt": [{"site": "bolls", "abbr": "POV", "match": "exact"}],
-    "pesOPV": [{"site": "bolls", "abbr": "POV", "match": "exact"}],
-    "pesopcb": [{"site": "bolls", "abbr": "FACB", "match": "probable"}],
-    "martin": [{"site": "getbible", "abbr": "martin", "match": "exact"}, {"site": "biblecom", "vid": 62, "match": "exact"}],
-    "oster": [{"site": "biblecom", "vid": 131, "match": "probable"}],
-    "fra_fob": [{"site": "biblecom", "vid": 131, "match": "probable"}],
-    "segond_1910": [{"site": "getbible", "abbr": "ls1910", "match": "exact"}, {"site": "bolls", "abbr": "FRLSG", "match": "exact"}, {"site": "biblecom", "vid": 93, "match": "exact"}],
-    "fraLSG": [{"site": "getbible", "abbr": "ls1910", "match": "exact"}, {"site": "bolls", "abbr": "FRLSG", "match": "exact"}, {"site": "biblecom", "vid": 93, "match": "exact"}],
-    "frajnd": [{"site": "getbible", "abbr": "darby", "match": "exact"}, {"site": "bolls", "abbr": "FRDBY", "match": "exact"}, {"site": "biblecom", "vid": 64, "match": "exact"}],
-    "gun": [{"site": "biblecom", "vid": 1066, "match": "exact"}],
-    "ha_con": [{"site": "biblecom", "vid": 1614, "match": "exact"}],
-    "hausa": [{"site": "biblecom", "vid": 1614, "match": "exact"}],
-    "irv": [{"site": "biblecom", "vid": 1980, "match": "exact"}],
-    "hin2017": [{"site": "biblecom", "vid": 1980, "match": "exact"}],
-    "hincv": [{"site": "biblecom", "vid": 1628, "match": "exact"}],
-    "hil": [{"site": "biblecom", "vid": 10, "match": "probable"}],
-    "indo_tm": [{"site": "biblecom", "vid": 2861, "match": "exact"}],
-    "ind": [{"site": "biblecom", "vid": 320, "match": "exact"}],
-    "ibo": [{"site": "biblecom", "vid": 1624, "match": "exact"}],
-    "diodati": [{"site": "getbible", "abbr": "giovanni", "match": "exact"}],
-    "ita1885": [{"site": "biblecom", "vid": 54, "match": "exact"}, {"site": "getbible", "abbr": "giovanni", "match": "probable"}],
-    "ita1927": [{"site": "getbible", "abbr": "riveduta", "match": "exact"}],
-    "bungo": [{"site": "getbible", "abbr": "japbungo", "match": "exact"}],
-    "kougo": [{"site": "getbible", "abbr": "japkougo", "match": "exact"}, {"site": "biblecom", "vid": 81, "match": "exact"}, {"site": "bolls", "abbr": "JPKJV", "match": "probable"}],
-    "kn_irv": [{"site": "biblecom", "vid": 1898, "match": "exact"}],
-    "kanirv": [{"site": "biblecom", "vid": 1898, "match": "exact"}],
-    "kanokcv": [{"site": "biblecom", "vid": 3259, "match": "probable"}],
-    "lug": [{"site": "biblecom", "vid": 1625, "match": "exact"}],
-    "lin": [{"site": "biblecom", "vid": 1964, "match": "probable"}],
-    "mal2015": [{"site": "getbible", "abbr": "mal1910", "match": "orthography"}, {"site": "bolls", "abbr": "MOV", "match": "orthography"}],
-    "mal": [{"site": "biblecom", "vid": 1912, "match": "exact"}],
-    "malc": [{"site": "biblecom", "vid": 2431, "match": "exact"}],
-    "my_judson": [{"site": "biblecom", "vid": 386, "match": "probable"}, {"site": "getbible", "abbr": "judson", "match": "probable"}],
-    "myajvb": [{"site": "biblecom", "vid": 386, "match": "probable"}, {"site": "getbible", "abbr": "judson", "match": "probable"}],
-    "npioncb": [{"site": "biblecom", "vid": 3261, "match": "exact"}],
-    "gaz": [{"site": "biblecom", "vid": 3725, "match": "exact"}],
-    "polbg": [{"site": "getbible", "abbr": "polgdanska", "match": "exact"}, {"site": "bolls", "abbr": "BG", "match": "exact"}, {"site": "biblecom", "vid": 132, "match": "probable"}],
-    "pol_ubg": [{"site": "getbible", "abbr": "polugdanska", "match": "exact"}, {"site": "bolls", "abbr": "UBG18", "match": "exact"}, {"site": "biblecom", "vid": 138, "match": "exact"}],
-    "polubg": [{"site": "getbible", "abbr": "polugdanska", "match": "exact"}, {"site": "bolls", "abbr": "UBG18", "match": "exact"}, {"site": "biblecom", "vid": 138, "match": "exact"}],
-    "pol_nbg": [{"site": "biblecom", "vid": 319, "match": "exact"}],
-    "almeida_ra": [{"site": "bolls", "abbr": "ARA", "match": "exact"}, {"site": "biblecom", "vid": 1608, "match": "exact"}],
-    "almeida_rc": [{"site": "biblecom", "vid": 212, "match": "probable"}],
-    "poronbv": [{"site": "bolls", "abbr": "NBV07", "match": "exact"}],
-    "cornilescu": [{"site": "getbible", "abbr": "cornilescu", "match": "exact"}, {"site": "biblecom", "vid": 191, "match": "probable"}],
-    "synodal": [{"site": "getbible", "abbr": "synodal", "match": "exact"}, {"site": "bolls", "abbr": "SYNOD", "match": "exact"}, {"site": "biblecom", "vid": 400, "match": "exact"}],
-    "russyn": [{"site": "getbible", "abbr": "synodal", "match": "exact"}, {"site": "bolls", "abbr": "SYNOD", "match": "exact"}, {"site": "biblecom", "vid": 400, "match": "exact"}],
-    "sna": [{"site": "biblecom", "vid": 32, "match": "exact"}],
-    "swhonen": [{"site": "biblecom", "vid": 1627, "match": "exact"}],
-    "swhonmm": [{"site": "biblecom", "vid": 4369, "match": "probable"}],
-    "ta_irv": [{"site": "biblecom", "vid": 1899, "match": "exact"}],
-    "tam2017": [{"site": "biblecom", "vid": 1899, "match": "exact"}],
-    "ta_oitce": [{"site": "biblecom", "vid": 2730, "match": "exact"}],
-    "tamtcv": [{"site": "biblecom", "vid": 2730, "match": "exact"}],
-    "te_irv": [{"site": "biblecom", "vid": 1895, "match": "exact"}],
-    "tel2017": [{"site": "biblecom", "vid": 1895, "match": "exact"}],
-    "telotsa": [{"site": "biblecom", "vid": 3268, "match": "exact"}],
-    "tagab": [{"site": "getbible", "abbr": "tagalog", "match": "exact"}, {"site": "biblecom", "vid": 177, "match": "exact"}],
-    "tpiOTNT": [{"site": "biblecom", "vid": 3322, "match": "probable"}],
-    "twi": [{"site": "biblecom", "vid": 1631, "match": "exact"}],
-    "twiasante": [{"site": "biblecom", "vid": 2094, "match": "exact"}],
-    "ukr1871": [{"site": "bolls", "abbr": "UKRK", "match": "exact"}, {"site": "biblecom", "vid": 188, "match": "exact"}, {"site": "getbible", "abbr": "ukranian", "match": "probable"}],
-    "cadman": [{"site": "getbible", "abbr": "vietnamese", "match": "exact"}, {"site": "bolls", "abbr": "VI1934", "match": "exact"}, {"site": "biblecom", "vid": 193, "match": "probable"}],
-    "vie1934": [{"site": "getbible", "abbr": "vietnamese", "match": "exact"}, {"site": "bolls", "abbr": "VI1934", "match": "exact"}, {"site": "biblecom", "vid": 193, "match": "probable"}],
-    "vieovcb": [{"site": "biblecom", "vid": 1638, "match": "exact"}],
-    "yor": [{"site": "biblecom", "vid": 911, "match": "exact"}],
-    "chinese_union_simp": [{"site": "getbible", "abbr": "cus", "match": "exact"}, {"site": "bolls", "abbr": "CUNPS", "match": "probable"}],
-    "chinese_union_simp_s": [{"site": "getbible", "abbr": "cus", "match": "exact"}, {"site": "bolls", "abbr": "CUNPS", "match": "probable"}],
-    "cmn-cu89s": [{"site": "bolls", "abbr": "CUNPS", "match": "exact"}, {"site": "getbible", "abbr": "cus", "match": "probable"}],
-    "chinese_union_trad": [{"site": "getbible", "abbr": "cut", "match": "exact"}, {"site": "bolls", "abbr": "CUV", "match": "exact"}],
-    "chinese_union_trad_s": [{"site": "getbible", "abbr": "cut", "match": "exact"}, {"site": "bolls", "abbr": "CUV", "match": "exact"}],
-    "cmn-cu89t": [{"site": "bolls", "abbr": "CUNP", "match": "exact"}, {"site": "biblecom", "vid": 46, "match": "exact"}],
-    "cmncbt": [{"site": "biblecom", "vid": 1392, "match": "exact"}]
-  },
-  "without_online_copy": ["ha_lit", "hauulb", "cebulb", "iloulb", "tdx", "ne_ulb", "npiulb", "tglulb", "swhulb", "swahili", "swh1850", "indayt", "jpn1965", "kor", "gaze", "ron1924", "ukr1996", "hcv", "hat", "cmncbs", "gnwNT", "guiNT", "qub", "qufNT", "quhNT", "qulNT", "qupNT", "qvcNT", "qveNT", "qvhNT", "qvmNT", "qvnNT", "qvsNT", "qvwNT", "qwhNT", "qxhNT", "qxnNT", "qxoNT"],
-  "_without_online_copy_note": "No exact online copy found on these sites. Doubts are solved with the other downloaded copy of the same text (if any), the same publisher's site (door43.org for ULB, biblica.com/open.bible for Biblica) or left as they are (accept) with a note: never by rewriting the verse."
+  "biblecom": {
+   "name": "Bible.com (YouVersion)",
+   "chapter_url": "https://nodejs.bible.com/api/bible/chapter/3.1?id={vid}&reference={book}.{ch}",
+   "page_url": "https://www.bible.com/bible/{vid}/{book}.{ch}",
+   "min_interval_s": 4,
+   "catalogue": "https://nodejs.bible.com/api/bible/versions/3.1?language_tag=<iso639-3>&type=all",
+   "_note": "Endpoint of bible.com's own web app (not a documented public API): use it last, only for the flagged verses, never in bulk."
+  }
+ },
+ "references": {
+  "_comment": "The pastor's measuring sticks: Reina-Valera 1960 (Spanish) and the KJV (English, local module).",
+  "RV1960": [
+   {
+    "site": "local",
+    "file": "ES-Spanish/reina-valera-1960.bblx"
+   },
+   {
+    "site": "bolls",
+    "abbr": "RV1960"
+   },
+   {
+    "site": "biblecom",
+    "vid": 149
+   }
+  ],
+  "KJV": [
+   {
+    "site": "local",
+    "file": "EN-English/king-james-version.bblx"
+   },
+   {
+    "site": "getbible",
+    "abbr": "kjv"
+   }
+  ]
+ },
+ "bibles": {
+  "afri": [
+   {
+    "site": "biblecom",
+    "vid": 5,
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "AFR53",
+    "match": "exact"
+   },
+   {
+    "site": "getbible",
+    "abbr": "aov",
+    "match": "probable"
+   }
+  ],
+  "am_amh": [
+   {
+    "site": "biblecom",
+    "vid": 3867,
+    "match": "probable"
+   }
+  ],
+  "amh": [
+   {
+    "site": "biblecom",
+    "vid": 3867,
+    "match": "probable"
+   }
+  ],
+  "svd": [
+   {
+    "site": "getbible",
+    "abbr": "arabicsv",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "SVD",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 13,
+    "match": "exact"
+   }
+  ],
+  "arb-vd": [
+   {
+    "site": "getbible",
+    "abbr": "arabicsv",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "SVD",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 13,
+    "match": "exact"
+   }
+  ],
+  "arbnav": [
+   {
+    "site": "bolls",
+    "abbr": "NAV",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 101,
+    "match": "exact"
+   }
+  ],
+  "cebocb": [
+   {
+    "site": "biblecom",
+    "vid": 9,
+    "match": "probable"
+   }
+  ],
+  "elberfelder_1871": [
+   {
+    "site": "getbible",
+    "abbr": "elberfelder",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "ELB",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 58,
+    "match": "exact"
+   }
+  ],
+  "elberfelder_1905": [
+   {
+    "site": "getbible",
+    "abbr": "elberfelder1905",
+    "match": "exact"
+   }
+  ],
+  "deuelo": [
+   {
+    "site": "biblecom",
+    "vid": 57,
+    "match": "exact"
+   }
+  ],
+  "deuelbbk": [
+   {
+    "site": "biblecom",
+    "vid": 2351,
+    "match": "exact"
+   }
+  ],
+  "luther": [
+   {
+    "site": "getbible",
+    "abbr": "luther1545",
+    "match": "exact"
+   }
+  ],
+  "luther_1912": [
+   {
+    "site": "bolls",
+    "abbr": "LUT",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 51,
+    "match": "exact"
+   }
+  ],
+  "deu1912": [
+   {
+    "site": "bolls",
+    "abbr": "LUT",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 51,
+    "match": "exact"
+   }
+  ],
+  "schlachter": [
+   {
+    "site": "getbible",
+    "abbr": "schlachter",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "SCH",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 158,
+    "match": "exact"
+   }
+  ],
+  "deu1951": [
+   {
+    "site": "getbible",
+    "abbr": "schlachter",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "SCH",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 158,
+    "match": "exact"
+   }
+  ],
+  "rv_1858": [
+   {
+    "site": "getbible",
+    "abbr": "rv1858",
+    "match": "exact"
+   }
+  ],
+  "rv_1909": [
+   {
+    "site": "getbible",
+    "abbr": "valera",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 1718,
+    "match": "exact"
+   }
+  ],
+  "sagradas": [
+   {
+    "site": "getbible",
+    "abbr": "sse",
+    "match": "exact"
+   }
+  ],
+  "opt": [
+   {
+    "site": "bolls",
+    "abbr": "POV",
+    "match": "exact"
+   }
+  ],
+  "pesOPV": [
+   {
+    "site": "bolls",
+    "abbr": "POV",
+    "match": "exact"
+   }
+  ],
+  "pesopcb": [
+   {
+    "site": "bolls",
+    "abbr": "FACB",
+    "match": "probable"
+   }
+  ],
+  "martin": [
+   {
+    "site": "getbible",
+    "abbr": "martin",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 62,
+    "match": "exact"
+   }
+  ],
+  "oster": [
+   {
+    "site": "biblecom",
+    "vid": 131,
+    "match": "probable"
+   }
+  ],
+  "fra_fob": [
+   {
+    "site": "biblecom",
+    "vid": 131,
+    "match": "probable"
+   }
+  ],
+  "segond_1910": [
+   {
+    "site": "getbible",
+    "abbr": "ls1910",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "FRLSG",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 93,
+    "match": "exact"
+   }
+  ],
+  "fraLSG": [
+   {
+    "site": "getbible",
+    "abbr": "ls1910",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "FRLSG",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 93,
+    "match": "exact"
+   }
+  ],
+  "frajnd": [
+   {
+    "site": "getbible",
+    "abbr": "darby",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "FRDBY",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 64,
+    "match": "exact"
+   }
+  ],
+  "gun": [
+   {
+    "site": "biblecom",
+    "vid": 1066,
+    "match": "exact"
+   }
+  ],
+  "ha_con": [
+   {
+    "site": "biblecom",
+    "vid": 1614,
+    "match": "exact"
+   }
+  ],
+  "hausa": [
+   {
+    "site": "biblecom",
+    "vid": 1614,
+    "match": "exact"
+   }
+  ],
+  "irv": [
+   {
+    "site": "biblecom",
+    "vid": 1980,
+    "match": "exact"
+   }
+  ],
+  "hin2017": [
+   {
+    "site": "biblecom",
+    "vid": 1980,
+    "match": "exact"
+   }
+  ],
+  "hincv": [
+   {
+    "site": "biblecom",
+    "vid": 1628,
+    "match": "exact"
+   }
+  ],
+  "hil": [
+   {
+    "site": "biblecom",
+    "vid": 10,
+    "match": "probable"
+   }
+  ],
+  "indo_tm": [
+   {
+    "site": "biblecom",
+    "vid": 2861,
+    "match": "exact"
+   }
+  ],
+  "ind": [
+   {
+    "site": "biblecom",
+    "vid": 320,
+    "match": "exact"
+   }
+  ],
+  "ibo": [
+   {
+    "site": "biblecom",
+    "vid": 1624,
+    "match": "exact"
+   }
+  ],
+  "diodati": [
+   {
+    "site": "getbible",
+    "abbr": "giovanni",
+    "match": "exact"
+   }
+  ],
+  "ita1885": [
+   {
+    "site": "biblecom",
+    "vid": 54,
+    "match": "exact"
+   },
+   {
+    "site": "getbible",
+    "abbr": "giovanni",
+    "match": "probable"
+   }
+  ],
+  "ita1927": [
+   {
+    "site": "getbible",
+    "abbr": "riveduta",
+    "match": "exact"
+   }
+  ],
+  "bungo": [
+   {
+    "site": "getbible",
+    "abbr": "japbungo",
+    "match": "exact"
+   }
+  ],
+  "kougo": [
+   {
+    "site": "getbible",
+    "abbr": "japkougo",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 81,
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "JPKJV",
+    "match": "probable"
+   }
+  ],
+  "kn_irv": [
+   {
+    "site": "biblecom",
+    "vid": 1898,
+    "match": "exact"
+   }
+  ],
+  "kanirv": [
+   {
+    "site": "biblecom",
+    "vid": 1898,
+    "match": "exact"
+   }
+  ],
+  "kanokcv": [
+   {
+    "site": "biblecom",
+    "vid": 3259,
+    "match": "probable"
+   }
+  ],
+  "lug": [
+   {
+    "site": "biblecom",
+    "vid": 1625,
+    "match": "exact"
+   }
+  ],
+  "lin": [
+   {
+    "site": "biblecom",
+    "vid": 1964,
+    "match": "probable"
+   }
+  ],
+  "mal2015": [
+   {
+    "site": "getbible",
+    "abbr": "mal1910",
+    "match": "orthography"
+   },
+   {
+    "site": "bolls",
+    "abbr": "MOV",
+    "match": "orthography"
+   }
+  ],
+  "mal": [
+   {
+    "site": "biblecom",
+    "vid": 1912,
+    "match": "exact"
+   }
+  ],
+  "malc": [
+   {
+    "site": "biblecom",
+    "vid": 2431,
+    "match": "exact"
+   }
+  ],
+  "my_judson": [
+   {
+    "site": "biblecom",
+    "vid": 386,
+    "match": "probable"
+   },
+   {
+    "site": "getbible",
+    "abbr": "judson",
+    "match": "probable"
+   }
+  ],
+  "myajvb": [
+   {
+    "site": "biblecom",
+    "vid": 386,
+    "match": "probable"
+   },
+   {
+    "site": "getbible",
+    "abbr": "judson",
+    "match": "probable"
+   }
+  ],
+  "npioncb": [
+   {
+    "site": "biblecom",
+    "vid": 3261,
+    "match": "exact"
+   }
+  ],
+  "gaz": [
+   {
+    "site": "biblecom",
+    "vid": 3725,
+    "match": "exact"
+   }
+  ],
+  "polbg": [
+   {
+    "site": "getbible",
+    "abbr": "polgdanska",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "BG",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 132,
+    "match": "probable"
+   }
+  ],
+  "pol_ubg": [
+   {
+    "site": "getbible",
+    "abbr": "polugdanska",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "UBG18",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 138,
+    "match": "exact"
+   }
+  ],
+  "polubg": [
+   {
+    "site": "getbible",
+    "abbr": "polugdanska",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "UBG18",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 138,
+    "match": "exact"
+   }
+  ],
+  "pol_nbg": [
+   {
+    "site": "biblecom",
+    "vid": 319,
+    "match": "exact"
+   }
+  ],
+  "almeida_ra": [
+   {
+    "site": "bolls",
+    "abbr": "ARA",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 1608,
+    "match": "exact"
+   }
+  ],
+  "almeida_rc": [
+   {
+    "site": "biblecom",
+    "vid": 212,
+    "match": "probable"
+   }
+  ],
+  "poronbv": [
+   {
+    "site": "bolls",
+    "abbr": "NBV07",
+    "match": "exact"
+   }
+  ],
+  "cornilescu": [
+   {
+    "site": "getbible",
+    "abbr": "cornilescu",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 191,
+    "match": "probable"
+   }
+  ],
+  "synodal": [
+   {
+    "site": "getbible",
+    "abbr": "synodal",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "SYNOD",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 400,
+    "match": "exact"
+   }
+  ],
+  "russyn": [
+   {
+    "site": "getbible",
+    "abbr": "synodal",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "SYNOD",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 400,
+    "match": "exact"
+   }
+  ],
+  "sna": [
+   {
+    "site": "biblecom",
+    "vid": 32,
+    "match": "exact"
+   }
+  ],
+  "swhonen": [
+   {
+    "site": "biblecom",
+    "vid": 1627,
+    "match": "exact"
+   }
+  ],
+  "swhonmm": [
+   {
+    "site": "biblecom",
+    "vid": 4369,
+    "match": "probable"
+   }
+  ],
+  "ta_irv": [
+   {
+    "site": "biblecom",
+    "vid": 1899,
+    "match": "exact"
+   }
+  ],
+  "tam2017": [
+   {
+    "site": "biblecom",
+    "vid": 1899,
+    "match": "exact"
+   }
+  ],
+  "ta_oitce": [
+   {
+    "site": "biblecom",
+    "vid": 2730,
+    "match": "exact"
+   }
+  ],
+  "tamtcv": [
+   {
+    "site": "biblecom",
+    "vid": 2730,
+    "match": "exact"
+   }
+  ],
+  "te_irv": [
+   {
+    "site": "biblecom",
+    "vid": 1895,
+    "match": "exact"
+   }
+  ],
+  "tel2017": [
+   {
+    "site": "biblecom",
+    "vid": 1895,
+    "match": "exact"
+   }
+  ],
+  "telotsa": [
+   {
+    "site": "biblecom",
+    "vid": 3268,
+    "match": "exact"
+   }
+  ],
+  "tagab": [
+   {
+    "site": "getbible",
+    "abbr": "tagalog",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 177,
+    "match": "exact"
+   }
+  ],
+  "tpiOTNT": [
+   {
+    "site": "biblecom",
+    "vid": 3322,
+    "match": "probable"
+   }
+  ],
+  "twi": [
+   {
+    "site": "biblecom",
+    "vid": 1631,
+    "match": "exact"
+   }
+  ],
+  "twiasante": [
+   {
+    "site": "biblecom",
+    "vid": 2094,
+    "match": "exact"
+   }
+  ],
+  "ukr1871": [
+   {
+    "site": "bolls",
+    "abbr": "UKRK",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 188,
+    "match": "exact"
+   },
+   {
+    "site": "getbible",
+    "abbr": "ukranian",
+    "match": "probable"
+   }
+  ],
+  "cadman": [
+   {
+    "site": "getbible",
+    "abbr": "vietnamese",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "VI1934",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 193,
+    "match": "probable"
+   }
+  ],
+  "vie1934": [
+   {
+    "site": "getbible",
+    "abbr": "vietnamese",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "VI1934",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 193,
+    "match": "probable"
+   }
+  ],
+  "vieovcb": [
+   {
+    "site": "biblecom",
+    "vid": 1638,
+    "match": "exact"
+   }
+  ],
+  "yor": [
+   {
+    "site": "biblecom",
+    "vid": 911,
+    "match": "exact"
+   }
+  ],
+  "chinese_union_simp": [
+   {
+    "site": "getbible",
+    "abbr": "cus",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "CUNPS",
+    "match": "probable"
+   }
+  ],
+  "chinese_union_simp_s": [
+   {
+    "site": "getbible",
+    "abbr": "cus",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "CUNPS",
+    "match": "probable"
+   }
+  ],
+  "cmn-cu89s": [
+   {
+    "site": "bolls",
+    "abbr": "CUNPS",
+    "match": "exact"
+   },
+   {
+    "site": "getbible",
+    "abbr": "cus",
+    "match": "probable"
+   }
+  ],
+  "chinese_union_trad": [
+   {
+    "site": "getbible",
+    "abbr": "cut",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "CUV",
+    "match": "exact"
+   }
+  ],
+  "chinese_union_trad_s": [
+   {
+    "site": "getbible",
+    "abbr": "cut",
+    "match": "exact"
+   },
+   {
+    "site": "bolls",
+    "abbr": "CUV",
+    "match": "exact"
+   }
+  ],
+  "cmn-cu89t": [
+   {
+    "site": "bolls",
+    "abbr": "CUNP",
+    "match": "exact"
+   },
+   {
+    "site": "biblecom",
+    "vid": 46,
+    "match": "exact"
+   }
+  ],
+  "cmncbt": [
+   {
+    "site": "biblecom",
+    "vid": 1392,
+    "match": "exact"
+   }
+  ],
+  "getbible_judson": [
+   {
+    "site": "biblecom",
+    "vid": 386,
+    "match": "exact"
+   }
+  ]
+ },
+ "without_online_copy": [
+  "ha_lit",
+  "hauulb",
+  "cebulb",
+  "iloulb",
+  "tdx",
+  "ne_ulb",
+  "npiulb",
+  "tglulb",
+  "swhulb",
+  "swahili",
+  "swh1850",
+  "indayt",
+  "jpn1965",
+  "kor",
+  "gaze",
+  "ron1924",
+  "ukr1996",
+  "hcv",
+  "hat",
+  "cmncbs",
+  "gnwNT",
+  "guiNT",
+  "qub",
+  "qufNT",
+  "quhNT",
+  "qulNT",
+  "qupNT",
+  "qvcNT",
+  "qveNT",
+  "qvhNT",
+  "qvmNT",
+  "qvnNT",
+  "qvsNT",
+  "qvwNT",
+  "qwhNT",
+  "qxhNT",
+  "qxnNT",
+  "qxoNT"
+ ],
+ "_without_online_copy_note": "No exact online copy found on these sites. Doubts are solved with the other downloaded copy of the same text (if any), the same publisher's site (door43.org for ULB, biblica.com/open.bible for Biblica) or left as they are (accept) with a note: never by rewriting the verse."
 }

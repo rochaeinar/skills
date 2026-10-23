@@ -50,6 +50,13 @@ SCRIPTS = {"latina": ["LATIN"], "cirílica": ["CYRILLIC"], "árabe": ["ARABIC"],
            "ge'ez": ["ETHIOPIC"]}
 NO_SPACES = {"CJK", "HIRAGANA", "KATAKANA", "MYANMAR"}  # no word splitting: skip the word checks
 RTL = {"ARABIC", "HEBREW"}
+
+
+def pack_scripts(pack):
+    """Unicode name prefixes of the pack's script; the tracker may add a note in parentheses ("Árabe (RTL)")."""
+    return SCRIPTS.get(re.sub(r"\s*\(.*\)", "", pack["script"]).strip().lower(), ["LATIN"])
+
+
 # The English modules every new pack carries for now (files of the English pack, same names and ids).
 ENGLISH_MODULES = ["quiz_en.db", "coffee_en.dev", "references_en.db", "jamieson-fausset-brown.cmtx",
                    "normalPlan.db", "chronologicalPlan.db", "flexiblePlan.db"]
@@ -116,6 +123,14 @@ def tracker_rows(c):
     return rows
 
 
+def licence_pending(pack):
+    """pack.json "licence_review": {"status": "pendiente", "countries": ["ZA", "NA"], "reason": "..."}: a Bible whose licence
+    is not open (non-commercial, or the publisher's permission) is packed and reviewed like the others, but never published
+    until the user approves it ("status": "aprobada"), and then only for those countries."""
+    lr = pack.get("licence_review")
+    return bool(lr) and lr.get("status") != "aprobada"
+
+
 def tracker_set(c, lang, column, value, log=None):
     text = c["tracker"].read_text(encoding="utf-8")
     out, header, done = [], None, False
@@ -173,6 +188,10 @@ def health_notes(c, sid):
 # validated). Sinodal ISA 3:19 = RV 3:19-20, so 3:20 "перстни и кольца в носу" = RV 3:21 "los anillos..." (rsc.vrs has
 # the right line).
 VRS_FIXES = {"rso": {"ISA 3:20-25 = ISA 3:16-21": "ISA 3:20-25 = ISA 3:21-26"}}
+# Mapping lines the SIL tables lack: in the Hebrew Bible Numbers 25:19 ("after the plague") is the start of the
+# English 26:1 (Lingala Biblica, 2026-10-21).
+CJK = re.compile(r"[㐀-鿿豈-﫿]")  # Chinese characters (typo matching without word boundaries)
+VRS_EXTRA = {"org": ["NUM 25:19 = NUM 26:1"]}
 
 
 _PAIRS = {}  # every mapping line of each table, in order (one verse may appear in several)
@@ -180,7 +199,7 @@ _PAIRS = {}  # every mapping line of each table, in order (one verse may appear 
 
 def parse_vrs(name):
     counts, maps = {}, {}
-    for line in (ASSETS / "vrs" / f"{name}.vrs").read_text(encoding="utf-8").split("\n"):
+    for line in (ASSETS / "vrs" / f"{name}.vrs").read_text(encoding="utf-8").split("\n") + VRS_EXTRA.get(name, []):
         line = VRS_FIXES.get(name, {}).get(line.strip(), line.strip())
         m = re.match(r"^([1-4A-Z]{3}) (\d+):(\d+)(?:-(\d+))? = ([1-4A-Z]{3}) (\d+):(\d+)(?:-(\d+))?\s*$", line)
         if m:
@@ -300,6 +319,74 @@ def read_ebible(path):
     return verses, skipped
 
 
+# Paragraph markers whose line is not Bible text: headings, titles, introductions, speakers, remarks.
+USFM_HEADINGS = re.compile(r"^(id|ide|h\d*|toc\w*|mt\d*|mte\d*|ms\d*|mr|s\d*|sr|r|rq|sp|cl|cd|rem|sts|restore|i\w*|qa|periph|lit|usfm|fig)$")
+
+
+# The same cross references without a marker, at the end of a verse: "(यूह. 1:29)", "(2 शमू. 7:16)", "(भज. 106:4, 5)".
+_USFM_REF = r"(?:(?:\d\s?)?[^\s()\d:,;]+\.?\s?)?\d+:\s?\d+(?:\s?[\-–,]\s?\d+)*"
+USFM_PLAIN_REF = re.compile(r"\s*\(\s*" + _USFM_REF + r"(?:\s*[,;]\s*" + _USFM_REF + r")*\s*\)\s*$")
+
+
+def read_usfm(path):
+    """eBible's USFM zip: one file per book. The VPL of some Bibles (Biblica's) lost every line after the first one
+    of a poem inside a verse (\\qm2, \\pmo); the USFM has them. Notes and cross references go; a psalm's title
+    (\\d) becomes verse 0, which the import joins to verse 1 as in the KJV module."""
+    z = zipfile.ZipFile(path)
+    verses, skipped = [], collections.Counter()
+    for name in sorted(z.namelist()):
+        if not name.lower().endswith((".usfm", ".sfm")):
+            continue
+        t = z.read(name).decode("utf-8-sig")
+        t = re.sub(r"\\(f|fe|x|ef|ex)\s.*?\\\1\*", "", t, flags=re.S)              # footnotes, cross references
+        t = re.sub(r"\\fig\s.*?\\fig\*", "", t, flags=re.S)                         # illustrations and maps (\fig caption|src="map.jpg" ...\fig*)
+        # cross references printed in the text as \\bdit (Mat 1:2) \\bdit* (the IRV): not Bible text
+        t = re.sub(r"\s*\\bdit\s*\([^()\\]*\d+:\s?\d+[^()\\]*\)\s*\\bdit\*", "", t)
+        t = re.sub(r"\\\+?w\s+([^\\|]*?)(\|[^\\]*)?\\\+?w\*", r"\1", t)         # \w word|lemma\w*
+        t = re.sub(r"\|[a-zA-Z-]+=\"[^\"]*\"", "", t)
+        book, ch, cur = None, 0, None
+        for line in t.split("\n"):
+            line = line.strip()
+            m = re.match(r"^\\(\S+)\s?(.*)$", line)
+            if not m:
+                if cur is not None and line:
+                    cur[3].append(line)
+                continue
+            tag, rest = m.group(1), m.group(2)
+            if tag == "id":
+                book = ALIASES.get(rest[:3].upper(), rest[:3].upper())
+                continue
+            if tag == "c":
+                ch, cur = int(re.match(r"\d+", rest).group(0)), None
+                continue
+            if tag == "v":
+                mv = re.match(r"(\d+)\S*\s*(.*)$", rest)
+                cur = [book, ch, int(mv.group(1)), [mv.group(2)]]
+                verses.append(cur)
+                continue
+            if tag == "d":
+                cur = [book, ch, 0, [rest]]
+                verses.append(cur)
+                continue
+            if USFM_HEADINGS.match(tag):
+                continue
+            if re.fullmatch(r"\\k\s[^\\]*\\k\*", rest.strip()):  # a line that is only "\\k वधू\\k*": who speaks (Song of Songs)
+                continue
+            if cur is not None and rest:  # \\p, \\q1, \\qm2, \\pmo, \\li1, \\m...: the verse goes on
+                cur[3].append(rest)
+    out = []
+    for b, c, v, parts in verses:
+        if b not in BOOKNUM:
+            skipped[str(b)] += 1
+            continue
+        # character markers (\\add, \\nd, \\wj, \\pn...): their text stays; an opening marker takes its separating space
+        # with it (otherwise Chinese gets a space before every \\pn name: "仆人 约翰")
+        text = re.sub(r"\\\+?[a-z]+\d*(?:\*|\s)?", "", " ".join(parts))
+        text = USFM_PLAIN_REF.sub("", text)
+        out.append((b, c, v, re.sub(r"[^\S　]+", " ", text).strip()))  # keeps the ideographic space of the 和合本 ("　神")
+    return out, skipped
+
+
 def read_getbible(path):
     """A whole translation from api.getbible.net/v2/<abbr>.json: books by KJV number (1-66), the rest dropped."""
     d = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -329,12 +416,73 @@ def read_bss(path):
 
 
 CLEAN_RULES = [
-    ("ref_marker", re.compile(r"[\[(]\d+[:\-]\d+[\])]\s*")),         # [3:19], (22:1), (50-2): original numbering
+    ("ref_marker", re.compile(r"[\[(][HG]?\d+[:\-]\d+[\])]\s*")),     # [3:19], (22:1), (50-2), (H22:44) / (G13:12) of the Elberfelder: original numbering
     ("usfm", re.compile(r"\\\+?[a-z]+\d*\*?\s?")),                    # \w, \f ... \f*
     ("html", re.compile(r"</?[a-zA-Z][^>]*>")),
+    ("markup", re.compile(r"‘br[^’]*’")),                  # 'br wp="br1"': a line break of the source's markup
+    ("note_marks", re.compile(r"[*✶✝]")),                        # Darby's marks for its notes and for El/Eloah, without the notes
     ("pilcrow", re.compile(r"[¶]")),
     ("control", re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b\ufeff]")),
+    # Chinese and Japanese have no spaces between words: a space between two such characters comes from joined lines
+    # (poetry, \\pn names) or from a source that spaces every character ("\u9f99 \u5411 \u5987 \u4eba")
+    ("cjk_space", re.compile(r"(?<=[\u2e80-\u303f\u3040-\u9fff\uf900-\ufaff\uff00-\uffef]) +(?=[\u2e80-\u303f\u3040-\u9fff\uf900-\ufaff\uff00-\uffef])")),
 ]
+
+
+def typography(text, rules, stats):
+    """A Bible's own typography fixes from pack.json ("typography": [[regex, replacement], ...]), e.g. the Bible
+    SuperSearch Cornilescu's ",,Adevărat``" quotes and "i -a" clitics. Only punctuation and spaces may change: a rule
+    that adds, removes or changes a letter or digit stops the import."""
+    for rx, rep in rules:
+        t2 = re.sub(rx, rep, text)
+        if t2 != text:
+            if re.sub(r"[\W_]", "", t2) != re.sub(r"[\W_]", "", text):
+                raise SystemExit(f"typography rule {rx!r} changes letters: {text[:80]!r} -> {t2[:80]!r}")
+            stats["typography"] += 1
+            text = t2
+    return text
+
+
+def encoding_fixes(text, pairs, stats):
+    """A legacy-encoding repair from pack.json ("encoding_fixes": [[from, to], ...]), applied at the start of a word:
+    the eBible Vietnamese 1934 kept VNI capitals as two characters ("Aùp-ra-ham" = "Áp-ra-ham", "k”" = "kỳ").
+    Each pair is at most three characters on each side, verified against the same version online."""
+    for frm, to in pairs:
+        if not (1 <= len(frm) <= 3 and 1 <= len(to) <= 3):
+            raise SystemExit(f"encoding_fixes pair {frm!r} -> {to!r}: one to three characters on each side")
+        t2 = re.sub(rf"(?<!\w){re.escape(frm)}", to, text)
+        if t2 != text:
+            stats["encoding_fixes"] += 1
+            text = t2
+    return text
+
+
+def editor_notes(text, rules, stats):
+    """A Bible's translator or editor notes printed inside the verse, from pack.json ("editor_notes": [regex, ...]),
+    e.g. the Cornilescu's "(Sau: bătrîn.)" (= "or: elder"). Each match must be a whole parenthesis: "(...)"."""
+    for rx in rules:
+        for m in re.finditer(rx, text):
+            if not (m.group(0).strip()[:1] in "(（" and m.group(0).strip()[-1:] in ")）"):
+                raise SystemExit(f"editor_notes rule {rx!r} must match a whole parenthesis, not {m.group(0)!r}")
+        t2 = re.sub(rx, "", text)
+        if t2 != text:
+            stats["editor_notes"] += 1
+            text = re.sub(r"\s+([,.;:!?])", r"\1", re.sub(r"\s{2,}", " ", t2)).strip()
+    return text
+
+
+def stray_marks(text, tokens, stats):
+    """Note markers left alone in the text, from pack.json ("stray_marks": ["S"]): the Nowa Biblia Gdańska of Bible
+    SuperSearch has "Jezus S, syn Nuna". Only the exact token standing alone goes (never part of a word), with up to
+    3 characters."""
+    for tok in tokens:
+        if not 1 <= len(tok) <= 3:
+            raise SystemExit(f"stray_marks token {tok!r}: one to three characters")
+        t2 = re.sub(rf"(?<![\w.]) ?{re.escape(tok)}(?![\w.])", "", text)
+        if t2 != text:
+            stats["stray_marks"] += 1
+            text = re.sub(r"\s+([,.;:!?])", r"\1", re.sub(r"\s{2,}", " ", t2)).strip()
+    return text
 
 
 def clean(text, stats):
@@ -352,6 +500,11 @@ def clean(text, stats):
     t2 = re.sub(r"\s+([,.;:!?»”])", r"\1", re.sub(r"\s{2,}", " ", t)).strip()
     if t2 != t.strip():
         stats["spacing"] += 1
+    # "- - -": Bible SuperSearch's mark for a verse joined to another; a lone "a": CrossWire's (the Chinese Union Version)
+    # "POSSIBLE ERROR IN BIBLE, TEXT MISSING HERE": Bible SuperSearch's mark where its source lost the verse.
+    if t2 and (re.fullmatch(r"[-\u2010-\u2015\s.]+", t2) or t2 == "a" or t2.rstrip(".") == "POSSIBLE ERROR IN BIBLE, TEXT MISSING HERE"):
+        stats["placeholder"] += 1
+        return ""
     return t2
 
 
@@ -437,7 +590,8 @@ def cmd_import(a):
         if b["id"] in gone or b.get("rejected"):
             fail(f"{b['id']} was rejected in healthReport.md: it can't be imported")
         path = c["bibles_dir"] / b["file"]
-        verses, skipped = {".zip": read_ebible, ".json": read_getbible}.get(path.suffix, read_bss)(path)
+        reader = read_usfm if path.name.endswith("_usfm.zip") else {".zip": read_ebible, ".json": read_getbible}.get(path.suffix, read_bss)
+        verses, skipped = reader(path)
         maxv = collections.defaultdict(int)
         for bk, ch, v, _ in verses:
             maxv[(bk, ch)] = max(maxv[(bk, ch)], v)
@@ -479,7 +633,9 @@ def cmd_import(a):
             if ref in out:
                 stats["merged"] += 1
             texts, raws = out.setdefault(ref, ([], []))
-            t2 = clean(t, stats)
+            t2 = encoding_fixes(clean(t, stats), b.get("encoding_fixes") or [], stats)
+            t2 = stray_marks(t2, b.get("stray_marks") or [], stats)
+            t2 = typography(editor_notes(t2, b.get("editor_notes") or [], stats), b.get("typography") or [], stats)
             if t2:
                 texts.append(t2)
             raws.append(t)
@@ -494,6 +650,59 @@ def cmd_import(a):
                 last = (ref[0], ref[1], target[ref[0]][ref[1]])
                 out.setdefault(last, ([], []))[0].extend(out.pop(ref)[0])
                 stats["extra_appended"] += 1
+        # "repeated_verses": "empty" (pack.json): a source that fills a verse range by copying the whole text into every
+        # verse of it (the Judson of getBible: Luke 1:68-75 eight times) keeps it in the first one; the rest become
+        # combined verses (empty), as in the editions that print "\v 68-75".
+        if b.get("repeated_verses") == "empty":
+            prev_ref, prev_txt = None, None
+            for ref in sorted(out, key=lambda r: (BOOKNUM.get(r[0], 0), r[1], r[2])):
+                txt = " ".join(out[ref][0])
+                if txt and prev_ref and prev_ref[:2] == ref[:2] and txt == prev_txt:
+                    out[ref] = ([], out[ref][1])
+                    stats["repeated_range"] += 1
+                    con.execute("insert into log values (?,?,?)", (b["id"], "repeated_range", f"{ref[0]} {ref[1]}:{ref[2]} = {prev_ref[0]} {prev_ref[1]}:{prev_ref[2]} (texto repetido de un rango: queda vacío)"))
+                    continue
+                if txt:
+                    prev_ref, prev_txt = ref, txt
+        # "colophon": regex (pack.json): the printer's line after a book ("... ကျမ်းပြီး၏", "here ends the book of ...")
+        # glued to its last verse. Removed only from the last verse that has text in each book, and logged.
+        if b.get("colophon"):
+            rx = re.compile(b["colophon"])
+            last = {}
+            for ref in out:
+                if out[ref][0]:
+                    k = (ref[1], ref[2])
+                    if ref[0] not in last or k > last[ref[0]][1:]:
+                        last[ref[0]] = ref
+            for ref in last.values():
+                txt = " ".join(out[ref][0])
+                new = rx.sub("", txt).rstrip()
+                if new != txt and new:
+                    out[ref] = ([new], out[ref][1])
+                    stats["colophon"] += 1
+                    con.execute("insert into log values (?,?,?)", (b["id"], "colophon", f"{ref[0]} {ref[1]}:{ref[2]} | quitado: {txt[len(new):].strip()[:150]}"))
+        # Joins decided in the criteria step: ["ACT 24:19"] = that verse goes at the end of the one before it (an edition
+        # that splits a verse the KJV keeps whole). Text unchanged, in the same order; done before the moves.
+        # In verse order, and onto the nearest previous verse that still has text: a two-verse psalm title ("PSA 51:2",
+        # "PSA 51:3") ends up whole in verse 1, not in a slot the moves fill afterwards.
+        def _ref_key(r):
+            rb, rcv = r.split(" ")
+            return (BOOKNUM.get(rb, 0), *map(int, rcv.split(":")))
+        for srcref in sorted(b.get("criteria_joins") or [], key=_ref_key):
+            sb, scv = srcref.split(" ")
+            sch, sv = map(int, scv.split(":"))
+            pch, pv = sch, sv - 1
+            if sv == 1:  # verse 1 joins the end of the previous chapter (Hebrew 1 Sam 21:1 = English 20:42b)
+                pch = sch - 1
+                pv = max([v for (bb, cc, v) in out if bb == sb and cc == pch and out[(bb, cc, v)][0]] or [1])
+            while pv > 1 and not (out.get((sb, pch, pv)) or ([], []))[0]:
+                pv -= 1
+            src, prev = out.get((sb, sch, sv)), out.setdefault((sb, pch, pv), ([], []))
+            if src:
+                prev[0].extend(src[0])
+                prev[1].extend(src[1])
+                out[(sb, sch, sv)] = ([], [])
+                con.execute("insert into log values (?,?,?)", (b["id"], "join", f"{srcref} unido a {sb} {pch}:{pv} (sin cambios)"))
         # Renumbering decided in the criteria step: {"ISA 3:26": "ISA 3:25"} = the text of 3:25 goes to 3:26 (text unchanged).
         moves = b.get("criteria_moves") or {}
         if moves:
@@ -580,7 +789,11 @@ def norm_cmp(t):
     """Text for comparing two copies: same dashes, quotes, spacing and \u0451/\u0435, and without the brackets of words added by
     the translators (the Synodal marks them, some copies lost the marks): typography is not a typo."""
     t = re.sub(r"[\[\]]", "", t).replace("\u0451", "\u0435").replace("\u0401", "\u0415")
+    # French typography: the oe ligature, capitals without accents ("Eternel" / "Éternel")
+    t = t.replace("\u0153", "oe").replace("\u0152", "Oe")
+    t = re.sub(r"[A-Z\u00c0-\u00dd]", lambda m: unicodedata.normalize("NFD", m.group(0))[0], t)
     t = re.sub(r"[\u2010-\u2015\u2212]", "-", t)
+    t = re.sub(r"(?<![^\W\d_])-(?![^\W\d_])|(?<=\s)-|-(?=\s)|^-|-$", " ", t)  # a dash between words, not "Jésus-Christ"
     t = re.sub(r"[\u00ab\u00bb\u201c\u201d\u201e\u2018\u2019\u201a\"']", "", t)
     t = re.sub(r"\s*([-,.;:!?()])\s*", r"\1", t)
     return re.sub(r"\s+", " ", t).strip().lower()
@@ -601,7 +814,7 @@ def cmd_validate(a):
     con = sqlite3.connect(d / "work.db")
     target = app_counts()
     ref_kjv = kjv(c)
-    expected = SCRIPTS.get(pack["script"].lower(), ["LATIN"])
+    expected = pack_scripts(pack)
     issues = []  # (level, sid, check, ref, detail)
 
     def add(level, sid, check, ref, detail):
@@ -628,6 +841,9 @@ def cmd_validate(a):
             add("E", sid, "licencia", "", "Sin licencia conocida")
         if b.get("non_commercial") and pack.get("ads_allowed"):
             add("W", sid, "licencia", "", "Licencia no comercial: este paquete no podrá usarse si la app tiene anuncios")
+        if licence_pending(pack):
+            lr = pack["licence_review"]
+            add("W", sid, "licencia", "", f"Licencia pendiente de revisión ({lr.get('reason', '')}); solo para {', '.join(lr.get('countries') or []) or 'países por definir'}: no se publica hasta que el usuario la apruebe")
         if not (b.get("attribution") or "").strip():
             add("E", sid, "licencia", "", "Falta la atribución (créditos) en pack.json")
         if not (b.get("abbreviation") or "").strip():
@@ -662,9 +878,9 @@ def cmd_validate(a):
         script_bad, words = 0, collections.Counter()
         for ref, t in rows.items():
             r = f"{ref[0]} {ref[1]}:{ref[2]}"
-            if re.search(r"Ã.|Â|â€|\ufffd|Ð[\u0080-\u00bf]", t):
+            if re.search(r"Ã.|Â[\u0080-\u00bf]|â€|\ufffd|Ð[\u0080-\u00bf]", t):  # "Âme" is a French word
                 add("E", sid, "codificación", r, f"Texto mal decodificado: {t[:80]}")
-            if re.search(r"\\[a-z]+|\|[a-z]+=|<|>|\{|\}", t):
+            if re.search(r"\\[a-z]+|\|[a-z]+=|<|>|\{|\}|\w+=\"|[*\u2736\u271d]", t):
                 add("E", sid, "marcas", r, f"Quedan marcas de formato: {t[:80]}")
             letters = [script_of(ch) for ch in t if ch.isalpha()]
             if letters:
@@ -694,6 +910,31 @@ def cmd_validate(a):
                 add("W", sid, "puntuación", f"{bk} {ch}", f"Paréntesis o corchetes sin cerrar en el capítulo ({n:+d})")
         if rows and script_bad / len(rows) > 0.01:
             add("E", sid, "escritura", "", f"{script_bad} versículos ({script_bad * 100 // len(rows)} %) no están en {pack['script']}")
+        # lost ligature: "ouvres" in a Bible that writes "œuvres" many times (the source dropped the œ). The verb
+        # "tu ouvres" is the same word: each verse is decided in the criteria step (ligature or accept).
+        # Only words this Bible uses far more than the other Bibles of the pack do ("cour" and "cœur" are both French).
+        def counts(rs):
+            n = collections.Counter()
+            for t in rs.values():
+                n.update(w.lower() for w in re.findall(r"[^\W\d_]+", t))
+            return n
+        lower = counts(rows)
+        others_n = [counts(texts_all[o]) for o in texts_all if o != sid]
+        lig = set()
+        for w in lower:
+            w2 = w.replace("ou", "\u0153u", 1)
+            if "ou" not in w or lower.get(w2, 0) < 20 or not others_n:
+                continue
+            rate = lower[w] / lower[w2]
+            other = min((o.get(w, 0) / o[w2] for o in others_n if o.get(w2, 0) >= 20), default=None)  # another copy of the same source may share the loss
+            if other is not None and rate > 3 * other + 0.02:
+                lig.add(w)
+        if lig:
+            for ref, t in rows.items():
+                for w in sorted({x for x in re.findall(r"[^\W\d_]+", t) if x.lower() in lig}):
+                    add("W", sid, "ligadura", f"{ref[0]} {ref[1]}:{ref[2]}",
+                        f"¿Ligadura perdida? «{w}» (la Biblia dice «{w.lower().replace('ou', chr(0x153) + 'u', 1)}» "
+                        f"{lower[w.lower().replace('ou', chr(0x153) + 'u', 1)]} veces): {t[:120]}")
         # merged words: a word seen once that is two frequent words glued together ("увероваливо" = "уверовали" + "во")
         if words:
             others = [set(re.findall(r"\w+", " ".join(texts_all[o].values()).lower())) for o in texts_all if o != sid]
@@ -766,12 +1007,12 @@ def cmd_validate(a):
                 na, nb = norm_cmp(A[r]), norm_cmp(B[r])
                 if na != nb:
                     s = difflib.SequenceMatcher(None, na, nb).ratio()
-                    if 0.9 <= s < 0.995:
+                    if 0.9 <= s:  # one letter in a long verse ("n’aua") is a typo too
                         n += 1
-                        if n <= 80:
+                        if n <= 400:
                             add("W", ids[i], "comparación", f"{r[0]} {r[1]}:{r[2]}", f"{ids[i]}: «{A[r][:120]}» | {ids[j]}: «{B[r][:120]}»")
-            if n > 80:
-                add("W", ids[i], "comparación", "", f"... y {n - 80} diferencias pequeñas más con {ids[j]}")
+            if n > 400:
+                add("W", ids[i], "comparación", "", f"... y {n - 400} diferencias pequeñas más con {ids[j]}")
     if set(expected) & RTL:
         add("W", "", "app", "", "Escritura de derecha a izquierda: comprobar en el teléfono que la app la muestra bien antes de publicar")
     if not pack.get("default_bible") or pack["default_bible"] not in [b["id"] for b in sids]:
@@ -834,7 +1075,7 @@ def write_report(c, pack, d, issues, texts, ref_kjv):
     verdicts = {e["key"]: e for e in crit.get("key_verses", [])}
     decided = {e["key"]: e for e in crit.get("issues", [])}
     history = [e for e in crit.get("resolved", []) if e["key"] not in decided]
-    rtl = bool(set(SCRIPTS.get(pack["script"].lower(), [])) & RTL)
+    rtl = bool(set(pack_scripts(pack)) & RTL)
     h = ["<!doctype html><meta charset='utf-8'><title>Revisión " + html.escape(pack["lang"]) + "</title>",
          "<style>body{font:15px/1.5 system-ui;margin:24px;max-width:1300px}table{border-collapse:collapse;width:100%}"
          "td,th{border:1px solid #ccc;padding:6px 8px;vertical-align:top}th{background:#f2f2f2}.ref{white-space:nowrap;font-weight:600}"
@@ -1041,6 +1282,13 @@ def cmd_build(a):
         if not src.exists():
             fail(f"Missing English module {src}")
         shutil.copy2(src, out / f)
+    # Modules translated for this language (bible-devotional-translate writes packs/<lang>/modules/coffee_<lang>.dev
+    # and takes coffee_en.dev out of english_modules).
+    for f in pack.get("local_modules", []):
+        src = d / "modules" / f
+        if not src.exists():
+            fail(f"Missing module {src}")
+        shutil.copy2(src, out / f)
     # The archive: flat, like the English and Spanish packs. Version from the manifest (a new file never overwrites a published one).
     manifest = json.loads((c["app_repo"] / "cdn" / "bible" / "manifest.json").read_text(encoding="utf-8"))
     current = manifest.get("languages", {}).get(lang)
@@ -1062,11 +1310,16 @@ def cmd_build(a):
     save_pack(c, a.lang, pack)
     integ = app_integration(pack, default["id"], size, obb.name)
     (d / "app-integration.md").write_text(integ, encoding="utf-8")
-    tracker_set(c, a.lang, "Texto", "✅", f"Paquete {obb.name} generado ({size / 1e6:.1f} MB): Biblia en el idioma, resto en inglés")
+    if licence_pending(pack):
+        tracker_set(c, a.lang, "Texto", "🟨", f"Paquete {obb.name} generado ({size / 1e6:.1f} MB), PENDIENTE DE REVISIÓN DE LICENCIA (solo {', '.join(pack['licence_review'].get('countries') or [])})")
+    else:
+        tracker_set(c, a.lang, "Texto", "✅", f"Paquete {obb.name} generado ({size / 1e6:.1f} MB): Biblia en el idioma, resto en inglés")
     print(f"OK: {obb} ({size / 1e6:.1f} MB, sha256 {digest[:12]}...)")
     for x in built:
         print(f"   module {x['id']}: {x['file']} ({x['verses']} verses)")
     print(f"   + English: {', '.join(pack.get('english_modules', ENGLISH_MODULES))}")
+    if pack.get("local_modules"):
+        print(f"   + {lang}: {', '.join(pack['local_modules'])}")
     print(f"Registry: {reg_path}\nApp changes needed: {d / 'app-integration.md'}\nNext: pack.py publish {a.lang}")
 
 
@@ -1137,7 +1390,7 @@ El paquete `{obb_name}` ya está listo; la app todavía no conoce este idioma. C
 4. TTS (`singletons/TTS.java`): que lea la Biblia con la voz de "{lang}" si el teléfono la tiene.
 5. La interfaz, el quiz, la reflexión y el comentario quedan en inglés: comprobar que la app no mezcla el idioma del módulo con el de la interfaz.
 6. Probar en el teléfono (debug): descargar el idioma, abrir Génesis 1, Salmo 23 y Juan 3, la lectura paralela con la KJV, el quiz y el versículo del día.
-{"7. **Escritura de derecha a izquierda**: revisar la lectura, la búsqueda y la imagen del día." if set(SCRIPTS.get(pack['script'].lower(), [])) & RTL else ""}
+{"7. **Escritura de derecha a izquierda**: revisar la lectura, la búsqueda y la imagen del día." if set(pack_scripts(pack)) & RTL else ""}
 """
 
 
@@ -1392,7 +1645,8 @@ def cmd_criteria(a):
             # The other downloaded copy of the same text comes first: when it settles the doubt, no web request.
             copies = [{"source": f"copia:{o}", "match": "copy", "url": "", "verse": vref[2], "text": t.get(vref, "")}
                       for o, t in texts.items() if o != x["bible"] and vref and t.get(vref)]
-            settled = x["check"] in ("errata", "comparación") and copies
+            # "want_online": both copies have the same kind of damage (the source's OCR): ask the same version online.
+            settled = x["check"] in ("errata", "comparación") and copies and not e.get("want_online")
             e["evidence"] = copies + ([] if settled else evidence_for(
                 fetcher, x["bible"], x["ref"], ours, with_rv=x["check"] in ("estructura", "versificación")))
             kj = kjv_text(c, x["ref"])
@@ -1469,6 +1723,22 @@ def cmd_verify(a):
     print(f"  KJV: {kjv_text(c, ref)}")
 
 
+def edit_distance(a, b):
+    prev = list(range(len(b) + 1))
+    for i, x in enumerate(a, 1):
+        cur = [i]
+        for j, y in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (x != y)))
+        prev = cur
+    return prev[-1]
+
+
+def ocr_fix(t):
+    """Only the look-alikes OCR confuses, next to letters: "0r" -> "Or", "1'oeuvre" -> "l'oeuvre". Nothing else changes."""
+    t = re.sub(r"(?<![\w])0(?=[^\W\d_])", "O", t)
+    return re.sub(r"(?<=[^\W\d_])1(?=[^\W\d_])|(?<![\w])1(?=['\u2019][^\W\d_])", "l", t)  # not a 1 at the end of a word: "voic1" is "voici"
+
+
 def cmd_apply(a):
     c = cfg()
     pack = load_pack(c, a.lang)
@@ -1500,7 +1770,9 @@ def cmd_apply(a):
         if act == "split_words":
             old = co.get(ref) or verse(sid, ref)
             w, (x, y) = dec.get("word") or e["proposal"]["word"], dec.get("into") or e["proposal"]["into"]
-            m = re.search(rf"(?i)\b{re.escape(w)}\b", old)
+            # Word edges that count combining marks as part of the word (Arabic vowels end many words: \b fails there).
+            edge = r"\ẁ-ًͯ-ٰٟ"
+            m = re.search(rf"(?i)(?<![{edge}]){re.escape(w)}(?![{edge}])", old)
             if not m:
                 refused.append(f"{ref}: «{w}» is not in the verse")
                 continue
@@ -1510,6 +1782,45 @@ def cmd_apply(a):
                 refused.append(f"{ref}: split_words may only add spaces")
                 continue
             co[ref] = new
+        elif act == "dedupe":
+            # {"word": "katika"}: a word copied twice in a row ("katika katika njia"): one of them goes.
+            old = co.get(ref) or verse(sid, ref)
+            w = dec.get("word", "")
+            new = re.sub(rf"(?<!\w)({re.escape(w)})\s+\1(?!\w)", r"\1", old, count=1)
+            if not w or new == old:
+                refused.append(f"{ref}: dedupe needs a word written twice in a row in the verse")
+                continue
+            co[ref] = new
+        elif act == "typo":
+            # {"word": "Abrabam", "into": "Abraham"}: a copying error of one letter, when the same Bible writes the word
+            # right many times (no other copy has it right). Only that word changes.
+            old = co.get(ref) or verse(sid, ref)
+            w, into = dec.get("word", ""), dec.get("into", "")
+            alltext = [t for (t,) in con.execute("select text from verses where sid=?", (sid,))]
+            # Chinese has no spaces: there "word" is a run of 2+ characters (the wrong one with its neighbour, "诱感"
+            # for "诱惑"), matched anywhere, and the Bible must use the right run 3+ times
+            b0 = "" if CJK.search(w) else r"(?<!\w)"
+            b1 = "" if CJK.search(w) else r"(?!\w)"
+            if CJK.search(w) and len(w) < 2:
+                refused.append(f"{ref}: a Chinese typo needs the wrong character with a neighbour (2+ characters)")
+                continue
+            # a word with a hyphen ("entregou-o") counts when each of its parts is a word the Bible uses
+            uses = min(sum(len(re.findall(rf"{b0}{re.escape(part)}{b1}", t)) for t in alltext)
+                       for part in (into.split("-") if "-" in into and "-" not in w else [into]))
+            same_verse = bool(re.search(rf"{b0}{re.escape(into)}{b1}", old, re.I))  # written right in the same verse
+            if not w or not re.search(rf"{b0}{re.escape(w)}{b1}", old) or edit_distance(w, into) != 1 or (uses < 3 and not same_verse):
+                refused.append(f"{ref}: typo needs a word of the verse and an into one letter away that the Bible uses 3+ times ({uses})")
+                continue
+            co[ref] = re.sub(rf"{b0}{re.escape(w)}{b1}", into, old)
+        elif act == "ligature":
+            # {"word": "ouvres", "into": "œuvres"}: only the lost ligature comes back (ou -> œu); the verb stays (accept).
+            old = co.get(ref) or verse(sid, ref)
+            w, into = dec.get("word", ""), dec.get("into", "")
+            if not w or into != w.replace("ou", "\u0153u", 1).replace("Ou", "\u0152u", 1) or not re.search(rf"\b{re.escape(w)}\b", old):
+                refused.append(f"{ref}: ligature needs word (in the verse) and into = the same word with œu for ou")
+                continue
+            n = dec.get("count") or len(re.findall(rf"\b{re.escape(w)}\b", old))
+            co[ref] = re.sub(rf"\b{re.escape(w)}\b", into, old, count=n)
         elif act == "use_source":
             other = dec.get("source")
             if other not in bibles or other == sid:
@@ -1520,6 +1831,26 @@ def cmd_apply(a):
                 refused.append(f"{ref}: {other} has no text for this verse")
                 continue
             co[ref] = text
+        elif act == "restore_chars":
+            # {"source": "getbible_cus"}: characters lost as "?" or "�" (the Bible SuperSearch simplified 1919 CUV
+            # lost every 台, 挂, 鉴...) come back from the same place in another copy of the same text; nothing else
+            # in the verse may change.
+            other = dec.get("source")
+            old = co.get(ref) or verse(sid, ref)
+            src = verse(other, ref) if other in bibles and other != sid else ""
+            new, ok = list(old), bool(src) and bool(re.search(r"[?�]", old))
+            if ok:
+                for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old, src, autojunk=False).get_opcodes():
+                    if op == "equal":
+                        continue
+                    if op == "replace" and i2 - i1 == j2 - j1 and all(old[x] in "?�" for x in range(i1, i2)):
+                        for x in range(i1, i2):
+                            new[x] = src[j1 + x - i1]
+            new = "".join(new)
+            if not ok or re.search(r"[?�]", new) or len(new) != len(old):
+                refused.append(f"{ref}: restore_chars needs a copy ({other}) that has every lost character in the same place")
+                continue
+            co[ref] = new
         elif act == "override":
             evs = e.get("evidence", [])
             i = dec.get("evidence")
@@ -1535,7 +1866,14 @@ def cmd_apply(a):
             if str(ev.get("verse")) != ref.split(":")[-1] and not dec.get("renumbered_ok"):
                 refused.append(f"{ref}: the evidence is verse {ev.get('verse')} of the site; set renumbered_ok: true if that is the same verse")
                 continue
-            co[ref] = ev["text"]
+            new = ev["text"]
+            if dec.get("ocr"):
+                # The same version online has the source's OCR look-alikes ("0r" for "Or"): fix only those.
+                new = ocr_fix(ev["text"])
+                if new == ev["text"]:
+                    refused.append(f"{ref}: ocr is set but the evidence has no OCR look-alikes (0 for O, 1 for l)")
+                    continue
+            co[ref] = new
         elif act == "move":
             # {"from": "ISA 3:25"} moves that verse to this one; {"moves": {"ISA 3:26": "ISA 3:25", ...}} several at once.
             pairs = dec.get("moves") or {ref: dec.get("from", "")}
@@ -1551,6 +1889,14 @@ def cmd_apply(a):
             if bad:
                 continue
             b.setdefault("criteria_moves", {}).update(pairs)
+        elif act == "join":
+            # {"joins": ["ACT 24:19"]}: each verse goes at the end of the previous one of its chapter (text unchanged).
+            joins = dec.get("joins") or [ref]
+            bad = [j for j in joins if not re.match(r"^([1-4A-Z]{3}) (\d+):(\d+)$", j) or (j.endswith(":1") and j.split(" ")[1].startswith("1:")) or not verse(sid, j)]
+            if bad:
+                refused.append(f"{ref}: join needs non-empty verses that have a verse before them (not the first of a book), not {bad}")
+                continue
+            b["criteria_joins"] = sorted(set(b.get("criteria_joins") or []) | set(joins))
         elif act in ("drop_extra", "append_extra"):
             b.setdefault("extra_verses_refs", {})[ref] = "drop" if act == "drop_extra" else "append"
         elif act == "reject_bible":
@@ -1602,6 +1948,10 @@ def cmd_publish(a):
     obb = d / b["file"]
     if sha256_file(obb) != b["sha256"]:
         fail("The .obb changed after the build: build again")
+    if licence_pending(pack):
+        lr = pack["licence_review"]
+        fail(f"Licence pending review ({lr.get('reason', '')}; countries: {', '.join(lr.get('countries') or []) or '?'}). "
+             f"It is published only after the user approves it: licence_review.status = \"aprobada\" in pack.json")
     lang = pack["module_language"]
     key = f"bible/modules/{b['file']}"
     url = f"https://cdn.timelesslabs.app/{key}"
