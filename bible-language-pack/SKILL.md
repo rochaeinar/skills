@@ -1,26 +1,29 @@
 ---
 name: bible-language-pack
-description: Agrega un idioma nuevo a Bible Versions, un idioma a la vez - elige las Biblias descargadas (BibleVersionsSelected, bibles-manifest.json), las limpia y convierte a la numeración de la app (versificación KJV, con las tablas de SIL), las valida como un ingeniero de calidad (estructura, versículos faltantes o de más, numeración corrida, codificación, marcas, escritura, palabras pegadas, comparación entre copias, licencia, salud doctrinal del healthReport) con un reporte y una hoja de revisión, luego un paso de criterio pastoral evangélico (corrige solo erratas de digitalización con la misma versión en línea como prueba, compara con la RV1960 y la KJV, juzga los versículos doctrinales y deja una bitácora de cada decisión; nunca cambia ni inventa texto bíblico), y genera el paquete .obb que la app descarga de Cloudflare (la Biblia en el idioma; quiz, reflexión, referencias, comentario y planes en inglés por ahora), lo sube a R2 y lo agrega a manifest.json. Úsalo cuando pidan "agregar el idioma X", "validar la Biblia en X", "generar el módulo/paquete de X", "subir el idioma X a Cloudflare" o "siguiente idioma del tracker".
+description: Paso 2 de 5 del flujo de idiomas de Bible Versions (Modules/README.md) - un idioma a la vez, elige las Biblias descargadas (Modules/languages/<idioma>/sources, manifest.json), las limpia y convierte a la numeración de la app (versificación KJV, con las tablas de SIL), las valida como un ingeniero de calidad (estructura, versículos faltantes o de más, numeración corrida, codificación, marcas, escritura, palabras pegadas, comparación entre copias, licencia, salud doctrinal del healthReport) con un reporte y una hoja de revisión, luego un paso de criterio pastoral evangélico (corrige solo erratas de digitalización con la misma versión en línea como prueba, compara con la RV1960 y la KJV, juzga los versículos doctrinales y deja una bitácora de cada decisión; nunca cambia ni inventa texto bíblico), y arma el paquete .obb que la app descarga de Cloudflare (la Biblia en el idioma + lo compartido de Modules/common) en Modules/cdn/bible/modules con la regla de versiones; también los paquetes base en, es y es-lite. No descarga (bible-download), no traduce la reflexión (bible-devotional-translate) ni sube a R2 (bible-language-ship). Úsalo cuando pidan "agregar el idioma X", "validar la Biblia en X", "generar el módulo/paquete de X", "rearmar el paquete inglés/español" o "siguiente idioma del tracker".
 ---
 
 # Paquetes de idioma de Bible Versions
 
-Todo pasa por `scripts/pack.py` (con `python`). Rutas en `scripts/config.json` (por PC; `SETUP.md`). Datos de entrada:
+**Paso 2 de 5** del flujo de `D:\Documents\BibleVersions\Modules\README.md` (estructura, todos los skills y quién escribe cada archivo). Viene después de **bible-download** (paso 1: las Biblias en `sources\`); sigue **bible-devotional-translate** (paso 3, la reflexión) o **bible-language-ship** (paso 4). Si falta algo del paso anterior, decirlo y nombrar el skill que lo produce; nunca ejecutarlo desde aquí.
 
-- **Biblias**: `D:\Documents\BibleVersions\BibleVersionsSelected\<XX-Idioma>\bibles\` y su catálogo `bibles-manifest.json` (las descarga `download_bibles.py` de esa carpeta).
-- **Tracker**: `D:\Documents\BibleVersions\idiomas-tracker.md` (código, escritura, si permite anuncios; el skill actualiza la columna **Texto** y la bitácora).
-- **Salud doctrinal**: `D:\Documents\BibleVersions\healthReport.md`. Las Biblias de "Biblias eliminadas" **no se pueden importar**; las marcadas ⚠️ salen como advertencia.
+Todo pasa por `scripts/pack.py` (con `python`). Config: `Modules\config.json` (`SETUP.md`); todas las rutas salen de esa carpeta. Datos de entrada:
+
+- **Biblias**: `Modules\languages\<código>\sources\` y su catálogo `Modules\languages\manifest.json` (las baja el skill bible-download).
+- **Tracker**: `Modules\idiomas-tracker.md` (código, escritura, si permite anuncios; el skill actualiza la columna **Texto** y la bitácora).
+- **Salud doctrinal**: `Modules\healthReport.md`. Las Biblias de "Biblias eliminadas" **no se pueden importar**; las marcadas ⚠️ salen como advertencia.
 - **App**: `D:\Projects\Android\bible-versions` (`cdn/bible/manifest.json`, `cdn/bible/module-ids.json`).
 
-Trabajo de cada idioma: `D:\Documents\BibleVersions\packs\<código>\` (`pack.json`, `work.db`, `report.md`, `review.html`, `build/`, `<idioma>-vN.obb`, `app-integration.md`).
+Trabajo de cada idioma: `Modules\languages\<código>\` (`pack.json`, `work\work.db`, `report.md`, `review.html`, `criteria.json`, `app-integration.md`, y los `.bblx` en `modules\`). El `.obb` va a `Modules\cdn\bible\modules\<código>-vN.obb` (no hay `build\`: se arma en una carpeta temporal).
 
 ## Cómo es un paquete (lo que la app espera)
 
 - Un **zip plano** con extensión `.obb`. `LanguageDownloader` lo baja de `https://cdn.timelesslabs.app/bible/<url del manifest>`, comprueba tamaño y SHA-256 y lo descomprime en la carpeta de módulos. `ModuleInitializer.saveModuleInformation` registra **cada archivo** según su extensión (`.bblx` Biblia, `.cmtx` comentario, `quiz*.db`, `coffee*.dev`, `references*.db`) leyendo la tabla `Details` (una fila: `Id`, `Language`, `Abbreviation`, `Description`).
 - **`Details.Id` es global**: nunca se repite ni se reutiliza. El registro es `cdn/bible/module-ids.json` (ids 1–49 los paquetes es/esp/en; los nuevos desde 100).
 - `.bblx`: tablas `Details` y `Bible(id, Book 1-66, Chapter, Verse, Scripture)`, numeración KJV (la de `R.array.chapter_count`). El texto se muestra como **RTF**: sin `{`, `}` ni `\` sueltos (el import los reemplaza).
-- **Por ahora**: la Biblia en el idioma; `quiz_en.db` (44), `coffee_en.dev` (43), `references_en.db` (47), `jamieson-fausset-brown.cmtx` (37) y los 3 planes, copiados del paquete inglés con los mismos nombres e ids.
-- **Reflexión traducida** (skill `bible-devotional-translate`): `packs\<código>\modules\coffee_<código>.dev` con su Id propio, anotado en `local_modules` de `pack.json` (y sin `coffee_en.dev` en `english_modules`); `build` lo copia al paquete.
+- **Lo que lleva además de las Biblias**: la lista `contents` de `pack.json` (`{"from": "common/en", "file": "quiz_en.db"}`): `common/en` quiz_en (44), coffee_en (43), references_en (47), JFB (37) y `common/all` los 3 planes, una sola copia en `Modules\common\` para todos los paquetes. Lo propio del idioma va con `"from": "modules"`.
+- **Reflexión traducida** (skill `bible-devotional-translate`): `languages\<código>\modules\coffee_<código>.dev` con su Id propio; ese skill cambia en `contents` la entrada `common/en coffee_en.dev` por `modules coffee_<código>.dev`.
+- **Paquetes base** `en`, `es` y `es-lite` (código `esp` en la CDN): `pack.json` con `"kind": "base"`, sin Biblias importadas; `contents` lista todo (sus `.bblx` y `.cmtx` en `modules\`, lo compartido en `common\`). Se rearman con `pack.py build en | es | es-lite`.
 
 ## Flujo, un idioma a la vez
 
@@ -31,9 +34,9 @@ Trabajo de cada idioma: `D:\Documents\BibleVersions\packs\<código>\` (`pack.jso
    - `attribution`: el texto de créditos que exige la licencia (va en `Details.Comments`); revisarlo con la página de licencia del manifiesto.
    - `default_bible`: el id de la principal (completa, de equivalencia formal si se puede, apta para anuncios si el tracker lo pide).
    - `module_language`: el código que usa la app (`pt`, `fil`, `zh-hans`…); viene propuesto.
-   - **Si hay una copia mejor de la misma versión en getBible** (`assets/verify-sources.json`): `pack.py fetch <código> getbible:<abbr>` la baja **en un solo pedido** (la Biblia entera), la agrega al manifiesto y a `pack.json`. Ejemplo: la Sinodal de getBible (Sociedad Bíblica Rusa vía CrossWire) conserva los corchetes que la de eBible perdió.
+   - **Si hay una copia mejor de la misma versión en getBible** (`assets/verify-sources.json`): pedir al skill bible-download `download.py getbible <abbr> --lang <código>`: la baja **en un solo pedido** (la Biblia entera), la agrega al manifiesto y a `pack.json`. Ejemplo: la Sinodal de getBible (Sociedad Bíblica Rusa vía CrossWire) conserva los corchetes que la de eBible perdió.
    - **`"role": "reference"`** en una Biblia de `pack.json`: se importa y se compara (y sirve para `use_source`), pero no se valida ni se publica. Útil para la edición canónica de la misma traducción.
-   - **Biblias con licencia (no comercial, permiso de la editorial)** — decisión del usuario (2026-10-21): se preparan igual, pero con `"licence_review": {"status": "pendiente", "countries": ["ZA", "NA"], "reason": "…"}` en `pack.json`. La validación lo anota, `build` deja el tracker en 🟨 («pendiente de revisión de licencia») y **`publish` se niega** hasta que el usuario lo apruebe (`"status": "aprobada"`), y entonces solo para esos países. Con licencia **ND** (sin obras derivadas) no se corrige el texto (ni erratas ni palabras pegadas): solo numeración. Las que solo existen en Bible.com no se descargan de ahí (sus textos tienen licencia): quedan 🟨 en el tracker, para pedir permiso y texto a la Sociedad Bíblica.
+   - **Biblias con licencia (no comercial, permiso de la editorial)** — decisión del usuario (2026-10-21): se preparan igual, pero con `"licence_review": {"status": "pendiente", "countries": ["ZA", "NA"], "reason": "…"}` en `pack.json`. La validación lo anota, `build` deja el tracker en 🟨 («pendiente de revisión de licencia») y **`ship.py cdn` (bible-language-ship) se niega a subirlo** hasta que el usuario lo apruebe (`"status": "aprobada"`), y entonces solo para esos países. Con licencia **ND** (sin obras derivadas) no se corrige el texto (ni erratas ni palabras pegadas): solo numeración. Las que solo existen en Bible.com no se descargan de ahí (sus textos tienen licencia): quedan 🟨 en el tracker, para pedir permiso y texto a la Sociedad Bíblica.
    - Antes de dar un idioma por «sin Biblia libre», revisar también los catálogos de getBible (`api.getbible.net/v2/translations.json`) y Bolls: así apareció la malgache 1865 de dominio público.
 3. **`pack.py import <código>`**: lee cada Biblia (VPL de eBible, **USFM de eBible** si el archivo termina en `_usfm.zip`, JSON de getBible o SQLite de Bible SuperSearch), descarta los libros fuera de los 66, **detecta la numeración capítulo por capítulo** (eng, org hebrea, rso sinodal, lxx, vul, rsc: tablas `.vrs` de SIL en `assets/vrs/`) y la convierte a la de la app. Los títulos de los Salmos (versículo 0) se unen al versículo 1, como en el módulo KJV. Los **agregados deuterocanónicos dentro de libros canónicos** que la tabla manda a otro libro (Daniel 3:24-90, Daniel 13-14, Salmo 151) se descartan y se anotan. Si dos versículos caen en el mismo número, el segundo pasa al siguiente libre. `VRS_FIXES` corrige líneas erróneas de las tablas de SIL (verificadas contra la RV1960). Limpia y anota: NFC, marcas de numeración original (`[3:19]`, `(22:1)`), USFM, HTML, `¶`, espacios, marcas de nota (`*✶✝`, Darby), `‘br…’`, y un versículo hecho solo de `- - -` (BSS: versículo combinado) queda vacío.
    - **Limpiezas por Biblia en `pack.json`** (se aplican al importar, se anotan y se niegan si cambian letras o dígitos donde no deben):
@@ -52,13 +55,18 @@ Trabajo de cada idioma: `D:\Documents\BibleVersions\packs\<código>\` (`pack.jso
 4. **`pack.py validate <código>`** → `report.md` (errores, advertencias, notas), `issues.json` (lo mismo, para el paso de criterio) y `review.html` (hoja de revisión: versículos clave junto a la RV1960 y la KJV, 30 al azar y la bitácora de criterio). Sale con código 1 si hay errores. Si una Biblia tiene muchos errores de estructura, probar antes otra fuente u opciones de `pack.json` (tabla de abajo).
 5. **Paso de criterio (lo hago yo, como pastor evangélico)**: ver la sección siguiente. Termina con todos los problemas y versículos clave decididos y anotados.
 6. **`pack.py approve <código> --by "Claude (criterio pastoral)" [--notes ...]`**: exige 0 errores, cada error y advertencia de la última validación decidido en `criteria.json`, cada versículo clave con veredicto y ninguno en `problema`. Guarda la huella de `work.db` (si algo cambia después, hay que validar y aprobar de nuevo). Tracker: Texto 🟦. Mostrarle al usuario el resumen de la bitácora (cuántas correcciones, de qué tipo, los matices doctrinales) antes de seguir.
-7. **`pack.py build <código>`**: escribe los `.bblx` (ids nuevos en `module-ids.json`), copia los módulos ingleses, arma `<idioma>-vN.obb` (N = siguiente versión si ya hay una en el manifiesto) y **lo verifica como lo lee la app** (zip plano, una fila en `Details`, ids únicos y no usados por otro idioma, `Language` correcto, ≥7.000 versículos, sin caracteres RTF). Escribe `app-integration.md`. Tracker: Texto ✅.
-8. **`pack.py publish <código>`** muestra el plan; **con permiso explícito del usuario**: `--yes` sube el `.obb` a R2 (`timelesslabs-cdn/bible/modules/`), comprueba que el CDN lo sirve con ese tamaño y agrega `languages.<código>` a `cdn/bible/manifest.json` (local). El manifiesto se publica después con `.\scripts\publish-manifest.ps1 -DryRun` y luego sin `-DryRun` (desde la raíz de la app), también con permiso.
+7. **`pack.py build <código>`**: escribe los `.bblx` en `modules\` (ids nuevos en `module-ids.json`), junta lo de `contents`, arma un zip **reproducible** (mismos archivos = mismo sha256; deflate de 7-Zip si está instalado) y **lo verifica como lo lee la app** (zip plano, una fila en `Details`, ids únicos y no usados por otro idioma, `Language` correcto, ≥7.000 versículos, sin caracteres RTF). Lo deja en `Modules\cdn\bible\modules\` con la **regla de versiones** y lo anota en `cdn\bible\versions.json`:
+   - sin versión anterior → `v1`;
+   - la última versión **todavía no salió en un release de la app** (armada después de la fecha del `versionName` de `app/build.gradle`, `26.10.19` = 2026-10-19) → se reemplaza con el **mismo número**;
+   - ya salió: mismo sha256 → se queda (`unchanged`); otro sha256 → `v(N+1)`.
+
+   Escribe `app-integration.md`. Tracker: Texto ✅.
+8. **Subir a R2 y el manifiesto ya no es de este skill**: paso 4, `ship.py cdn <código>` (bible-language-ship), con permiso explícito del usuario.
 9. **La app**: seguir `app-integration.md` (`LanguageConfig`, nombre del idioma, idioma del teléfono, TTS) y probar en el teléfono con la build debug antes de un release (`android-release`). Sin eso, el manifiesto con el idioma nuevo no le hace nada a la app actual.
 
 ## Paso de criterio (pastoral)
 
-El usuario no conoce los idiomas: **el criterio lo pongo yo**, como un pastor evangélico de sana doctrina, con la **Reina-Valera 1960** (local: `ES-Spanish\reina-valera-1960.bblx`) y la **KJV** (local) como vara de medir. La regla de oro: **no se cambia la Biblia**. Solo se corrigen errores de digitalización (palabras pegadas, letras o palabras perdidas al copiar), y siempre con la **misma versión** como prueba. **Nunca se inventa ni se reescribe texto bíblico**, ni para "mejorarlo" doctrinalmente.
+El usuario no conoce los idiomas: **el criterio lo pongo yo**, como un pastor evangélico de sana doctrina, con la **Reina-Valera 1960** (local: `languages\es\modules\reina-valera-1960.bblx`) y la **KJV** (local) como vara de medir. La regla de oro: **no se cambia la Biblia**. Solo se corrigen errores de digitalización (palabras pegadas, letras o palabras perdidas al copiar), y siempre con la **misma versión** como prueba. **Nunca se inventa ni se reescribe texto bíblico**, ni para "mejorarlo" doctrinalmente.
 
 1. **`pack.py criteria <código> [--fetch 150]`** crea o actualiza `criteria.json`:
    - un registro por cada error y advertencia de la última validación (los que ya no aparecen pasan a `resolved`, con su historia);
@@ -67,7 +75,7 @@ El usuario no conoce los idiomas: **el criterio lo pongo yo**, como un pastor ev
    - **evidencia**: el mismo versículo en la otra copia descargada de la misma versión (si hay, primero y sin internet) y en la misma versión en línea (`assets/verify-sources.json`: getBible, Bolls y Bible.com, ya investigados para todas las Biblias del tracker; `without_online_copy` lista las que no tienen copia en línea). Busca por número y, si el sitio numera distinto, por el texto más parecido del capítulo;
    - una **propuesta** automática por problema (nunca una decisión).
 
-   Internet con cuidado: cada capítulo se pide **una sola vez** (caché en `packs\_cache\`), con pausas por sitio (1,5–4 s), un máximo de pedidos por corrida (`--fetch`) y, si un sitio responde 403/429, no se le vuelve a pedir en esa corrida. Bible.com es el último recurso: es el endpoint de su propia web, no una API pública.
+   Internet con cuidado: cada capítulo se pide **una sola vez** (caché en `Modules\_cache\`), con pausas por sitio (1,5–4 s), un máximo de pedidos por corrida (`--fetch`) y, si un sitio responde 403/429, no se le vuelve a pedir en esa corrida. Bible.com es el último recurso: es el endpoint de su propia web, no una API pública.
 2. **`pack.py verify <código> "<LIB C:V>" [--bible id]`**: un versículo concreto en nuestras copias, en la misma versión en las tres webs, en la RV1960 y en la KJV. Para las dudas puntuales.
 3. **Decido cada registro** en `criteria.json` (`decision`: `action` + `note` obligatoria, que es la bitácora):
 
@@ -136,15 +144,14 @@ Después de decidir, `pack.py review <código>` vuelve a escribir `review.html` 
 
 ## Reglas
 
-- Un idioma a la vez, y nada se publica sin **0 errores + paso de criterio completo + `approve` + `--yes`**, después de que el usuario vio el resumen de la bitácora y el plan.
+- Un idioma a la vez, y nada se publica (paso 4) sin **0 errores + paso de criterio completo + `approve`**, después de que el usuario vio el resumen de la bitácora y el plan.
 - Solo Biblias del tracker y del healthReport (evangélicas, respaldadas por una organización confiable; memoria `biblias-evangelicas`). Si aparece una nueva, primero va al healthReport.
-- Claves: la de Cloudflare está en el Administrador de credenciales (`BibleVersions-Cloudflare`); `publish` la lee sin mostrarla. Nunca en el chat ni en archivos.
-- `work.db`, los reportes y los `.obb` quedan en `packs\<código>\` (fuera de los repos). `module-ids.json` sí va en el repo de la app: hacer commit cuando el usuario lo pida.
-- Pruebas sin tocar el tracker real: `BIBLE_PACK_CONFIG=<otro config.json>` con rutas a copias.
+- `work.db` y los reportes quedan en `Modules\languages\<código>\` y los `.obb` en `Modules\cdn\bible\modules\` (fuera de los repos). `module-ids.json` sí va en el repo de la app: hacer commit cuando el usuario lo pida.
+- Pruebas sin tocar los datos reales: `BIBLE_VERSIONS_CONFIG=<otro config.json>` en una carpeta con copias (con `app_repo` apuntando a una copia, porque `build` escribe `module-ids.json`).
 
 ## Archivos
 
-- `scripts/pack.py`: todo el flujo. `scripts/config.json`: rutas de esta PC (no va al respaldo).
+- `scripts/pack.py`: todo el flujo. La config es `Modules\config.json` (fuera del skill).
 - `assets/vrs/*.vrs`: versificaciones de Paratext (de `sil-machine`, licencia MIT de SIL Global, `assets/vrs/LICENSE`).
 - `assets/review-verses.json`: los versículos de la revisión humana.
 - Respaldo: `D:\Projects\skills\bible-language-pack` (copiar después de cada cambio).

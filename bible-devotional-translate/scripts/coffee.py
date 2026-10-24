@@ -1,8 +1,10 @@
-"""Traduce la reflexión diaria de Bible Versions (coffee_*.dev) a otros idiomas desde el español.
+"""Paso 3 de 5 de Modules/README.md: traduce la reflexión diaria de Bible Versions (coffee_*.dev) a otros idiomas
+desde el español y deja coffee_<idioma>.dev en Modules/languages/<idioma>/modules, anotado en su pack.json (contents).
+No arma ni sube paquetes: siguiente, pack.py build <idioma> (bible-language-pack) y luego bible-language-ship.
 
-El original es coffee_es.dev (tabla DAILY: Id, Book, Chapter, Verse, VerseEnd, Comments). Cada idioma guarda
-su traducción en <work_dir>/<idioma>/state.json con el hash del texto español de cada fila: si el español
-cambia o crece, solo esas filas vuelven a quedar pendientes.
+El original es Modules/common/es/coffee_es.dev (tabla DAILY: Id, Book, Chapter, Verse, VerseEnd, Comments). Cada idioma
+guarda su traducción en languages/<idioma>/devotional/state.json con el hash del texto español de cada fila: si el
+español cambia o crece, solo esas filas vuelven a quedar pendientes. Rutas: Modules/config.json (BIBLE_VERSIONS_CONFIG).
 
 Comandos (python coffee.py <comando> ...):
   status                       estado de todos los idiomas
@@ -14,17 +16,17 @@ Comandos (python coffee.py <comando> ...):
   validate <idioma>            controles de calidad -> report.md (sale con 1 si hay errores)
   build <idioma>               escribe el módulo coffee_<idioma>.dev
   integrate <idioma>           después de pack.py build: dailyImage y sizeInBytes en languages.json
-  repack <es|esp|en>           paquete .obb siguiente del español o del inglés con el coffee nuevo
+
+El inglés y el español (en, es, es-lite) se rearman con  pack.py build en | es | es-lite  (antes: repack).
 """
 import argparse
-import copy
 import datetime
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
-import struct
 import sys
 import time
 import unicodedata
@@ -61,13 +63,21 @@ ATTRIBUTIONS = ["Paul Tripp", "C.S. Lewis", "C. S. Lewis", "John Newton", "Spurg
 
 # ---------------------------------------------------------------- configuración y destinos
 
+DEFAULT_CONFIG = "D:/Documents/BibleVersions/Modules/config.json"
+
+
 def cfg():
-    p = HERE / "config.json"
+    p = Path(os.environ.get("BIBLE_VERSIONS_CONFIG") or DEFAULT_CONFIG)
     if not p.exists():
-        fail(f"Falta {p} (ver SETUP.md)")
-    c = {k: Path(v) if isinstance(v, str) else v for k, v in json.loads(p.read_text(encoding="utf-8")).items()}
-    c["source"] = c["bibles_dir"] / "ES-Spanish" / "coffee_es.dev"
-    c["rv1960"] = c["bibles_dir"] / "ES-Spanish" / "reina-valera-1960.bblx"
+        fail(f"Falta {p} (ver Modules/README.md)")
+    c = json.loads(p.read_text(encoding="utf-8"))
+    root = p.parent
+    c["app_repo"] = Path(c["app_repo"])
+    c["packs_dir"] = root / "languages"
+    c["source"] = root / "common" / "es" / "coffee_es.dev"
+    c["english"] = root / "common" / "en" / "coffee_en.dev"
+    c["rv1960"] = root / "languages" / "es" / "modules" / "reina-valera-1960.bblx"
+    c["cdn_dir"] = root / "cdn" / "bible"
     c["registry"] = c["app_repo"] / "cdn" / "bible" / "module-ids.json"
     c["languages_json"] = c["app_repo"] / "app" / "src" / "main" / "assets" / "languages.json"
     c["manifest"] = c["app_repo"] / "cdn" / "bible" / "manifest.json"
@@ -88,31 +98,34 @@ def write_text(path, text, encoding="utf-8"):
 
 
 def target(c, name):
-    """El idioma pedido: 'en' (EN-English) o la carpeta / código de un paquete de packs_dir."""
+    """El idioma pedido: 'en' (common/en/coffee_en.dev) o la carpeta / código de un idioma de Modules/languages."""
     if name == "en":
         return {"key": "en", "lang": "en", "script": "Latina", "kind": "english",
-                "out": c["bibles_dir"] / "EN-English" / "coffee_en.dev",
-                "bible": c["bibles_dir"] / "EN-English" / "king-james-version.bblx",
-                "work": c["work_dir"] / "en"}
+                "out": c["english"],
+                "bible": c["packs_dir"] / "en" / "modules" / "king-james-version.bblx",
+                "work": c["packs_dir"] / "en" / "devotional"}
     for d in sorted(c["packs_dir"].iterdir()):
         pj = d / "pack.json"
         if not pj.exists():
             continue
         pack = json.loads(pj.read_text(encoding="utf-8"))
+        if pack.get("kind") == "base":  # en, es, es-lite: the original and the English, not translations
+            continue
         if name in (d.name, pack.get("module_language"), pack.get("lang")):
             lang = pack["module_language"]
-            bible = next((d / "build" / m["file"] for m in pack.get("build", {}).get("modules", [])
+            bible = next((d / "modules" / m["file"] for m in pack.get("build", {}).get("modules", [])
                           if m.get("source") == pack.get("default_bible")), None)
             script = pack.get("script", "Latina")
             if script.startswith("Latina"):  # "Latina (diacríticos)"
                 script = "Latina"
             return {"key": d.name, "lang": lang, "script": script, "kind": "pack", "pack_dir": d, "pack": pack, "out": d / "modules" / f"coffee_{lang}.dev",
-                    "bible": bible, "work": c["work_dir"] / d.name, "name": pack.get("language_name", d.name)}
+                    "bible": bible, "work": d / "devotional", "name": pack.get("language_name", d.name)}
     fail(f"No conozco el idioma '{name}': use 'en' o una carpeta de {c['packs_dir']}")
 
 
 def all_targets(c):
-    names = ["en"] + [d.name for d in sorted(c["packs_dir"].iterdir()) if (d / "pack.json").exists()]
+    names = ["en"] + [d.name for d in sorted(c["packs_dir"].iterdir()) if (d / "pack.json").exists()
+                      and json.loads((d / "pack.json").read_text(encoding="utf-8")).get("kind") != "base"]
     return [target(c, n) for n in names]
 
 
@@ -149,7 +162,7 @@ def verse_text(path, r, limit=420):
 
 
 def english_rows(c):
-    p = c["bibles_dir"] / "EN-English" / "coffee_en.dev"
+    p = c["english"]
     if not p.exists():
         return {}
     con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
@@ -489,15 +502,14 @@ def cmd_build(a):
         print(f"Id nuevo {mid} registrado en {c['registry']}")
     print(f"OK: {t['out']} (Id {mid}, {len(src)} reflexiones, {len(warnings)} advertencias)")
     if t["kind"] == "english":
-        print("Siguiente: python coffee.py repack en")
+        print("Siguiente: python <bible-language-pack>/scripts/pack.py build en  (y es / es-lite si cambió el español)")
         return
-    pack = t["pack"]
-    pack["local_modules"] = sorted(set(pack.get("local_modules", [])) | {t["out"].name})
-    em = pack.get("english_modules")
-    if em and "coffee_en.dev" in em:
-        pack["english_modules"] = [m for m in em if m != "coffee_en.dev"]
+    # pack.json contents: this language's coffee in place of the English one (the only entry this skill touches).
+    pack = json.loads((t["pack_dir"] / "pack.json").read_text(encoding="utf-8"))
+    contents = [x for x in pack.get("contents", []) if x["file"] not in ("coffee_en.dev", t["out"].name)]
+    pack["contents"] = contents + [{"from": "modules", "file": t["out"].name}]
     write_text(t["pack_dir"] / "pack.json", json.dumps(pack, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"pack.json: {t['out'].name} en local_modules (reemplaza a coffee_en.dev)")
+    print(f"pack.json: {t['out'].name} en contents (reemplaza a common/en coffee_en.dev)")
     print(f"Siguiente: python <bible-language-pack>/scripts/pack.py build {t['key']}  y luego  "
           f"python coffee.py integrate {t['key']}")
 
@@ -508,10 +520,10 @@ def cmd_integrate(a):
     c = cfg()
     t = target(c, a.lang)
     if t["kind"] != "pack":
-        fail("integrate es para los paquetes de packs_dir (el inglés y el español van con repack)")
+        fail("integrate es para los idiomas de Modules/languages (el inglés y el español van con pack.py build en / es / es-lite)")
     pack = json.loads((t["pack_dir"] / "pack.json").read_text(encoding="utf-8"))
     b = pack.get("build")
-    obb = t["pack_dir"] / b["file"] if b else None
+    obb = c["cdn_dir"] / "modules" / b["file"] if b else None
     if not obb or not obb.exists():
         fail(f"falta el paquete: pack.py build {t['key']}")
     with zipfile.ZipFile(obb) as z:
@@ -529,78 +541,8 @@ def cmd_integrate(a):
     new = re.sub(r'"sizeInBytes":\s*\d+', f'"sizeInBytes": {b["size"]}', new)
     write_text(c["languages_json"], text.replace(block, new), encoding="utf-8")
     print(f"languages.json: {t['lang']} dailyImage {mid}, sizeInBytes {b['size']}")
-    print(f"Siguiente (con permiso del usuario): pack.py publish {t['key']} --yes, publish-manifest.ps1 y una versión "
+    print(f"Siguiente (con permiso del usuario): ship.py cdn {t['key']} (bible-language-ship, paso 4), publish-manifest.ps1 y una versión "
           f"nueva de la app (languages.json va dentro del APK)")
-
-
-# ---------------------------------------------------------------- repack (español e inglés)
-
-REPACK = {"es": ("ES-Spanish", "ES-Spanish.zip", "coffee_es.dev", 45, "es"),
-          "esp": ("ES-Spanish-Lite", "ES-lite-0001.zip", "coffee_es.dev", 45, "es"),
-          "en": ("EN-English", "EN-English.zip", "coffee_en.dev", ENGLISH_COFFEE_ID, "en")}
-
-
-def copy_raw(zin, zout, info):
-    """Copia la entrada ya comprimida, sin recomprimir, para que quede idéntica a la versión anterior."""
-    zin.fp.seek(info.header_offset)
-    header = zin.fp.read(30)
-    name_len, extra_len = struct.unpack("<HH", header[26:30])
-    zin.fp.seek(info.header_offset + 30 + name_len + extra_len)
-    raw = zin.fp.read(info.compress_size)
-    out = copy.copy(info)
-    out.extra = b""
-    out.header_offset = zout.fp.tell()
-    out.flag_bits &= ~0x08
-    zout.fp.write(out.FileHeader())
-    zout.fp.write(raw)
-    zout.start_dir = zout.fp.tell()
-    zout.filelist.append(out)
-    zout.NameToInfo[out.filename] = out
-
-
-def cmd_repack(a):
-    c = cfg()
-    folder, zipname, coffee, cid, lang = REPACK[a.pack]
-    module = c["source"] if lang == "es" else c["bibles_dir"] / "EN-English" / "coffee_en.dev"
-    if a.pack == "esp":
-        shutil.copy2(c["source"], c["bibles_dir"] / folder / coffee)  # la copia del Lite es la misma del completo
-    data = module.read_bytes()
-    con = sqlite3.connect(f"file:{module}?mode=ro", uri=True)
-    if con.execute("select Id, Language from Details").fetchall() != [(cid, lang)]:
-        fail(f"{module}: Details debe ser ({cid}, {lang})")
-    con.close()
-    manifest = json.loads(c["manifest"].read_text(encoding="utf-8"))
-    url = manifest["languages"][a.pack]["url"]
-    ver = int(re.search(r"-v(\d+)\.obb$", url).group(1))
-    base = c["cdn_dir"] / "modules" / f"{a.pack}-v{ver}.obb"
-    dst = c["cdn_dir"] / "modules" / f"{a.pack}-v{ver + 1}.obb"
-    if not base.exists():
-        fail(f"falta la versión publicada {base} (descargarla de https://cdn.timelesslabs.app/bible/{url})")
-    with zipfile.ZipFile(base) as zin, zipfile.ZipFile(dst, "w") as zout:
-        names = zin.namelist()
-        if coffee not in names:
-            fail(f"{base.name} no trae {coffee}")
-        for info in zin.infolist():
-            if info.filename == coffee:
-                new = zipfile.ZipInfo(coffee, time.localtime()[:6])
-                new.compress_type = zipfile.ZIP_DEFLATED
-                new.compress_level = 9
-                new.external_attr = info.external_attr
-                zout.writestr(new, data)
-            else:
-                copy_raw(zin, zout, info)
-    with zipfile.ZipFile(dst) as z, zipfile.ZipFile(base) as zb:
-        assert z.testzip() is None and z.namelist() == names
-        assert z.read(coffee) == data
-        for n in names:
-            if n != coffee:
-                assert z.read(n) == zb.read(n), n
-    shutil.copy2(dst, c["bibles_dir"] / folder / zipname)
-    raw = dst.read_bytes()
-    print(f"OK: {dst}\n  size   {len(raw)}\n  sha256 {hashlib.sha256(raw).hexdigest()}")
-    print(f"También en {c['bibles_dir'] / folder / zipname}")
-    print(f"Para publicar (con permiso): subir a R2 bible/modules/{dst.name}, poner url/size/sha256 en "
-          f"languages.{a.pack} de cdn/bible/manifest.json y correr scripts/publish-manifest.ps1 (-DryRun primero)")
 
 
 GLOSSARY_TEMPLATE = """# Glosario y decisiones: {name} ({lang})
@@ -655,9 +597,6 @@ def main():
     p.add_argument("file")
     p.add_argument("--only-missing", action="store_true")
     p.set_defaults(fn=cmd_import)
-    p = sub.add_parser("repack")
-    p.add_argument("pack", choices=sorted(REPACK))
-    p.set_defaults(fn=cmd_repack)
     a = ap.parse_args()
     a.fn(a)
 

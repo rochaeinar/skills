@@ -1,11 +1,13 @@
 ---
 name: bible-language-ship
-description: Deja un idioma nuevo de Bible Versions listo para publicar, después del skill bible-language-pack - sube el .obb validado a Cloudflare y publica el manifiesto, integra el idioma en la app (paquete, voz con aviso amable si Android no tiene ese idioma, interfaz traducida, el apartado "Biblias y comentarios" con los créditos de los módulos; los documentos quedan en inglés), la interfaz de la web (solo el repo, sin deploy), la ficha de Play (textos, notas de versión y las 8 capturas en el idioma con Maestro) y un test Maestro que garantiza que el texto bíblico se ve igual que en el módulo; corrige la causa raíz de lo que falle (skill bugfix). Pensado para correr sin parar (/loop) idioma por idioma del tracker. Úsalo cuando pidan "integrar el idioma X en la app", "dejar listo el idioma X para publicar", "siguiente idioma", "procesar todos los idiomas" o "correr la cadena de idiomas".
+description: Paso 4 de 5 del flujo de idiomas de Bible Versions (Modules/README.md) - deja un idioma nuevo listo para publicar, después del skill bible-language-pack - sube el .obb validado (Modules/cdn/bible/modules) a Cloudflare y publica el manifiesto (el único skill que sube a R2), integra el idioma en la app (paquete, voz con aviso amable si Android no tiene ese idioma, interfaz traducida, el apartado "Biblias y comentarios" con los créditos de los módulos; los documentos quedan en inglés), la interfaz de la web (solo el repo, sin deploy), la ficha de Play (textos, notas de versión y las 8 capturas en el idioma con Maestro) y un test Maestro que garantiza que el texto bíblico se ve igual que en el módulo; corrige la causa raíz de lo que falle (skill bugfix). Pensado para correr sin parar (/loop) idioma por idioma del tracker. Úsalo cuando pidan "integrar el idioma X en la app", "dejar listo el idioma X para publicar", "siguiente idioma", "procesar todos los idiomas" o "correr la cadena de idiomas".
 ---
 
 # Idiomas nuevos de Bible Versions: del paquete a "listo para publicar"
 
-Todo pasa por `scripts/ship.py` (con `python`). Rutas en `scripts/config.json` (`SETUP.md`). Viene **después** de `bible-language-pack` (que valida la Biblia, hace el paso de criterio y arma el `.obb`): si un idioma no tiene paquete aprobado, este skill empieza por ese otro.
+**Paso 4 de 5** del flujo de `D:\Documents\BibleVersions\Modules\README.md`. Viene **después** de `bible-language-pack` (paso 2: valida la Biblia, hace el paso de criterio y arma el `.obb` en `Modules\cdn\bible\modules\`) y, si el idioma tiene reflexión traducida, de `bible-devotional-translate` (paso 3); sigue `android-release` (paso 5, el release en Play). Si un idioma no tiene paquete aprobado, decirlo y pasar a ese skill; este no lo ejecuta.
+
+Todo pasa por `scripts/ship.py` (con `python`). Config: `Modules\config.json` (`SETUP.md`); el estado de cada idioma en `Modules\languages\<idioma>\ship.json`, el global y el respaldo del teléfono en `Modules\_state\`.
 
 **Lo que este skill nunca hace**: publicar en Play (eso es `android-release`/`play-console`, con el usuario), hacer deploy de la web (`cloudflare-site`), ni push. Sí publica en el CDN (el `.obb` y el manifiesto): la app publicada ignora los idiomas que no conoce, así que no cambia nada para los usuarios.
 
@@ -24,7 +26,7 @@ Todo pasa por `scripts/ship.py` (con `python`). Rutas en `scripts/config.json` (
 | Etapa | Cómo | Se comprueba |
 |---|---|---|
 | `pack` | Skill `bible-language-pack` (init → import → validate → criteria → apply → approve → build) | Sola: aprobado, armado y el `.obb` sin cambios |
-| `cdn` | `ship.py cdn <idioma>`: `pack.py publish --yes`, `publish-manifest.ps1 -DryRun` y luego real | Sola: el manifiesto publicado tiene el idioma con el sha256 del build |
+| `cdn` | `ship.py cdn <idioma> [--dry-run]`: sube el `.obb` de `Modules\cdn\bible\modules\` a R2 (se niega si `licence_review` está pendiente), comprueba que el CDN lo sirve, pone `languages.<código>` en `cdn/bible/manifest.json` del repo, marca `uploaded` en `versions.json` y corre `publish-manifest.ps1 -DryRun` y luego real. Si `pack.py build` reemplazó una versión sin release (mismo número, otro sha), se vuelve a subir. También `ship.py cdn en / es / es-lite` | Sola: el manifiesto publicado tiene el idioma con el sha256 del build |
 | `app_core` | **Una sola vez** (ver abajo) y `ship.py mark _ app_core` | A mano |
 | `app_language` | La entrada del idioma en `app/src/main/assets/languages.json` (solo los idiomas nuevos: `es`, `esp` y `en` están en el código): `code`, `nativeName` (el nombre en su idioma, "Русский"), `defaultBible` y `dailyBible` (el id del módulo de `pack.json` → `build`), `defaultCommentary` 38, `dailyImage` 43, `quiz` 44, `reference` 47 (los del inglés mientras el idioma no tenga los suyos), `requires: ["en"]` (la app baja el paquete inglés antes), `sizeInBytes` (el del build), `tts` (las voces de `locales.json`) y `rtl`. Si el idioma está **PENDIENTE DE REVISIÓN DE LICENCIA** en el tracker (solo para sus países), además `"regional": true` y sus países en `countries` de `cdn/bible/manifest.json` (nunca Europa ni EE. UU.; ver `scripts/publish-manifest.md`). Si sus hablantes leen otro idioma y no hay traducción fiable de la interfaz (quechua y guaraní: español, decisión del usuario 2026-10-22), `"ui": "es"`: no lleva `values-<xx>` ni página web propia, y `strings`, `legal`, `web` y la preparación del teléfono usan ese idioma | Sola |
 | `strings` | Traducir `values/strings.xml` (el inglés, respaldo) → `values-<xx>/strings.xml`, sin las cadenas `*_file` ni las `translatable="false"` (carpeta en `assets/locales.json`) y `ship.py strings <idioma>` | Sola: claves, `%1$s`/`{0}`, plurales del idioma (CLDR), arrays (66 `book_names`), apóstrofos, nada sin traducir, archivos `*_file` existentes |
@@ -76,10 +78,10 @@ Anotados en `D:\Projects\Android\bible-versions\plans\idiomas-pendientes.md` (de
 - Traducciones (interfaz de la app y de la web, ficha de Play, imagen destacada): naturales, no literales; nombres de los libros como en la Biblia de ese idioma (los de getBible/eBible); plurales con todas las formas del idioma; respetar `%1$s`. Los documentos nunca se traducen.
 - No inventar datos de licencias: lo que no esté claro queda en `status: review` y se le pregunta al usuario.
 - Claves: nunca en el chat ni en archivos (Cloudflare: `BibleVersions-Cloudflare`).
-- Respaldo del skill: `D:\Projects\skills\bible-language-ship` (sin `config.json`).
+- Respaldo del skill: `D:\Projects\skills\bible-language-ship`. La config es `Modules\config.json` (fuera del skill).
 
 ## Archivos
 
-- `scripts/ship.py`, `scripts/config.json` (por PC).
+- `scripts/ship.py`. Los `.bblx` de los versículos clave salen de `Modules\languages\<idioma>\modules\`; `feature` y `web` usan los scripts de los skills `play-feature-graphic` y `cloudflare-site`, buscados por nombre.
 - `assets/locales.json`: por idioma, la carpeta de Android, el locale de Play (o `null`), las formas de plural, el locale para adb, si es de derecha a izquierda y las voces a probar.
 - `assets/module-credits.seed.json`: los créditos iniciales (inglés y español lite).

@@ -1,10 +1,9 @@
-"""Language packs for Bible Versions: one language at a time, from the downloaded Bibles to the
-module the app downloads from the CDN (cdn.timelesslabs.app/bible/modules/<lang>-vN.obb).
+"""Language packs for Bible Versions (step 2 of 5 of Modules/README.md): one language at a time, from the downloaded
+Bibles (languages/<lang>/sources, step 1: bible-download) to the .obb the app downloads from the CDN, left in
+Modules/cdn/bible/modules/<code>-vN.obb. Next: bible-devotional-translate (the daily reflection) or bible-language-ship.
 
   pack.py status                         every language of the tracker and how far it got
-  pack.py init <lang>                    packs/<lang>/pack.json with the candidate Bibles
-  pack.py fetch <lang> getbible:<abbr>   downloads a whole Bible from getBible in ONE request (a better copy of the same
-                                         version, e.g. the Synodal with its brackets) into BibleVersionsSelected + manifest + pack.json
+  pack.py init <lang>                    languages/<lang>/pack.json with the candidate Bibles
   pack.py import <lang>                  reads the chosen Bibles, cleans them and maps them to the app's versification
   pack.py validate <lang>                quality checks -> report.md, review.html; exit 1 if there are errors
   pack.py criteria <lang> [--fetch N]    the pastor's step: criteria.json with every problem and key verse, evidence
@@ -13,14 +12,17 @@ module the app downloads from the CDN (cdn.timelesslabs.app/bible/modules/<lang>
   pack.py apply <lang>                   applies the decisions of criteria.json (only allowed fixes), imports and validates
   pack.py review <lang>                  writes review.html and report.md again (after deciding), without touching the approval
   pack.py approve <lang> --by <name>     records the review (needs 0 errors and every problem of criteria.json decided)
-  pack.py build <lang>                   .bblx modules + the English modules -> <lang>-vN.obb, verified like the app reads it
-  pack.py publish <lang> [--yes]         uploads the .obb to R2 and adds it to cdn/bible/manifest.json (without --yes: the plan)
+  pack.py build <lang>                   .bblx modules + pack.json "contents" -> <code>-vN.obb, verified like the app reads it;
+                                         also the base packs: pack.py build en | es | es-lite
 
-<lang> is the tracker code (pt-BR, fr, sw, zh-Hans...). Paths: config.json next to this script.
+<lang> is the tracker code (pt-BR, fr, sw, zh-Hans...) or a base pack (en, es, es-lite).
+Paths: Modules/config.json (BIBLE_VERSIONS_CONFIG for another one); everything else lives next to it.
+Version rule of the .obb: the last version not yet in an app release (built after the date of the app's versionName)
+is replaced with the same number; once released, the same sha keeps it and another sha makes v(N+1).
 """
-import argparse, collections, ctypes, datetime, difflib, hashlib, html, io, json, math, os, random, re, shutil, time
+import argparse, collections, datetime, difflib, hashlib, html, io, json, math, os, random, re, shutil, time
 import urllib.error
-import sqlite3, subprocess, sys, unicodedata, urllib.request, zipfile
+import sqlite3, struct, subprocess, sys, tempfile, unicodedata, urllib.request, zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -57,9 +59,12 @@ def pack_scripts(pack):
     return SCRIPTS.get(re.sub(r"\s*\(.*\)", "", pack["script"]).strip().lower(), ["LATIN"])
 
 
-# The English modules every new pack carries for now (files of the English pack, same names and ids).
-ENGLISH_MODULES = ["quiz_en.db", "coffee_en.dev", "references_en.db", "jamieson-fausset-brown.cmtx",
-                   "normalPlan.db", "chronologicalPlan.db", "flexiblePlan.db"]
+# What every new pack carries besides its Bibles (files of Modules/common, the same ones the English pack has).
+DEFAULT_CONTENTS = [{"from": "common/en", "file": f} for f in ("quiz_en.db", "coffee_en.dev", "references_en.db",
+                                                                "jamieson-fausset-brown.cmtx")] + \
+                   [{"from": "common/all", "file": f} for f in ("normalPlan.db", "chronologicalPlan.db", "flexiblePlan.db")]
+RV1960 = "es/modules/reina-valera-1960.bblx"   # relative to Modules/languages
+KJV = "en/modules/king-james-version.bblx"
 ENGLISH_DEFAULTS = {"commentary": 37, "daily_image": 43, "quiz": 44, "reference": 47}
 FIRST_NEW_ID = 100
 # Tracker code -> the code the app, the manifest and Details.Language use (Android's locale language).
@@ -67,13 +72,19 @@ MODULE_LANGUAGE = {"pt-BR": "pt", "tl / fil": "fil", "ak / tw": "ak", "zh-Hans":
 
 
 # ---------------------------------------------------------------------------------------------- config
+DEFAULT_CONFIG = "D:/Documents/BibleVersions/Modules/config.json"
+
+
 def cfg():
-    p = Path(os.environ.get("BIBLE_PACK_CONFIG") or HERE / "config.json")  # another config for tests
+    """Modules/config.json (BIBLE_VERSIONS_CONFIG for another one, e.g. tests): every path is relative to its folder."""
+    p = Path(os.environ.get("BIBLE_VERSIONS_CONFIG") or DEFAULT_CONFIG)
     if not p.exists():
         fail(f"Missing {p}: see SETUP.md")
     c = json.loads(p.read_text(encoding="utf-8"))
-    for k in ("bibles_dir", "tracker", "health_report", "packs_dir", "app_repo"):
-        c[k] = Path(c[k])
+    root = p.parent
+    c.update(root=root, bibles_dir=root / "languages", packs_dir=root / "languages", common=root / "common",
+             cdn_dir=root / "cdn" / "bible", cache=root / "_cache", tracker=root / "idiomas-tracker.md",
+             health_report=root / "healthReport.md", app_repo=Path(c["app_repo"]))
     return c
 
 
@@ -527,7 +538,7 @@ def cmd_init(a):
     rows = tracker_rows(c)
     if a.lang not in rows:
         fail(f"{a.lang} is not a code of the tracker. Codes: {', '.join(rows)}")
-    manifest = json.loads((c["bibles_dir"] / "bibles-manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((c["bibles_dir"] / "manifest.json").read_text(encoding="utf-8"))
     gone = eliminated_ids(c)
     cands = []
     for b in manifest["bibles"]:
@@ -543,7 +554,7 @@ def cmd_init(a):
             "rejected": b["id"] in gone, "notes": b.get("notes", ""),
         })
     if not cands:
-        fail(f"No Bibles of {a.lang} in bibles-manifest.json")
+        fail(f"No Bibles of {a.lang} in languages/manifest.json: download one first (bible-download skill)")
     # Default choice: complete, allowed with ads, not rejected; eBible before BSS when both have the same Bible.
     for x in sorted(cands, key=lambda x: (x["rejected"], x["non_commercial"], -x["books"], x["source"] != "eBible.org")):
         if not x["rejected"] and not x["non_commercial"] and x["books"] >= 66:
@@ -558,9 +569,10 @@ def cmd_init(a):
         "language_name": row["Idioma"], "script": row["Escritura"], "created": TODAY,
         "ads_allowed": row.get("¿Con anuncios?", "").startswith("✅"),
         "bibles": cands, "default_bible": None,
-        "english_modules": ENGLISH_MODULES,
+        "contents": DEFAULT_CONTENTS,
         "_help": "Mark include=true on the Bibles to ship (2-3 at most), fill abbreviation (e.g. 'LSG') and check "
-                 "description and attribution. default_bible = the id of the main one. Then: pack.py import " + a.lang,
+                 "description and attribution. default_bible = the id of the main one. contents = what the .obb carries "
+                 "besides the Bibles (from common/... or this language's modules/). Then: pack.py import " + a.lang,
     }
     save_pack(c, a.lang, pack)
     print(f"Created {d / 'pack.json'}:")
@@ -579,7 +591,8 @@ def cmd_import(a):
     gone = eliminated_ids(c)
     target = app_counts()
     d = pack_dir(c, a.lang)
-    db = d / "work.db"
+    db = d / "work" / "work.db"
+    db.parent.mkdir(parents=True, exist_ok=True)
     if db.exists():
         db.unlink()
     con = sqlite3.connect(db)
@@ -748,7 +761,7 @@ _KJV = {}
 def kjv(c):
     if _KJV:
         return _KJV
-    p = c["bibles_dir"] / "EN-English" / "king-james-version.bblx"
+    p = c["bibles_dir"] / KJV
     con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
     out = {}
     for b, ch, v, t in con.execute("select Book, Chapter, Verse, Scripture from Bible"):
@@ -809,9 +822,9 @@ def cmd_validate(a):
     c = cfg()
     pack = load_pack(c, a.lang)
     d = pack_dir(c, a.lang)
-    if not (d / "work.db").exists():
+    if not (d / "work" / "work.db").exists():
         fail(f"Run  pack.py import {a.lang}  first")
-    con = sqlite3.connect(d / "work.db")
+    con = sqlite3.connect(d / "work" / "work.db")
     target = app_counts()
     ref_kjv = kjv(c)
     expected = pack_scripts(pack)
@@ -1034,7 +1047,7 @@ def cmd_validate(a):
              else x for x in issues]
     write_report(c, pack, d, shown, texts, ref_kjv)
     pack["validation"] = {"date": TODAY, "errors": errors, "warnings": warns,
-                          "report_sha256": sha256_file(d / "report.md"), "work_sha256": sha256_file(d / "work.db")}
+                          "report_sha256": sha256_file(d / "report.md"), "work_sha256": sha256_file(d / "work" / "work.db")}
     pack.pop("approval", None)
     save_pack(c, a.lang, pack)
     print(f"{errors} errors, {warns} warnings -> {d / 'report.md'} and {d / 'review.html'}")
@@ -1093,7 +1106,7 @@ def write_report(c, pack, d, issues, texts, ref_kjv):
             refs = expand_ref(item["ref"])
             t = " ".join(f"<sup>{v}</sup>{html.escape(rows.get((b, ch, v), '— FALTA —'))}" for b, ch, v in refs)
             k = " ".join(f"<sup>{v}</sup>{html.escape(ref_kjv.get((b, ch, v), ''))}" for b, ch, v in refs)
-            rv60 = local_bible(c, "ES-Spanish/reina-valera-1960.bblx")
+            rv60 = local_bible(c, RV1960)
             es = " ".join(f"<sup>{v}</sup>{html.escape(rv60.get((b, ch, v), ''))}" for b, ch, v in refs)
             vd = verdicts.get(f"verse|{sid}|{item['ref']}", {})
             log = (f"<b>{html.escape(vd['verdict'])}</b>: {html.escape(vd.get('note', ''))}" if vd.get("verdict") else "<i>pendiente</i>")
@@ -1102,7 +1115,7 @@ def write_report(c, pack, d, issues, texts, ref_kjv):
         sample = sample_refs(pack, sid, rows)
         h.append(f"</table><h3>Muestra al azar ({len(sample)} versículos)</h3><table><tr><th>✓</th><th>Ref.</th><th>Texto</th><th>RV1960</th>"
                  "<th>KJV</th><th>Bitácora de criterio</th></tr>")
-        rv60 = local_bible(c, "ES-Spanish/reina-valera-1960.bblx")
+        rv60 = local_bible(c, RV1960)
         for r in sample:
             ref = f"{r[0]} {r[1]}:{r[2]}"
             vd = verdicts.get(f"sample|{sid}|{ref}", {})
@@ -1153,7 +1166,7 @@ def cmd_review(a):
                 if (e.get("decision") or {}).get("action") == "accept" and e["decision"].get("note")}
     shown = [(x[0], x[1], x[2], x[3], x[4] + f" — ACEPTADO POR CRITERIO: {accepted[issue_key(x)]}") if x[0] == "E" and issue_key(x) in accepted
              else x for x in issues]
-    con = sqlite3.connect(d / "work.db")
+    con = sqlite3.connect(d / "work" / "work.db")
     texts = {b["id"]: {(bk, ch, v): t for bk, ch, v, t in con.execute("select book, chapter, verse, text from verses where sid=?", (b["id"],))}
              for b in pack["bibles"] if b["include"]}
     write_report(c, pack, d, shown, texts, kjv(c))
@@ -1169,7 +1182,7 @@ def cmd_approve(a):
         fail(f"Run  pack.py validate {a.lang}  first")
     if v["errors"]:
         fail(f"The validation has {v['errors']} errors: fix them (pack.json or the source) and validate again")
-    if sha256_file(d / "work.db") != v["work_sha256"]:
+    if sha256_file(d / "work" / "work.db") != v["work_sha256"]:
         fail("work.db changed after the validation: validate again")
     crit_path = d / "criteria.json"
     if not crit_path.exists():
@@ -1200,7 +1213,7 @@ def module_ids(c):
     # Seed with the ids already used by the published packs (Details.Id of every module).
     reg = {"_comment": "Details.Id of every module in the language packs. An id is never reused. "
                        "Written by the bible-language-pack skill.", "modules": []}
-    for folder in ("EN-English", "ES-Spanish", "ES-Spanish-Lite"):
+    for folder in ("en/modules", "es/modules", "es-lite/modules", "../common/all", "../common/en", "../common/es"):
         for f in sorted((c["bibles_dir"] / folder).glob("*.*")):
             if f.suffix in (".bblx", ".cmtx", ".db", ".dev"):
                 try:
@@ -1244,86 +1257,181 @@ def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:40] or "bible"
 
 
+def release_date(c):
+    """Date of the app's last release: its versionName is that date (26.10.19 = 2026-10-19, android-release)."""
+    gradle = (c["app_repo"] / "app" / "build.gradle").read_text(encoding="utf-8")
+    m = re.search(r'versionName\s+"(\d{2})\.(\d{2})\.(\d{2})"', gradle)
+    if not m:
+        fail(f"versionName is not a date (YY.MM.DD) in {c['app_repo'] / 'app' / 'build.gradle'}")
+    return f"20{m[1]}-{m[2]}-{m[3]}"
+
+
+def load_versions(c):
+    p = c["cdn_dir"] / "versions.json"
+    return p, (json.loads(p.read_text(encoding="utf-8")) if p.exists() else {})
+
+
+SEVEN_ZIP = shutil.which("7z") or next((p for p in (r"C:\Program Files\7-Zip\7z.exe", r"C:\Program Files (x86)\7-Zip\7z.exe")
+                                         if Path(p).exists()), None)
+
+
+def write_obb(path, files):
+    """Flat and reproducible zip (sorted names, fixed date and attributes): the same files always give the same sha256.
+    Deflate from 7-Zip (-mx=9, ~5% smaller than zlib, like the packs already published) when it is installed: it
+    compresses each file on its own and its streams are copied here under fixed headers; zlib level 9 otherwise."""
+    def entry(name):
+        info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+        info.compress_type = zipfile.ZIP_DEFLATED
+        info.create_system = 0
+        info.external_attr = 0o644 << 16
+        return info
+    files = sorted(files)
+    if not SEVEN_ZIP:
+        with zipfile.ZipFile(path, "w") as z:
+            for name, src in files:
+                z.writestr(entry(name), Path(src).read_bytes(), compresslevel=9)
+        return
+    stage = path.parent / "_7z"
+    stage.mkdir()
+    for name, src in files:
+        shutil.copyfile(src, stage / name)
+    r = subprocess.run([SEVEN_ZIP, "a", "-tzip", "-mx=9", "-bd", "-bso0", str(path.parent / "_7z.zip"), *sorted(f.name for f in stage.iterdir())],
+                       cwd=stage)
+    if r.returncode:
+        fail("7-Zip failed")
+    with zipfile.ZipFile(path.parent / "_7z.zip") as zin, zipfile.ZipFile(path, "w") as zout:
+        for info in sorted(zin.infolist(), key=lambda i: i.filename):
+            zin.fp.seek(info.header_offset)
+            n, e = struct.unpack("<HH", zin.fp.read(30)[26:30])
+            zin.fp.seek(info.header_offset + 30 + n + e)
+            raw = zin.fp.read(info.compress_size)
+            out = entry(info.filename)
+            out.flag_bits = info.flag_bits & ~0x08
+            out.CRC, out.compress_size, out.file_size = info.CRC, info.compress_size, info.file_size
+            out.header_offset = zout.fp.tell()
+            zout.fp.write(out.FileHeader())
+            zout.fp.write(raw)
+            zout.start_dir = zout.fp.tell()
+            zout.filelist.append(out)
+            zout.NameToInfo[out.filename] = out
+        zout._didModify = True
+    shutil.rmtree(stage)
+    (path.parent / "_7z.zip").unlink()
+
+
+def place_obb(c, code, tmp):
+    """Puts the new .obb in cdn/bible/modules with the version rule and records it in versions.json.
+    The last version not yet in an app release (built after release_date) is replaced with the same number; a released
+    one stays: the same sha256 reuses it, another sha256 makes v(N+1)."""
+    vpath, reg = load_versions(c)
+    entries = reg.setdefault(code, [])
+    mods = c["cdn_dir"] / "modules"
+    on_disk = [int(m.group(1)) for f in mods.glob(f"{code}-v*.obb") if (m := re.fullmatch(re.escape(code) + r"-v(\d+)\.obb", f.name))]
+    last = max(on_disk + [e["version"] for e in entries], default=0)
+    digest = sha256_file(tmp)
+    if not last:
+        n, action = 1, "new"
+    else:
+        prev = next((e for e in entries if e["version"] == last), None)
+        built = prev["built"] if prev else datetime.date.fromtimestamp((mods / f"{code}-v{last}.obb").stat().st_mtime).isoformat()
+        if built > release_date(c):
+            n, action = last, f"replaces v{last} (built {built}, after the app release of {release_date(c)})"
+        elif (prev["sha256"] if prev else sha256_file(mods / f"{code}-v{last}.obb")) == digest:
+            n, action = last, "unchanged"
+        else:
+            n, action = last + 1, f"new version (v{last} is in the app release of {release_date(c)})"
+    dest = mods / f"{code}-v{n}.obb"
+    if action == "unchanged":
+        tmp.unlink()
+    else:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(tmp), str(dest))
+        entries[:] = [e for e in entries if e["version"] != n] + [
+            {"file": dest.name, "version": n, "sha256": digest, "size": dest.stat().st_size, "built": TODAY, "uploaded": None}]
+        entries.sort(key=lambda e: e["version"])
+        vpath.write_text(json.dumps(dict(sorted(reg.items())), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return dest, n, action
+
+
 def cmd_build(a):
     c = cfg()
     pack = load_pack(c, a.lang)
     d = pack_dir(c, a.lang)
-    ap = pack.get("approval")
-    if not ap:
-        fail(f"Not approved: read review.html and run  pack.py approve {a.lang} --by <name>")
-    if sha256_file(d / "work.db") != ap["work_sha256"]:
-        fail("work.db changed after the approval: validate and approve again")
+    base = pack.get("kind") == "base"  # en, es, es-lite: the app's own packs, no imported Bibles
     lang = pack["module_language"]
-    reg_path, reg = module_ids(c)
-    used = {m["id"] for m in reg["modules"]}
-    out = d / "build"
-    if out.exists():
-        shutil.rmtree(out)
-    out.mkdir(parents=True)
-    con = sqlite3.connect(d / "work.db")
-    built = []
-    for b in [x for x in pack["bibles"] if x["include"] and x.get("role") != "reference"]:
-        prev = next((m for m in reg["modules"] if m.get("source") == b["id"] and m["language"] == lang), None)
-        mid = prev["id"] if prev else max([FIRST_NEW_ID - 1] + [i for i in used if i >= FIRST_NEW_ID]) + 1
-        used.add(mid)
-        name = slug(b["abbreviation"] or "")
-        fname = f"{lang}-{name if name != 'bible' else slug(b['id'])}.bblx"  # a Cyrillic abbreviation has no ASCII slug
-        rows = list(con.execute("select book, chapter, verse, text from verses where sid=? and text<>''", (b["id"],)))
-        write_bblx(out / fname, b, rows, lang, mid)
-        built.append({"id": mid, "file": fname, "source": b["id"], "abbreviation": b["abbreviation"], "verses": len(rows)})
-        if prev:
-            prev["file"] = fname
-        else:
-            reg["modules"].append({"id": mid, "language": lang, "file": fname, "abbreviation": b["abbreviation"],
-                                   "pack": a.lang, "source": b["id"], "added": TODAY})
-    con.close()
-    for f in pack.get("english_modules", ENGLISH_MODULES):
-        src = c["bibles_dir"] / "EN-English" / f
+    code = pack.get("cdn_code", lang)
+    built, files = [], []
+    if not base:
+        ap = pack.get("approval")
+        if not ap:
+            fail(f"Not approved: read review.html and run  pack.py approve {a.lang} --by <name>")
+        if sha256_file(d / "work" / "work.db") != ap["work_sha256"]:
+            fail("work.db changed after the approval: validate and approve again")
+        reg_path, reg = module_ids(c)
+        used = {m["id"] for m in reg["modules"]}
+        (d / "modules").mkdir(parents=True, exist_ok=True)
+        con = sqlite3.connect(d / "work" / "work.db")
+        for b in [x for x in pack["bibles"] if x["include"] and x.get("role") != "reference"]:
+            prev = next((m for m in reg["modules"] if m.get("source") == b["id"] and m["language"] == lang), None)
+            mid = prev["id"] if prev else max([FIRST_NEW_ID - 1] + [i for i in used if i >= FIRST_NEW_ID]) + 1
+            used.add(mid)
+            name = slug(b["abbreviation"] or "")
+            fname = f"{lang}-{name if name != 'bible' else slug(b['id'])}.bblx"  # a Cyrillic abbreviation has no ASCII slug
+            rows = list(con.execute("select book, chapter, verse, text from verses where sid=? and text<>''", (b["id"],)))
+            write_bblx(d / "modules" / fname, b, rows, lang, mid)
+            built.append({"id": mid, "file": fname, "source": b["id"], "abbreviation": b["abbreviation"], "verses": len(rows)})
+            files.append((fname, d / "modules" / fname))
+            if prev:
+                prev["file"] = fname
+            else:
+                reg["modules"].append({"id": mid, "language": lang, "file": fname, "abbreviation": b["abbreviation"],
+                                       "pack": a.lang, "source": b["id"], "added": TODAY})
+        con.close()
+    # What the pack carries besides its Bibles: shared files of Modules/common or this language's modules/
+    # (bible-devotional-translate puts coffee_<lang>.dev there in place of common/en coffee_en.dev).
+    for item in pack.get("contents", []):
+        src = (d / "modules" if item["from"] == "modules" else c["root"] / item["from"]) / item["file"]
         if not src.exists():
-            fail(f"Missing English module {src}")
-        shutil.copy2(src, out / f)
-    # Modules translated for this language (bible-devotional-translate writes packs/<lang>/modules/coffee_<lang>.dev
-    # and takes coffee_en.dev out of english_modules).
-    for f in pack.get("local_modules", []):
-        src = d / "modules" / f
-        if not src.exists():
-            fail(f"Missing module {src}")
-        shutil.copy2(src, out / f)
-    # The archive: flat, like the English and Spanish packs. Version from the manifest (a new file never overwrites a published one).
-    manifest = json.loads((c["app_repo"] / "cdn" / "bible" / "manifest.json").read_text(encoding="utf-8"))
-    current = manifest.get("languages", {}).get(lang)
-    ver = int(re.search(r"-v(\d+)\.obb$", current["url"]).group(1)) + 1 if current else 1
-    obb = d / f"{lang}-v{ver}.obb"
-    with zipfile.ZipFile(obb, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for f in sorted(out.iterdir()):
-            z.write(f, f.name)
-    # Verify the archive the way the app reads it (ModuleInitializer.saveModuleInformation).
-    problems = verify_obb(obb, lang, {m["id"] for m in reg["modules"] if m["language"] != lang and m["id"] not in ENGLISH_DEFAULTS.values()})
-    if problems:
-        fail("The pack does not pass the check:\n  " + "\n  ".join(problems))
+            fail(f"Missing {src} (pack.json contents)")
+        files.append((item["file"], src))
+    dupes = [n for n, k in collections.Counter(n for n, _ in files).items() if k > 1]
+    if dupes:
+        fail(f"The same file twice in the pack: {', '.join(dupes)}")
+    with tempfile.TemporaryDirectory(dir=c["root"], prefix="_build-") as tmpdir:
+        tmp = Path(tmpdir) / f"{code}.obb"
+        write_obb(tmp, files)
+        # Verify the archive the way the app reads it (ModuleInitializer.saveModuleInformation).
+        foreign = set() if base else {m["id"] for m in reg["modules"] if m["language"] != lang and m["id"] not in ENGLISH_DEFAULTS.values()}
+        problems = verify_obb(tmp, lang, foreign, rtf_ok=base)
+        if problems:
+            fail("The pack does not pass the check:\n  " + "\n  ".join(problems))
+        obb, ver, action = place_obb(c, code, tmp)
+    size, digest = obb.stat().st_size, sha256_file(obb)
+    pack["build"] = {"date": TODAY, "file": obb.name, "size": size, "sha256": digest, "modules": built, "version": ver}
+    save_pack(c, a.lang, pack)
+    print(f"OK: {obb} ({size / 1e6:.1f} MB, sha256 {digest[:12]}...): {action}")
+    for x in built:
+        print(f"   module {x['id']}: {x['file']} ({x['verses']} verses)")
+    print(f"   + {', '.join(i['from'] + '/' + i['file'] for i in pack.get('contents', []))}")
+    if base:
+        print(f"Next (step 4, bible-language-ship): upload {obb.name} and set languages.{code} in the manifest")
+        return
     reg_path.parent.mkdir(parents=True, exist_ok=True)
     reg["modules"].sort(key=lambda m: m["id"])
     reg_path.write_text(json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     default = next(x for x in built if x["source"] == pack["default_bible"])
-    size, digest = obb.stat().st_size, sha256_file(obb)
-    pack["build"] = {"date": TODAY, "file": obb.name, "size": size, "sha256": digest, "modules": built, "version": ver}
-    save_pack(c, a.lang, pack)
-    integ = app_integration(pack, default["id"], size, obb.name)
-    (d / "app-integration.md").write_text(integ, encoding="utf-8")
+    (d / "app-integration.md").write_text(app_integration(pack, default["id"], size, obb.name), encoding="utf-8")
     if licence_pending(pack):
         tracker_set(c, a.lang, "Texto", "🟨", f"Paquete {obb.name} generado ({size / 1e6:.1f} MB), PENDIENTE DE REVISIÓN DE LICENCIA (solo {', '.join(pack['licence_review'].get('countries') or [])})")
     else:
         tracker_set(c, a.lang, "Texto", "✅", f"Paquete {obb.name} generado ({size / 1e6:.1f} MB): Biblia en el idioma, resto en inglés")
-    print(f"OK: {obb} ({size / 1e6:.1f} MB, sha256 {digest[:12]}...)")
-    for x in built:
-        print(f"   module {x['id']}: {x['file']} ({x['verses']} verses)")
-    print(f"   + English: {', '.join(pack.get('english_modules', ENGLISH_MODULES))}")
-    if pack.get("local_modules"):
-        print(f"   + {lang}: {', '.join(pack['local_modules'])}")
-    print(f"Registry: {reg_path}\nApp changes needed: {d / 'app-integration.md'}\nNext: pack.py publish {a.lang}")
+    has_coffee = any(i["file"] == f"coffee_{lang}.dev" for i in pack.get("contents", []))
+    print(f"Registry: {reg_path}\nApp changes needed: {d / 'app-integration.md'}")
+    print("Next: " + ("step 4, bible-language-ship (ship.py cdn " + a.lang + ")" if has_coffee else
+                      "step 3, bible-devotional-translate (coffee.py prepare " + a.lang + "), or step 4 bible-language-ship"))
 
 
-def verify_obb(obb, lang, foreign_ids):
+def verify_obb(obb, lang, foreign_ids, rtf_ok=False):
     problems, ids = [], {}
     tmp = obb.parent / "_verify"
     if tmp.exists():
@@ -1364,7 +1472,7 @@ def verify_obb(obb, lang, foreign_ids):
             bad = con.execute("select count(*) from Bible where Scripture like '%{%' or Scripture like '%\\%' escape '!'").fetchone()[0]
             if n < 7000:
                 problems.append(f"{f.name}: only {n} verses")
-            if bad:
+            if bad and not rtf_ok:  # the app's own modules (KJV...) carry RTF on purpose; imported Bibles never
                 problems.append(f"{f.name}: {bad} verses with RTF characters")
         con.close()
     shutil.rmtree(tmp)
@@ -1410,12 +1518,12 @@ def plain(t):
 
 
 class Fetcher:
-    """Chapters from the sites of verify-sources.json: cached forever in packs/_cache, spaced by min_interval_s,
+    """Chapters from the sites of verify-sources.json: cached forever in Modules/_cache, spaced by min_interval_s,
     at most `budget` network requests per command, and a site that answers 403/429 is not asked again."""
 
     def __init__(self, c, budget):
         self.c = c
-        self.cache = c["packs_dir"] / "_cache"
+        self.cache = c["cache"]
         self.budget, self.last, self.blocked, self.requests = budget, {}, set(), 0
 
     def chapter(self, src, book, ch):
@@ -1476,7 +1584,7 @@ def page_url(src, book, ch):
 
 
 def sources_of(sid):
-    """The online copies of the same version. A Bible downloaded with `fetch getbible:<abbr>` takes those of any
+    """The online copies of the same version. A Bible downloaded with `download.py getbible <abbr>` (bible-download) takes those of any
     Bible that lists that getBible text, without the getBible chapter itself (it is the same file)."""
     known = sources()["bibles"].get(sid)
     if known is not None or not sid.startswith("getbible_"):
@@ -1510,7 +1618,7 @@ def evidence_for(fetcher, sid, ref, ours, max_sources=2, with_rv=True):
         out.append({"source": f"{src['site']}:{src.get('abbr') or src.get('vid')}", "match": src.get("match", ""),
                     "url": page_url(src, book, ch), "verse": best_v, "text": best_t, "similarity": round(best_r, 3)})
     if with_rv:  # the Reina-Valera 1960 of the Spanish pack, local: no request
-        rv = local_bible(fetcher.c, "ES-Spanish/reina-valera-1960.bblx")
+        rv = local_bible(fetcher.c, RV1960)
         out.append({"source": "RV1960", "match": "reference", "url": "", "verse": v, "text": rv.get((book, ch, v), "")})
     return out
 
@@ -1564,49 +1672,6 @@ def propose(e, texts):
     return {"action": "accept", "why": "advertencia informativa: confirmar leyendo el versículo"}
 
 
-def cmd_fetch(a):
-    """One request for the whole Bible (api.getbible.net/v2/<abbr>.json), never chapter by chapter."""
-    c = cfg()
-    site, _, abbr = a.source.partition(":")
-    if site != "getbible" or not abbr:
-        fail("Source like getbible:synodal (the abbreviation of api.getbible.net/v2/translations.json)")
-    mpath = c["bibles_dir"] / "bibles-manifest.json"
-    manifest = json.loads(mpath.read_text(encoding="utf-8"))
-    folder = next((b["folder"] for b in manifest["bibles"] if b["tracker_code"] == a.lang), None)
-    if not folder:
-        fail(f"No folder for {a.lang} in bibles-manifest.json")
-    dest = c["bibles_dir"] / folder / f"getbible_{abbr}.json"
-    url = f"https://api.getbible.net/v2/{abbr}.json"
-    if not dest.exists():
-        print(f"Downloading {url} (one request)...")
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (bible-versions; one download)"})
-        dest.write_bytes(urllib.request.urlopen(req, timeout=300).read())
-    d = json.loads(dest.read_text(encoding="utf-8"))
-    canon = [b for b in d["books"] if 1 <= int(b["nr"]) <= 66]
-    sid = f"getbible_{abbr}"
-    entry = {"tracker_code": a.lang, "language": d.get("language", ""), "language_code": d.get("lang", ""), "folder": folder,
-             "file": dest.name, "source": "getBible.net (CrossWire SWORD)", "id": sid,
-             "title": d.get("description") or d.get("translation", ""), "short_title": d.get("translation", ""), "books": len(canon),
-             "copyright": (d.get("distribution_about") or "")[:400], "licence": d.get("distribution_license", ""),
-             "licence_url": f"https://getbible.net/{abbr}", "download_url": url,
-             "format": "getBible v2 JSON: books[nr, chapters[verses[chapter, verse, text]]]", "bytes": dest.stat().st_size,
-             "sha256": sha256_file(dest), "downloaded": TODAY,
-             "notes": f"Source: {d.get('distribution_source', '')}; SWORD {d.get('distribution_abbreviation', '')} "
-                      f"{d.get('distribution_version', '')} ({d.get('distribution_version_date', '')}); versification {d.get('distribution_versification', '')}"}
-    manifest["bibles"] = [b for b in manifest["bibles"] if b["id"] != sid] + [entry]
-    manifest["count"] = len(manifest["bibles"])
-    mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    pack = load_pack(c, a.lang)
-    if not any(b["id"] == sid for b in pack["bibles"]):
-        pack["bibles"].append({"id": sid, "file": f"{folder}/{dest.name}", "source": entry["source"], "title": entry["title"],
-                               "books": len(canon), "licence": entry["licence"], "non_commercial": False, "include": False,
-                               "abbreviation": "", "description": entry["title"], "attribution": entry["copyright"],
-                               "rejected": False, "notes": entry["notes"]})
-        save_pack(c, a.lang, pack)
-    print(f"OK: {dest} ({entry['bytes'] / 1e6:.1f} MB, {len(canon)} books of the 66, licence {entry['licence']}). "
-          f"Added to bibles-manifest.json and to pack.json as {sid} (include=false: choose it there)")
-
-
 def cmd_criteria(a):
     c = cfg()
     pack = load_pack(c, a.lang)
@@ -1630,7 +1695,7 @@ def cmd_criteria(a):
         e = known.pop(k)
         e["status"] = f"ya no aparece en la validación del {TODAY}"
         crit["resolved"].append(e)
-    con = sqlite3.connect(d / "work.db")
+    con = sqlite3.connect(d / "work" / "work.db")
     texts = {b["id"]: {(bk, ch, v): t for bk, ch, v, t in con.execute("select book, chapter, verse, text from verses where sid=?", (b["id"],))}
              for b in pack["bibles"] if b["include"]}
     published = {b["id"] for b in pack["bibles"] if b["include"] and b.get("role") != "reference"}
@@ -1673,13 +1738,13 @@ def cmd_criteria(a):
             refs = expand_ref(item["ref"])
             e["text"] = " ".join(f"[{v}] {rows.get((b, ch, v), '— FALTA —')}" for b, ch, v in refs)
             e["kjv"] = " ".join(f"[{v}] {kjv(c).get((b, ch, v), '')}" for b, ch, v in refs)
-            rv60 = local_bible(c, "ES-Spanish/reina-valera-1960.bblx")
+            rv60 = local_bible(c, RV1960)
             e["rv1960"] = " ".join(f"[{v}] {rv60.get((b, ch, v), '')}" for b, ch, v in refs)
             if not e["evidence"]:
                 first = f"{refs[0][0]} {refs[0][1]}:{refs[0][2]}"
                 e["evidence"] = evidence_for(fetcher, sid, first, rows.get(refs[0], ""), max_sources=1)
             have[key] = e
-        rv60 = local_bible(c, "ES-Spanish/reina-valera-1960.bblx")
+        rv60 = local_bible(c, RV1960)
         for r in sample_refs(pack, sid, rows):
             ref = f"{r[0]} {r[1]}:{r[2]}"
             key = f"sample|{sid}|{ref}"
@@ -1705,7 +1770,7 @@ def cmd_verify(a):
     c = cfg()
     pack = load_pack(c, a.lang)
     d = pack_dir(c, a.lang)
-    con = sqlite3.connect(d / "work.db")
+    con = sqlite3.connect(d / "work" / "work.db")
     ref = a.ref.upper()
     m = re.match(r"^([1-4A-Z]{3}) (\d+):(\d+)$", ref)
     if not m:
@@ -1719,7 +1784,7 @@ def cmd_verify(a):
         for ev in evidence_for(fetcher, b["id"], ref, ours, max_sources=3, with_rv=False):
             print(f"  {ev['source']} [{ev['match']}] v{ev['verse']} {('sim ' + str(ev['similarity'])) if 'similarity' in ev else ''}: {ev['text']}")
             print(f"     {ev['url']}")
-    print(f"  RV1960: {local_bible(c, 'ES-Spanish/reina-valera-1960.bblx').get(key, '')}")
+    print(f"  RV1960: {local_bible(c, RV1960).get(key, '')}")
     print(f"  KJV: {kjv_text(c, ref)}")
 
 
@@ -1744,7 +1809,7 @@ def cmd_apply(a):
     pack = load_pack(c, a.lang)
     d = pack_dir(c, a.lang)
     crit = json.loads((d / "criteria.json").read_text(encoding="utf-8"))
-    con = sqlite3.connect(d / "work.db")
+    con = sqlite3.connect(d / "work" / "work.db")
     bibles = {b["id"]: b for b in pack["bibles"]}
 
     def verse(sid, ref):
@@ -1943,72 +2008,6 @@ def cmd_apply(a):
     sys.exit(r.returncode)
 
 
-def cred(target):
-    class CRED(ctypes.Structure):
-        _fields_ = [("Flags", ctypes.c_uint32), ("Type", ctypes.c_uint32), ("TargetName", ctypes.c_wchar_p),
-                    ("Comment", ctypes.c_wchar_p), ("LastWritten", ctypes.c_uint64), ("CredentialBlobSize", ctypes.c_uint32),
-                    ("CredentialBlob", ctypes.POINTER(ctypes.c_char)), ("Persist", ctypes.c_uint32),
-                    ("AttributeCount", ctypes.c_uint32), ("Attributes", ctypes.c_void_p), ("TargetAlias", ctypes.c_wchar_p),
-                    ("UserName", ctypes.c_wchar_p)]
-    p = ctypes.POINTER(CRED)()
-    if not ctypes.windll.advapi32.CredReadW(target, 1, 0, ctypes.byref(p)):
-        fail(f"No credential '{target}' in the Windows Credential Manager (see scripts/publish-manifest.md of the app)")
-    try:
-        blob = ctypes.string_at(p.contents.CredentialBlob, p.contents.CredentialBlobSize)
-        secret = blob.decode("utf-16-le") if b"\x00" in blob else blob.decode()
-        return p.contents.UserName, secret
-    finally:
-        ctypes.windll.advapi32.CredFree(p)
-
-
-def cmd_publish(a):
-    c = cfg()
-    pack = load_pack(c, a.lang)
-    d = pack_dir(c, a.lang)
-    b = pack.get("build")
-    if not b:
-        fail(f"Run  pack.py build {a.lang}  first")
-    obb = d / b["file"]
-    if sha256_file(obb) != b["sha256"]:
-        fail("The .obb changed after the build: build again")
-    if licence_pending(pack):
-        lr = pack["licence_review"]
-        fail(f"Licence pending review ({lr.get('reason', '')}; countries: {', '.join(lr.get('countries') or []) or '?'}). "
-             f"It is published only after the user approves it: licence_review.status = \"aprobada\" in pack.json")
-    lang = pack["module_language"]
-    key = f"bible/modules/{b['file']}"
-    url = f"https://cdn.timelesslabs.app/{key}"
-    mpath = c["app_repo"] / "cdn" / "bible" / "manifest.json"
-    manifest = json.loads(mpath.read_text(encoding="utf-8"))
-    entry = {"url": f"modules/{b['file']}", "size": b["size"], "sha256": b["sha256"]}
-    print(f"Plan:\n  1. Upload {obb} ({b['size'] / 1e6:.1f} MB) to R2 {c.get('bucket', 'timelesslabs-cdn')}/{key}")
-    print(f"  2. Check {url} serves {b['size']} bytes")
-    print(f"  3. cdn/bible/manifest.json: languages.{lang} = {json.dumps(entry)}"
-          + (f" (replaces {manifest['languages'][lang]['url']})" if lang in manifest.get("languages", {}) else " (new)"))
-    print("  4. Then the manifest goes live with  .\\scripts\\publish-manifest.ps1 -DryRun  and  .\\scripts\\publish-manifest.ps1")
-    if not a.yes:
-        print("Nothing changed. Run again with --yes to upload (the app only uses it once it knows the language: app-integration.md).")
-        return
-    account, token = cred(c.get("credential", "BibleVersions-Cloudflare"))
-    env = {**os.environ, "CLOUDFLARE_API_TOKEN": token, "CLOUDFLARE_ACCOUNT_ID": account}
-    r = subprocess.run(["npx", "--yes", "wrangler@4", "r2", "object", "put", f"{c.get('bucket', 'timelesslabs-cdn')}/{key}",
-                        "--file", str(obb), "--content-type", "application/octet-stream", "--remote"], env=env, shell=True)
-    if r.returncode:
-        fail("wrangler upload failed")
-    # Cloudflare's bot protection answers 403 to Python's default User-Agent.
-    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (bible-versions publish check)"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        length = int(resp.headers.get("Content-Length", "0"))
-    if length != b["size"]:
-        fail(f"The CDN serves {length} bytes, expected {b['size']}")
-    manifest.setdefault("languages", {})[lang] = entry
-    mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    pack["published"] = {"date": TODAY, "url": url}
-    save_pack(c, a.lang, pack)
-    tracker_log(c, a.lang, f"{b['file']} subido al CDN; falta publicar manifest.json y la versión de la app que conoce el idioma")
-    print(f"OK: {url} ({length} bytes). manifest.json updated locally: run  .\\scripts\\publish-manifest.ps1 -DryRun  from {c['app_repo']}")
-
-
 def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -2020,13 +2019,11 @@ def main():
     p = sub.add_parser("approve"); p.add_argument("lang"); p.add_argument("--by", required=True); p.add_argument("--notes")
     p = sub.add_parser("criteria"); p.add_argument("lang"); p.add_argument("--fetch", type=int, default=150)
     p = sub.add_parser("verify"); p.add_argument("lang"); p.add_argument("ref"); p.add_argument("--bible")
-    p = sub.add_parser("fetch"); p.add_argument("lang"); p.add_argument("source")
     sub.add_parser("review").add_argument("lang")
     sub.add_parser("apply").add_argument("lang")
-    p = sub.add_parser("publish"); p.add_argument("lang"); p.add_argument("--yes", action="store_true")
     a = ap.parse_args()
     {"status": cmd_status, "init": cmd_init, "import": cmd_import, "validate": cmd_validate, "approve": cmd_approve,
-     "build": cmd_build, "publish": cmd_publish, "criteria": cmd_criteria, "verify": cmd_verify, "apply": cmd_apply, "fetch": cmd_fetch, "review": cmd_review}[a.cmd](a)
+     "build": cmd_build, "criteria": cmd_criteria, "verify": cmd_verify, "apply": cmd_apply, "review": cmd_review}[a.cmd](a)
 
 
 if __name__ == "__main__":

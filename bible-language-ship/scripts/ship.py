@@ -1,11 +1,13 @@
-"""From an approved language pack to a language ready to publish in Bible Versions (everything except the Play
-release, the website deploy and the commits). One stage at a time, with its state in packs/<lang>/ship.json, so it
-can run unattended (a /loop) until every language of the tracker is done.
+"""Step 4 of 5 of Modules/README.md: from an approved language pack (step 2, bible-language-pack: its .obb in
+Modules/cdn/bible/modules) to a language ready to publish in Bible Versions (everything except the Play release, the
+website deploy and the commits; next: android-release). One stage at a time, with its state in
+Modules/languages/<lang>/ship.json, so it can run unattended (a /loop) until every language of the tracker is done.
 
   ship.py status                     every language and its stages
   ship.py next                       the next stage to do (first language of the tracker with work left)
   ship.py check <lang> [stage]       runs the automatic checks and marks the stages that pass
-  ship.py cdn <lang>                 uploads the validated .obb, adds it to the manifest and publishes the manifest
+  ship.py cdn <lang> [--dry-run]     uploads the .obb to R2, sets it in the repo's manifest and publishes the manifest
+                                     (also the base packs: ship.py cdn en | es | es-lite)
   ship.py strings <lang>             checks values-<xx>/strings.xml against values/ (English: keys, placeholders, plurals, arrays)
   ship.py about                      writes assets/legal/bible_modules_<ui>.md for every UI language from module-credits.json
   ship.py web <lang>                 checks the website texts of the language (keys, site.json) and builds it (no deploy)
@@ -17,9 +19,9 @@ can run unattended (a /loop) until every language of the tracker is done.
   ship.py mark <lang> <stage> [--note ...]   records a stage done by hand (Claude's work: translations, device checks)
   ship.py report <lang>              what is ready and what is missing to publish the language
 
-Paths: config.json next to this script (see SETUP.md).
+Paths: Modules/config.json (BIBLE_VERSIONS_CONFIG for another one); everything else lives next to it.
 """
-import argparse, datetime, glob, hashlib, json, os, re, shutil, sqlite3, subprocess, sys, time, urllib.request
+import argparse, ctypes, datetime, glob, hashlib, json, os, re, shutil, sqlite3, subprocess, sys, time, urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -51,13 +53,27 @@ UI_DOCS = ["privacy", "terms", "licenses", "photo_credits", "bible_modules"]
 
 
 # ---------------------------------------------------------------------------------------------- basics
+DEFAULT_CONFIG = "D:/Documents/BibleVersions/Modules/config.json"
+
+
+def skill_script(skill, rel):
+    """A script of another skill, found by its name next to this one (installed copy or backup) or in ~/.claude/skills."""
+    for base in (HERE.parents[1], Path.home() / ".claude" / "skills"):
+        if (base / skill / rel).exists():
+            return base / skill / rel
+    fail(f"Skill {skill} not found ({rel}): install it, or do this stage with that skill by hand")
+
+
 def cfg():
-    p = Path(os.environ.get("BIBLE_SHIP_CONFIG") or HERE / "config.json")
+    p = Path(os.environ.get("BIBLE_VERSIONS_CONFIG") or DEFAULT_CONFIG)
     if not p.exists():
-        fail(f"Missing {p}: see SETUP.md")
+        fail(f"Missing {p}: see SETUP.md and Modules/README.md")
     c = json.loads(p.read_text(encoding="utf-8"))
-    for k in ("app_repo", "packs_dir", "play_dir", "website_site", "tracker", "pack_script", "web_script"):
+    root = p.parent
+    for k in ("app_repo", "play_dir", "website_site"):
         c[k] = Path(c[k])
+    c.update(root=root, packs_dir=root / "languages", cdn_dir=root / "cdn" / "bible", state_dir=root / "_state",
+             tracker=root / "idiomas-tracker.md")
     return c
 
 
@@ -100,7 +116,7 @@ def mark(c, lang, stage, note="", ok=True):
 
 
 def global_state(c):
-    p = c["packs_dir"] / "_ship_global.json"
+    p = c["state_dir"] / "ship_global.json"
     return p, (json.loads(p.read_text(encoding="utf-8")) if p.exists() else {})
 
 
@@ -137,10 +153,10 @@ def sha256(p):
 def check_pack(c, lang):
     pk = pack_of(c, lang)
     if not pk:
-        return False, "No packs/<lang>/pack.json: run the bible-language-pack skill first"
-    if not pk.get("approval") or not pk.get("build"):
-        return False, "Pack not approved and built (bible-language-pack: criteria, approve, build)"
-    obb = c["packs_dir"] / lang.replace(" / ", "-") / pk["build"]["file"]
+        return False, "No Modules/languages/<lang>/pack.json: step 2 first (bible-language-pack: init ... build)"
+    if (not pk.get("approval") and pk.get("kind") != "base") or not pk.get("build"):
+        return False, "Pack not approved and built (step 2, bible-language-pack: criteria, approve, build)"
+    obb = c["cdn_dir"] / "modules" / pk["build"]["file"]
     if not obb.exists() or sha256(obb) != pk["build"]["sha256"]:
         return False, f"{obb.name} missing or changed after the build"
     return True, f"{pk['build']['file']} ({pk['build']['size'] / 1e6:.1f} MB)"
@@ -154,9 +170,10 @@ def check_cdn(c, lang):
         manifest = json.loads(get("https://cdn.timelesslabs.app/bible/manifest.json"))
     except Exception as e:
         return False, f"manifest not readable: {e}"
-    entry = manifest.get("languages", {}).get(pk["module_language"])
+    code = pk.get("cdn_code", pk["module_language"])
+    entry = manifest.get("languages", {}).get(code)
     if not entry:
-        return False, f"languages.{pk['module_language']} is not in the published manifest"
+        return False, f"languages.{code} is not in the published manifest"
     if entry["sha256"] != pk["build"]["sha256"]:
         return False, "the published manifest points to another build (run  ship.py cdn)"
     return True, entry["url"]
@@ -501,6 +518,72 @@ def cmd_check(a):
     run_checks(c, a.lang, a.stage)
 
 
+def cred(target):
+    class CRED(ctypes.Structure):
+        _fields_ = [("Flags", ctypes.c_uint32), ("Type", ctypes.c_uint32), ("TargetName", ctypes.c_wchar_p),
+                    ("Comment", ctypes.c_wchar_p), ("LastWritten", ctypes.c_uint64), ("CredentialBlobSize", ctypes.c_uint32),
+                    ("CredentialBlob", ctypes.POINTER(ctypes.c_char)), ("Persist", ctypes.c_uint32),
+                    ("AttributeCount", ctypes.c_uint32), ("Attributes", ctypes.c_void_p), ("TargetAlias", ctypes.c_wchar_p),
+                    ("UserName", ctypes.c_wchar_p)]
+    p = ctypes.POINTER(CRED)()
+    if not ctypes.windll.advapi32.CredReadW(target, 1, 0, ctypes.byref(p)):
+        fail(f"No credential '{target}' in the Windows Credential Manager (see scripts/publish-manifest.md of the app)")
+    try:
+        blob = ctypes.string_at(p.contents.CredentialBlob, p.contents.CredentialBlobSize)
+        secret = blob.decode("utf-16-le") if b"\x00" in blob else blob.decode()
+        return p.contents.UserName, secret
+    finally:
+        ctypes.windll.advapi32.CredFree(p)
+
+
+def upload_obb(c, lang, dry_run):
+    """Uploads the pack's .obb to R2, checks the CDN serves it and sets languages.<code> in the repo's manifest.json.
+    A Bible whose licence is pending ("licence_review" in pack.json) is never uploaded."""
+    pk = pack_of(c, lang)
+    b = pk["build"]
+    lr = pk.get("licence_review")
+    if lr and lr.get("status") != "aprobada":
+        fail(f"Licence pending review ({lr.get('reason', '')}; countries: {', '.join(lr.get('countries') or []) or '?'}). "
+             f"It is published only after the user approves it: licence_review.status = \"aprobada\" in pack.json")
+    obb = c["cdn_dir"] / "modules" / b["file"]
+    code = pk.get("cdn_code", pk["module_language"])
+    key = f"bible/modules/{b['file']}"
+    url = f"https://cdn.timelesslabs.app/{key}"
+    mpath = c["app_repo"] / "cdn" / "bible" / "manifest.json"
+    manifest = json.loads(mpath.read_text(encoding="utf-8"))
+    entry = {"url": f"modules/{b['file']}", "size": b["size"], "sha256": b["sha256"]}
+    print(f"Plan:\n  1. Upload {obb} ({b['size'] / 1e6:.1f} MB) to R2 {c.get('bucket', 'timelesslabs-cdn')}/{key}")
+    print(f"  2. Check {url} serves {b['size']} bytes")
+    print(f"  3. cdn/bible/manifest.json: languages.{code} = {json.dumps(entry)}"
+          + (f" (replaces {manifest['languages'][code]['url']})" if code in manifest.get("languages", {}) else " (new)"))
+    print("  4. publish-manifest.ps1 -DryRun, then for real")
+    if dry_run:
+        print("Dry run: nothing uploaded.")
+        return False
+    account, token = cred(c.get("credential", "BibleVersions-Cloudflare"))
+    env = {**os.environ, "CLOUDFLARE_API_TOKEN": token, "CLOUDFLARE_ACCOUNT_ID": account}
+    r = subprocess.run(["npx", "--yes", "wrangler@4", "r2", "object", "put", f"{c.get('bucket', 'timelesslabs-cdn')}/{key}",
+                        "--file", str(obb), "--content-type", "application/octet-stream", "--remote"], env=env, shell=True)
+    if r.returncode:
+        fail("wrangler upload failed")
+    # Cloudflare's bot protection answers 403 to Python's default User-Agent.
+    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (bible-versions publish check)"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        length = int(resp.headers.get("Content-Length", "0"))
+    if length != b["size"]:
+        fail(f"The CDN serves {length} bytes, expected {b['size']}")
+    manifest.setdefault("languages", {})[code] = entry
+    mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    vpath = c["cdn_dir"] / "versions.json"
+    versions = json.loads(vpath.read_text(encoding="utf-8")) if vpath.exists() else {}
+    for v in versions.get(code, []):
+        if v["file"] == b["file"]:
+            v["uploaded"] = TODAY
+    vpath.write_text(json.dumps(versions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"OK: {url} ({length} bytes)")
+    return True
+
+
 def cmd_cdn(a):
     c = cfg()
     ok, msg = check_pack(c, a.lang)
@@ -511,9 +594,8 @@ def cmd_cdn(a):
         print(f"Already live: {msg}")
         mark(c, a.lang, "cdn", msg)
         return
-    r = subprocess.run([sys.executable, str(c["pack_script"]), "publish", a.lang, "--yes"])
-    if r.returncode:
-        fail("pack.py publish failed")
+    if not upload_obb(c, a.lang, a.dry_run):
+        return
     ps = c["app_repo"] / "scripts" / "publish-manifest.ps1"
     for extra in (["-DryRun"], []):
         r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps), *extra], cwd=c["app_repo"])
@@ -615,7 +697,7 @@ def cmd_web(a):
     if not ok:
         mark(c, a.lang, "web", msg, False)
         sys.exit(1)
-    r = subprocess.run([sys.executable, str(c["web_script"]), "build", c.get("website_slug", "bibleversions")], cwd=c["website_site"].parent.parent)
+    r = subprocess.run([sys.executable, str(skill_script("cloudflare-site", "scripts/web.py")), "build", c.get("website_slug", "bibleversions")], cwd=c["website_site"].parent.parent)
     mark(c, a.lang, "web", "texts OK, build OK (not deployed)" if r.returncode == 0 else "build failed", r.returncode == 0)
     sys.exit(r.returncode)
 
@@ -667,7 +749,7 @@ def cmd_flows(a):
     # "ULB", "IRV"), and verify_text.yaml that runs them all.
     per_module = []
     for mod in pk["build"]["modules"]:
-        bblx = c["packs_dir"] / a.lang.replace(" / ", "-") / "build" / mod["file"]
+        bblx = c["packs_dir"] / a.lang.replace(" / ", "-") / "modules" / mod["file"]
         con = sqlite3.connect(f"file:{bblx}?mode=ro", uri=True)
         lines = [f"# Generated by bible-language-ship: the key verses of {mod['abbreviation']} (module {mod['id']}, {code}) look",
                  "# exactly as in the module (first words), and no verse on screen shows RTF/HTML/markup or replacement characters.",
@@ -725,7 +807,7 @@ def cmd_device(a):
     c = cfg()
     code = module_lang(c, a.lang)
     loc = locales()[code]
-    backup = c["packs_dir"] / "_device_backup"
+    backup = c["state_dir"] / "device_backup"
     if a.action == "prep":
         if not adb("devices").count("\tdevice"):
             fail("No phone: connect it, unlock it and accept USB debugging")
@@ -847,7 +929,7 @@ def cmd_feature(a):
     loc["screens"] = {"center": str(shots / "03.png"), "left": str(shots / "01.png"), "right": str(shots / "05.png")}
     conf["locales"][pl] = loc
     fg.write_text(json.dumps(conf, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    script = Path(c["feature_script"])
+    script = skill_script("play-feature-graphic", "scripts/build_feature_graphic.py")
     r = subprocess.run([sys.executable, str(script), str(fg), "--locale", pl])
     if r.returncode:
         fail("build_feature_graphic.py failed")
@@ -926,8 +1008,9 @@ def main():
     s.add_parser("status")
     p = s.add_parser("next"); p.add_argument("--lang")
     p = s.add_parser("check"); p.add_argument("lang"); p.add_argument("stage", nargs="?")
-    for n in ("cdn", "strings", "web", "play", "flows", "shots", "feature", "report"):
+    for n in ("strings", "web", "play", "flows", "shots", "feature", "report"):
         s.add_parser(n).add_argument("lang")
+    p = s.add_parser("cdn"); p.add_argument("lang"); p.add_argument("--dry-run", action="store_true")
     s.add_parser("about")
     p = s.add_parser("device"); p.add_argument("lang"); p.add_argument("action", choices=["prep", "install", "restore"])
     p = s.add_parser("mark"); p.add_argument("lang"); p.add_argument("stage"); p.add_argument("--note")

@@ -1,16 +1,17 @@
 """usfm_ranges.py <lang>: accept the empty verses that the USFM itself prints as part of a verse range (\\v 6-7).
 Prints the empty verses that are NOT inside a range (they need a real look)."""
 import sys, json, zipfile, re, collections
-sys.path.insert(0, r'C:/Users/Einar/.claude/skills/bible-language-pack/scripts')
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
 lang = sys.argv[1]
 sys.argv = ['x']
 import pack
 
 by = 'Claude (criterio pastoral)'
-d = f'D:/Documents/BibleVersions/packs/{lang}/'
+c_ = pack.cfg()
+d = f"{pack.pack_dir(c_, lang).as_posix()}/"
 p = json.load(open(d + 'pack.json', encoding='utf-8'))
 c = json.load(open(d + 'criteria.json', encoding='utf-8'))
-base = 'D:/Documents/BibleVersions/BibleVersionsSelected/'
+base = f"{c_['bibles_dir'].as_posix()}/"
 BS = re.escape(chr(92))
 ranges = {}
 for b in p['bibles']:

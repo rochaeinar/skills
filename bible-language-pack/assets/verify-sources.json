@@ -29,7 +29,7 @@
   "RV1960": [
    {
     "site": "local",
-    "file": "ES-Spanish/reina-valera-1960.bblx"
+    "file": "es/modules/reina-valera-1960.bblx"
    },
    {
     "site": "bolls",
@@ -43,7 +43,7 @@
   "KJV": [
    {
     "site": "local",
-    "file": "EN-English/king-james-version.bblx"
+    "file": "en/modules/king-james-version.bblx"
    },
    {
     "site": "getbible",

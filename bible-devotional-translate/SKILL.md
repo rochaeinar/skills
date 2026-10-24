@@ -5,13 +5,15 @@ description: Traduce la reflexión diaria de Bible Versions (coffee_es.dev, 464 
 
 # Reflexión diaria en otros idiomas
 
-Todo pasa por `scripts/coffee.py` (con `python`). Rutas en `scripts/config.json` (por PC; `SETUP.md`).
+**Paso 3 de 5** del flujo de `D:\Documents\BibleVersions\Modules\README.md`. Viene después de `bible-language-pack` (paso 2: la Biblia del idioma en `modules\`, para los términos); sigue `pack.py build <idioma>` (paso 2 otra vez, para meter la reflexión en el `.obb`) y `bible-language-ship` (paso 4). **No arma ni sube paquetes.**
 
-- **Original**: `D:\Documents\BibleVersions\BibleVersionsSelected\ES-Spanish\coffee_es.dev`, tabla `DAILY` (`Id`, `Book`, `Chapter`, `Verse`, `VerseEnd`, `Comments`, `rowid`) y `Details` (una fila: `Id` 45, `Language` es). Es la fuente de verdad: el texto, las referencias y la cantidad de filas salen de ahí.
-- **Trabajo por idioma**: `D:\Documents\BibleVersions\devotional\<idioma>\`: `state.json` (cada traducción con el hash del español que tradujo), `glossary.md` (términos y decisiones), `batches\` (tandas), `report.md` (validación), `backups\`.
+Todo pasa por `scripts/coffee.py` (con `python`). Config: `Modules\config.json` (`SETUP.md`).
+
+- **Original**: `Modules\common\es\coffee_es.dev` (lo comparten los paquetes es y es-lite), tabla `DAILY` (`Id`, `Book`, `Chapter`, `Verse`, `VerseEnd`, `Comments`, `rowid`) y `Details` (una fila: `Id` 45, `Language` es). Es la fuente de verdad: el texto, las referencias y la cantidad de filas salen de ahí.
+- **Trabajo por idioma**: `Modules\languages\<idioma>\devotional\`: `state.json` (cada traducción con el hash del español que tradujo), `glossary.md` (términos y decisiones), `batches\` (tandas), `report.md` (validación), `backups\`.
 - **Salida**:
-  - Un paquete de `packs\<idioma>\` → `packs\<idioma>\modules\coffee_<código>.dev` (Id nuevo en `cdn/bible/module-ids.json` del repo de la app), anotado en `pack.json` (`local_modules`; sale `coffee_en.dev` de `english_modules`). `pack.py build` del skill `bible-language-pack` lo mete en el `.obb`.
-  - Inglés (`en`) → `BibleVersionsSelected\EN-English\coffee_en.dev` (Id 43). Español: lo edita el usuario o el skill de corrección; `repack es|esp|en` arma el `.obb` siguiente.
+  - Un idioma de `Modules\languages\<idioma>\` → `modules\coffee_<código>.dev` (Id nuevo en `cdn/bible/module-ids.json` del repo de la app); en `contents` de su `pack.json` reemplaza a `common/en coffee_en.dev` (es lo único de `pack.json` que toca este skill). `pack.py build` del skill `bible-language-pack` lo mete en el `.obb`.
+  - Inglés (`en`) → `Modules\common\en\coffee_en.dev` (Id 43). Español: lo edita el usuario o el skill de corrección. Los paquetes en, es y es-lite se rearman con `pack.py build en / es / es-lite` (bible-language-pack).
 - **Cómo lo usa la app**: `ModuleInitializer` registra todo `coffee*.dev` por su fila de `Details`; el idioma muestra el módulo cuyo Id está en `dailyImage` de `app/src/main/assets/languages.json` (hoy 43, el inglés, en todos los idiomas nuevos). El español (45) y el inglés (43) están fijos en `LanguageManager.java`.
 
 ## Flujo para un idioma
@@ -27,15 +29,15 @@ Todo pasa por `scripts/coffee.py` (con `python`). Rutas en `scripts/config.json`
 6. `coffee.py validate <idioma>` → `report.md`. Errores (sin traducir, español cambiado, marcas, otra escritura) bloquean el paso siguiente; las advertencias (largo raro, número o emoji que falta, atribución, comillas, palabras en inglés o español, repetidas distintas) se revisan una por una y se corrigen con otra tanda o se justifican en la bitácora del glosario.
 7. `coffee.py build <idioma>`: escribe el módulo (mismo esquema que el original; `Details` con el Id y el código del idioma), lo registra y ajusta `pack.json`.
 8. `pack.py build <idioma>` (skill `bible-language-pack`; necesita el paquete aprobado y `work.db` sin cambios) y luego `coffee.py integrate <idioma>`: pone `dailyImage` (el Id nuevo) y `sizeInBytes` en `languages.json`, solo esas dos líneas. Si el idioma todavía no está en la app (ar, fa, ja, my), queda listo en el paquete y `bible-language-ship` usa ese Id al integrarlo.
-9. **Publicar, con permiso explícito del usuario**: `pack.py publish <idioma> --yes`, `scripts\publish-manifest.ps1 -DryRun` y sin `-DryRun`, y una versión nueva de la app (`languages.json` va dentro del APK; skill `android-release`). Commit en `master` de la app con `languages.json` y `module-ids.json` cuando el usuario lo pida.
+9. **Publicar, con permiso explícito del usuario**: `ship.py cdn <idioma>` (bible-language-ship: sube el `.obb` y publica el manifiesto), y una versión nueva de la app (`languages.json` va dentro del APK; skill `android-release`). Commit en `master` de la app con `languages.json` y `module-ids.json` cuando el usuario lo pida.
 
 Quien ya bajó el idioma no recibe el módulo nuevo: la app descarga cada paquete una vez. Le llega a quien lo baje después de publicar.
 
 ## Cuando el español cambia o crece
 
 - **Filas nuevas**: agregarlas al final de `coffee_es.dev` con `Id` (y `rowid`) siguientes, su referencia y el texto. **Correcciones**: editar `Comments` o la referencia. Luego `check-source`.
-- El español va también en el paquete Lite: `repack esp` copia `coffee_es.dev` a `ES-Spanish-Lite\`. `repack es` / `repack esp` arman el `.obb` siguiente a la versión del manifiesto (copia byte a byte todo lo demás) en `D:\Documents\BibleVersions\cdn\bible\modules\` y actualizan el zip de `BibleVersionsSelected`.
-- **Cada idioma**: `status` muestra los pendientes; `prepare` trae solo las filas nuevas o cambiadas (las cambiadas con `previous`: ajustar esa traducción a lo que cambió, sin retraducir lo demás). Después `apply`, `validate`, `build`, y `repack en` para el inglés o `pack.py build` + `integrate` para los paquetes.
+- El español va también en el paquete Lite: los dos usan la misma copia, `common\es\coffee_es.dev`. `pack.py build es` y `pack.py build es-lite` arman sus `.obb` en `Modules\cdn\bible\modules\` con la regla de versiones (se reemplaza la versión que aún no salió en un release de la app).
+- **Cada idioma**: `status` muestra los pendientes; `prepare` trae solo las filas nuevas o cambiadas (las cambiadas con `previous`: ajustar esa traducción a lo que cambió, sin retraducir lo demás). Después `apply`, `validate`, `build`, y `pack.py build en` para el inglés o `pack.py build <idioma>` + `integrate` para los paquetes.
 - Un cambio solo de referencia (sin texto) no deja la fila pendiente: `build` copia las referencias del español siempre.
 - Para tomar como vigente un módulo que ya existe (el inglés actual, una traducción hecha afuera): `coffee.py import <idioma> <archivo.dev>` (con `--only-missing` para no pisar lo ya traducido). Solo si se revisó contra el español actual.
 

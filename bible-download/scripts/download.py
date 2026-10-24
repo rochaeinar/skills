@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""Download Bible.com chapter text.
+"""Step 1 of 5 of Modules/README.md: download Bibles into Modules/languages/<lang>/sources and register them
+(languages/manifest.json and, if the language has one, its pack.json with include=false).
+Next: bible-language-pack (pack.py init <lang>, or choose the Bible in pack.json).
 
-Usage examples:
-  python download.py --output-dir D:\\bible-test list
-  python download.py --output-dir D:\\bible-test get 123
-  python download.py --output-dir D:\\bible-test get 456
-  python download.py --output-dir D:\\bible-test build 123
-  python download.py --output-dir D:\\bible-test get-book 206 GEN
+  python download.py list                                   caches and how many chapters they have
+  python download.py get 3526                               a Bible.com version, chapter by chapter (resumes from the cache)
+  python download.py get all --max 200                      every cached version, at most 200 requests
+  python download.py build 2998 --lang ti --language-code ti   rebuild from the cache, no requests
+  python download.py get-book 805 GEN                       one book only (a test file)
+  python download.py getbible synodal --lang ru             a whole getBible translation in ONE request
+  python download.py --output-dir D:\\bible-test get 805     isolated test: nothing in Modules is touched
 
+Paths: Modules/config.json (BIBLE_VERSIONS_CONFIG for another one); everything lives next to it.
 """
 import argparse
 import datetime
 import hashlib
 import html.parser
 import json
+import os
 import re
 import sys
 import time
@@ -89,6 +94,7 @@ class ChapterParser(html.parser.HTMLParser):
         super().__init__(convert_charrefs=True)
         self.stack = []
         self.verses = {}
+        self.last = None
 
     def _state(self):
         verse, title, skip, content = None, False, False, False
@@ -102,6 +108,9 @@ class ChapterParser(html.parser.HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        if tag == "div" and self.last is not None:
+            # A new paragraph or poetry line: the HTML has no space between lines.
+            self.verses[self.last] += " "
         classes = set((a.get("class") or "").split())
         verse = None
         if "verse" in classes and a.get("data-usfm"):
@@ -126,6 +135,7 @@ class ChapterParser(html.parser.HTMLParser):
         if verse is None:
             return
         self.verses[verse] = self.verses.get(verse, "") + data
+        self.last = verse
 
 
 def parse_chapter(content_html):
@@ -140,8 +150,36 @@ def parse_chapter(content_html):
     return out
 
 
+DEFAULT_CONFIG = "D:/Documents/BibleVersions/Modules/config.json"
+
+
+def load_config(output_dir):
+    """Paths: --output-dir keeps everything in one folder (tests); otherwise Modules/config.json and its folder."""
+    if output_dir:
+        out = Path(output_dir).expanduser().resolve()
+        return {"cache_root": out / "_cache" / "biblecom_pd", "bibles_dir": out / "bibles",
+                "manifest": out / "bibles-manifest.json", "packs_dir": None}
+    path = Path(os.environ.get("BIBLE_VERSIONS_CONFIG") or DEFAULT_CONFIG)
+    if not path.exists():
+        fail(f"Missing {path}: see Modules/README.md, or pass --output-dir.")
+    root = path.parent
+    return {"cache_root": root / "_cache" / "biblecom_pd", "bibles_dir": root / "languages",
+            "manifest": root / "languages" / "manifest.json", "packs_dir": root / "languages"}
+
+
+def lang_dir(lang):
+    return lang.replace(" / ", "-").replace("/", "-")
+
+
+def resolve_folder(c, pd, overrides):
+    """With config.json, <lang>/sources under Modules/languages (--folder sets another one, relative to it)."""
+    if overrides.get("folder") or not c["packs_dir"]:
+        return pd["folder"]
+    return f"{lang_dir(pd['lang'])}/sources"
+
+
 def cache_dir(c, vid):
-    return c["output_dir"] / "_cache" / "biblecom_pd" / str(vid)
+    return c["cache_root"] / str(vid)
 
 
 def version_meta(c, vid, fetcher, refresh=False):
@@ -182,6 +220,8 @@ def normalize_metadata(meta, vid, overrides=None):
     abbreviation = _first(meta, "abbreviation", "short_title", "shortTitle", default=f"BIBLECOM-{vid}")
     title = _first(meta, "title", "name", "full_name", "fullName", default=f"Bible.com version {vid}")
     publisher = _first(meta, "publisher", "publisher_name", "publisherName", default="Unknown publisher")
+    if isinstance(publisher, dict):  # Bible.com: {"id": 2, "name": "Bible Society of South Africa", ...}
+        publisher = publisher.get("name") or publisher.get("local_name") or "Unknown publisher"
     translator = _first(meta, "translator", "translation_by", "translationBy", default="Unknown translator")
     year = _first(meta, "year", "publication_year", "publicationYear", default=0)
     notes = _first(meta, "notes", "description", default="Metadata retrieved from Bible.com.")
@@ -191,7 +231,7 @@ def normalize_metadata(meta, vid, overrides=None):
     lang_obj = meta.get("language")
     if isinstance(lang_obj, dict):
         language = _first(lang_obj, "name", "title", default=language)
-        language_code = _first(lang_obj, "code", "iso", default=language_code)
+        language_code = _first(lang_obj, "iso_639_1", "code", "iso", "iso_639_3", default=language_code)
 
     normalized = {
         "vid": int(vid),
@@ -237,7 +277,7 @@ def cache_status(c, vid):
 
 
 def cmd_list(c, _a):
-    root = c["output_dir"] / "_cache" / "biblecom_pd"
+    root = c["cache_root"]
     if not root.exists():
         print("No Bible.com version caches found.")
         return
@@ -248,13 +288,11 @@ def cmd_list(c, _a):
         found = True
         vid = int(path.name)
         meta_path = path / "_version.json"
-        license_path = path / "_license.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
         pd = normalize_metadata(meta, vid)
         done, total = cache_status(c, vid)
-        license_status = "license recorded" if license_path.exists() else "LICENSE NOT RECORDED"
         print(f"{vid}  {pd['language']}  {pd['abbreviation']}  {pd['title']}")
-        print(f"     Chapters in cache: {done}/{total if total is not None else '?'}; {license_status}")
+        print(f"     Chapters in cache: {done}/{total if total is not None else '?'}")
     if not found:
         print("No Bible.com version caches found.")
 
@@ -371,14 +409,14 @@ def cmd_get_book(c, a):
         "distribution_version_date": TODAY,
         "books": [{"nr": BOOKNUM[book_code], "name": book_code, "chapters": chapters}],
     }
-    dest_dir = c["output_dir"] / "bibles" / pd["folder"]
+    dest_dir = c["bibles_dir"] / resolve_folder(c, pd, get_overrides(a))
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"biblecom_{vid}_{book_code}.json"
     dest.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"OK: {dest} ({dest.stat().st_size / 1e6:.2f} MB, {len(chapters)} chapters, {verses_total} verses)")
 
 def discover_cached_ids(c):
-    root = c["output_dir"] / "_cache" / "biblecom_pd"
+    root = c["cache_root"]
     if not root.exists():
         return []
     return sorted(int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit())
@@ -418,52 +456,99 @@ def build(c, vid, overrides=None):
     if empty_chapters:
         fail(f"Chapters without verses (the HTML changed?): {', '.join(empty_chapters[:10])}")
 
-    licence = ("Public domain." if license_record["status"] == "public-domain"
-               else "Used with authorization.")
-    licence += f" Evidence: {license_record['evidence']}"
     about = f"{pd['title']}. {pd['translator']}. {pd['publisher']}. {pd['notes']}"
     out = {
         "translation": pd["title"], "abbreviation": pd["abbreviation"], "description": pd["title"],
         "lang": pd["language_code"], "language": pd["language"],
-        "distribution_license": licence, "distribution_about": about,
+        "distribution_about": about,
         "distribution_source": PAGE_URL.format(vid=vid, ref="GEN.1" if "GEN" in books else "MAT.1"),
         "distribution_version_date": TODAY,
         "books": [books[book] for book in BOOKS if book in books],
     }
-    dest = c["output_dir"] / "bibles" / pd["folder"] / f"biblecom_{vid}.json"
+    pd["folder"] = resolve_folder(c, pd, overrides or {})
+    dest = c["bibles_dir"] / pd["folder"] / f"biblecom_{vid}.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
-    register(c, vid, dest, pd, len(books), verses_total, license_record)
+    register(c, vid, dest, pd, len(books), verses_total)
     print(f"OK: {dest} ({dest.stat().st_size / 1e6:.1f} MB, {len(books)} books, {verses_total} verses)")
 
 
-def register(c, vid, dest, pd, books, verses, license_record):
-    """Update bibles-manifest.json and, if present, pack.json."""
+def register(c, vid, dest, pd, books, verses):
+    """Update languages/manifest.json and, if present, pack.json."""
     sid = f"biblecom_{vid}"
-    mpath = c["output_dir"] / "bibles-manifest.json"
-    if mpath.exists():
-        manifest = json.loads(mpath.read_text(encoding="utf-8"))
-    else:
-        manifest = {"bibles": [], "count": 0}
-    licence = ("Public domain." if license_record["status"] == "public-domain"
-               else "Used with authorization.")
-    licence += f" Evidence: {license_record['evidence']}"
     entry = {
         "tracker_code": pd["lang"], "language": pd["language"], "language_code": pd["language_code"],
         "folder": pd["folder"], "file": dest.name, "source": "Bible.com (public domain/authorized text)",
         "id": sid, "title": pd["title"], "short_title": pd["abbreviation"], "year": pd["year"],
         "books": books, "verses": verses, "copyright": f"{pd['translator']}; {pd['publisher']}",
-        "licence": licence, "licence_url": PAGE_URL.format(vid=vid, ref="JHN.1"),
+        "licence_url": PAGE_URL.format(vid=vid, ref="JHN.1"),
         "download_url": CHAPTER_URL.format(vid=vid, ref="<BOOK.CH>"),
         "format": "getBible v2 JSON: books[nr, chapters[verses[chapter, verse, text]]]",
         "bytes": dest.stat().st_size, "sha256": sha256_file(dest), "downloaded": TODAY,
         "notes": pd["notes"],
     }
-    manifest["bibles"] = [b for b in manifest.get("bibles", []) if b.get("id") != sid] + [entry]
+    save_entry(c, entry)
+
+    offer_in_pack(c, pd["lang"], entry)
+
+
+def offer_in_pack(c, lang, entry):
+    """If the language already has a pack.json, the Bible is offered there with include=false (step 2 decides)."""
+    ppath = c["packs_dir"] / lang_dir(lang) / "pack.json" if c["packs_dir"] else None
+    if not ppath or not ppath.exists():
+        print(f"Next (step 2, bible-language-pack): pack.py init {lang}")
+        return
+    pack = json.loads(ppath.read_text(encoding="utf-8"))
+    if not any(b.get("id") == entry["id"] for b in pack.get("bibles", [])):
+        pack.setdefault("bibles", []).append({
+            "id": entry["id"], "file": f"{entry['folder']}/{entry['file']}", "source": entry["source"], "title": entry["title"],
+            "books": entry["books"], "licence": entry.get("licence", ""), "non_commercial": False, "include": False,
+            "abbreviation": "", "description": entry["title"], "attribution": entry["copyright"],
+            "rejected": False, "notes": entry["notes"]})
+        ppath.write_text(json.dumps(pack, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"Added to {ppath} as {entry['id']} (include=false: choose it there)")
+    print(f"Next (step 2, bible-language-pack): choose it in pack.json and run  pack.py import {lang}")
+
+
+def save_entry(c, entry):
+    """Adds or replaces the entry of languages/manifest.json."""
+    mpath = c["manifest"]
+    manifest = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else {"bibles": [], "count": 0}
+    manifest["bibles"] = [b for b in manifest.get("bibles", []) if b.get("id") != entry["id"]] + [entry]
     manifest["count"] = len(manifest["bibles"])
+    mpath.parent.mkdir(parents=True, exist_ok=True)
     mpath.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # Standalone mode: no existing project pack.json is required.
+
+def cmd_getbible(c, a):
+    """A whole getBible translation (api.getbible.net/v2/<abbr>.json) in ONE request, never chapter by chapter."""
+    if not c["packs_dir"]:
+        fail("getbible needs Modules/config.json (no --output-dir)")
+    folder = f"{lang_dir(a.lang)}/sources"
+    dest = c["bibles_dir"] / folder / f"getbible_{a.abbr}.json"
+    url = f"https://api.getbible.net/v2/{a.abbr}.json"
+    if dest.exists():
+        print(f"Already downloaded: {dest} (no request)")
+    else:
+        print(f"Downloading {url} (one request)...")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (bible-versions; one download)"})
+        dest.write_bytes(urllib.request.urlopen(req, timeout=300).read())
+    d = json.loads(dest.read_text(encoding="utf-8"))
+    canon = [b for b in d["books"] if 1 <= int(b["nr"]) <= 66]
+    entry = {"tracker_code": a.lang, "language": d.get("language", ""), "language_code": d.get("lang", ""), "folder": folder,
+             "file": dest.name, "source": "getBible.net (CrossWire SWORD)", "id": f"getbible_{a.abbr}",
+             "title": d.get("description") or d.get("translation", ""), "short_title": d.get("translation", ""),
+             "books": len(canon), "copyright": (d.get("distribution_about") or "")[:400],
+             "licence": d.get("distribution_license", ""), "licence_url": f"https://getbible.net/{a.abbr}", "download_url": url,
+             "format": "getBible v2 JSON: books[nr, chapters[verses[chapter, verse, text]]]", "bytes": dest.stat().st_size,
+             "sha256": sha256_file(dest), "downloaded": TODAY,
+             "notes": f"Source: {d.get('distribution_source', '')}; SWORD {d.get('distribution_abbreviation', '')} "
+                      f"{d.get('distribution_version', '')} ({d.get('distribution_version_date', '')}); "
+                      f"versification {d.get('distribution_versification', '')}"}
+    save_entry(c, entry)
+    print(f"OK: {dest} ({entry['bytes'] / 1e6:.1f} MB, {len(canon)} books of the 66, licence {entry['licence']})")
+    offer_in_pack(c, a.lang, entry)
 
 
 def add_metadata_arguments(parser):
@@ -481,9 +566,9 @@ def add_metadata_arguments(parser):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--output-dir", default=str(HERE / "biblecom-output"),
-                    help="Directory for cache, generated Bible JSON files, and manifest "
-                         "(default: biblecom-output beside this script).")
+    ap.add_argument("--output-dir", default=None,
+                    help="Isolated test folder for cache, Bible JSON files and manifest "
+                         "(default: Modules/config.json and its folder).")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("list", help="List versions already present in the cache.")
@@ -502,15 +587,17 @@ def main():
 
     add_metadata_arguments(book_parser)
 
+    gb_parser = sub.add_parser("getbible", help="Download a whole getBible translation in one request.")
+    gb_parser.add_argument("abbr", help="Abbreviation of api.getbible.net/v2/translations.json, e.g. synodal.")
+    gb_parser.add_argument("--lang", required=True, help="Tracker code of the language, e.g. ru.")
+
     build_parser = sub.add_parser("build", help="Build output JSON from a completed cache.")
     build_parser.add_argument("vid", help="Numeric Bible.com version ID.")
     add_metadata_arguments(build_parser)
 
     args = ap.parse_args()
-    output_dir = Path(args.output_dir).expanduser().resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    config = {"output_dir": output_dir}
-    {"list": cmd_list, "get": cmd_get, "get-book": cmd_get_book, "build": cmd_build}[args.cmd](config, args)
+    config = load_config(args.output_dir)
+    {"list": cmd_list, "get": cmd_get, "get-book": cmd_get_book, "build": cmd_build, "getbible": cmd_getbible}[args.cmd](config, args)
 
 
 if __name__ == "__main__":

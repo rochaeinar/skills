@@ -7,8 +7,8 @@ import json, os, sys
 from pathlib import Path
 
 lang, bid = sys.argv[1:3]
-cfg = Path(os.environ.get("BIBLE_PACK_CONFIG") or Path(__file__).with_name("config.json"))
-P = Path(json.load(open(cfg, encoding="utf-8"))["packs_dir"]) / lang
+cfg = Path(os.environ.get("BIBLE_VERSIONS_CONFIG") or "D:/Documents/BibleVersions/Modules/config.json")
+P = cfg.parent / "languages" / lang
 p = json.load(open(P / "pack.json", encoding="utf-8"))
 for b in p["bibles"]:
     if b["id"] == bid:
