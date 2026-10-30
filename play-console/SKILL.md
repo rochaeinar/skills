@@ -53,6 +53,7 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 
 - **Nada se publica sin `--yes`.** Cada cambio se arma en una *edición* (borrador), Google la **valida** y se muestra; sin `--yes` se descarta. Mostrar siempre el `diff` o el resumen al usuario y pedir confirmación antes de repetir con `--yes`.
 - **Producción:** solo cuando el usuario lo pide explícitamente. Preferir lanzamiento escalonado (`--rollout 0.1` = 10 %) y subirlo después con `promote` o un nuevo `release`.
+- **Reglas de la app**: si `play.json` tiene `"rules"` (p. ej. `REGLAS-FICHA.md`), leer ese archivo antes de escribir, traducir o subir cualquier texto o imagen de la ficha, y cumplirlo. Antes de `push-listing --yes`, revisar el `diff` contra esas reglas.
 - Toda afirmación de la ficha (p. ej. "hasta 4 versiones") se verifica en el código de la app.
 - Las capturas deben ser reales y sin defectos (textos rotos, idioma equivocado, datos personales). Revisarlas con Read antes de subirlas.
 - Respetar el perfil de cada app: nunca usar `--app` de una cuenta con las claves de otra.

@@ -536,21 +536,49 @@ def cred(target):
         ctypes.windll.advapi32.CredFree(p)
 
 
-def upload_obb(c, lang, dry_run):
+# Not a secret: timelesslabs.app > Overview in the Cloudflare dashboard (also in the app's scripts/publish-manifest.ps1).
+CLOUDFLARE_ZONE_ID = "c518261d31cf67476aabe6b0858a69ce"
+
+
+def purge_cache(token, url):
+    """Removes one URL from Cloudflare's cache (the token has Zone > Cache Purge)."""
+    req = urllib.request.Request(f"https://api.cloudflare.com/client/v4/zones/{CLOUDFLARE_ZONE_ID}/purge_cache",
+                                 data=json.dumps({"files": [url]}).encode(), method="POST",
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                                          "User-Agent": "bible-versions ship.py"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        if not json.loads(resp.read().decode()).get("success"):
+            fail(f"Cache purge failed for {url}")
+    print(f"Purged from the cache: {url}")
+
+
+def upload_obb(c, lang, dry_run, regional=False):
     """Uploads the pack's .obb to R2, checks the CDN serves it and sets languages.<code> in the repo's manifest.json.
-    A Bible whose licence is pending ("licence_review" in pack.json) is never uploaded."""
+    A Bible whose licence is pending ("licence_review" in pack.json) is not uploaded, unless the user asked for it
+    as a regional language (--regional): "regional": true in the app's languages.json and its countries in the
+    manifest, so the app offers it only there."""
     pk = pack_of(c, lang)
     b = pk["build"]
-    lr = pk.get("licence_review")
-    if lr and lr.get("status") != "aprobada":
-        fail(f"Licence pending review ({lr.get('reason', '')}; countries: {', '.join(lr.get('countries') or []) or '?'}). "
-             f"It is published only after the user approves it: licence_review.status = \"aprobada\" in pack.json")
     obb = c["cdn_dir"] / "modules" / b["file"]
     code = pk.get("cdn_code", pk["module_language"])
     key = f"bible/modules/{b['file']}"
     url = f"https://cdn.timelesslabs.app/{key}"
     mpath = c["app_repo"] / "cdn" / "bible" / "manifest.json"
     manifest = json.loads(mpath.read_text(encoding="utf-8"))
+    lr = pk.get("licence_review")
+    if lr and lr.get("status") != "aprobada":
+        if not regional:
+            fail(f"Licence pending review ({lr.get('reason', '')}; countries: {', '.join(lr.get('countries') or []) or '?'}). "
+                 f"It is published only after the user approves it (licence_review.status = \"aprobada\" in pack.json), "
+                 f"or as a regional language when the user asks for it (--regional)")
+        app_langs = json.loads((c["app_repo"] / "app" / "src" / "main" / "assets" / "languages.json").read_text(encoding="utf-8"))
+        entry_app = next((e for e in app_langs["languages"] if e["code"] == code), None)
+        countries = manifest.get("countries", {}).get(code)
+        if not entry_app or not entry_app.get("regional"):
+            fail(f"--regional: {code} needs \"regional\": true in app/src/main/assets/languages.json")
+        if not countries:
+            fail(f"--regional: {code} needs its countries in cdn/bible/manifest.json (countries.{code})")
+        print(f"Licence pending: uploaded as a regional language, offered only in {', '.join(countries)}")
     entry = {"url": f"modules/{b['file']}", "size": b["size"], "sha256": b["sha256"]}
     print(f"Plan:\n  1. Upload {obb} ({b['size'] / 1e6:.1f} MB) to R2 {c.get('bucket', 'timelesslabs-cdn')}/{key}")
     print(f"  2. Check {url} serves {b['size']} bytes")
@@ -566,10 +594,18 @@ def upload_obb(c, lang, dry_run):
                         "--file", str(obb), "--content-type", "application/octet-stream", "--remote"], env=env, shell=True)
     if r.returncode:
         fail("wrangler upload failed")
-    # Cloudflare's bot protection answers 403 to Python's default User-Agent.
-    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (bible-versions publish check)"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        length = int(resp.headers.get("Content-Length", "0"))
+    # A rebuilt pack keeps its file name (same version, not in a release yet), so Cloudflare's cache would keep
+    # serving the old one at that URL, and the app would install a pack without what changed: purge it.
+    purge_cache(token, url)
+    length = 0
+    for _ in range(12):
+        # Cloudflare's bot protection answers 403 to Python's default User-Agent.
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (bible-versions publish check)"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            length = int(resp.headers.get("Content-Length", "0"))
+        if length == b["size"]:
+            break
+        time.sleep(5)
     if length != b["size"]:
         fail(f"The CDN serves {length} bytes, expected {b['size']}")
     manifest.setdefault("languages", {})[code] = entry
@@ -584,28 +620,58 @@ def upload_obb(c, lang, dry_run):
     return True
 
 
-def cmd_cdn(a):
-    c = cfg()
-    ok, msg = check_pack(c, a.lang)
-    if not ok:
-        fail(msg)
-    ok, msg = check_cdn(c, a.lang)
-    if ok:
-        print(f"Already live: {msg}")
-        mark(c, a.lang, "cdn", msg)
-        return
-    if not upload_obb(c, a.lang, a.dry_run):
-        return
+def publish_manifest(c):
     ps = c["app_repo"] / "scripts" / "publish-manifest.ps1"
     for extra in (["-DryRun"], []):
         r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps), *extra], cwd=c["app_repo"])
         if r.returncode:
             fail(f"publish-manifest.ps1 {' '.join(extra)} failed: nothing else published")
-    ok, msg = check_cdn(c, a.lang)
-    if not ok:
-        fail(msg)
-    mark(c, a.lang, "cdn", msg)
-    print(f"OK: {msg} is live in the manifest (the current app ignores languages it does not know)")
+
+
+def cmd_cdn(a):
+    """One language, or several at once (ship.py cdn af am ar ...). With two or more, every .obb is uploaded first
+    and the manifest is published once at the end: publish-manifest.ps1 checks every file on the CDN (~1 min a run).
+    --regional only matters for the languages whose licence is pending."""
+    c = cfg()
+    langs = a.lang
+    many = len(langs) > 1
+    uploaded, live, failed = [], [], {}
+    for lang in langs:
+        if many:
+            print(f"\n===== {lang}")
+        try:
+            ok, msg = check_pack(c, lang)
+            if not ok:
+                fail(msg)
+            ok, msg = check_cdn(c, lang)
+            if ok:
+                print(f"Already live: {msg}")
+                mark(c, lang, "cdn", msg)
+                live.append(lang)
+                continue
+            if upload_obb(c, lang, a.dry_run, a.regional):
+                uploaded.append(lang)
+        except SystemExit:
+            if not many:
+                raise
+            failed[lang] = "see its ERROR above"
+    if uploaded:
+        # Each .obb is already on R2; the published manifest still points to the previous builds.
+        publish_manifest(c)
+    for lang in uploaded:
+        ok, msg = check_cdn(c, lang)
+        if not ok:
+            failed[lang] = msg
+            print(f"ERROR: {lang}: {msg}")
+            continue
+        mark(c, lang, "cdn", msg)
+        print(f"OK: {msg} is live in the manifest (the current app ignores languages it does not know)")
+    if many:
+        done = [l for l in uploaded if l not in failed]
+        print(f"\nSummary: {len(done)} published, {len(live)} already live, {len(failed)} failed"
+              + (": " + "; ".join(f"{k} ({v})" for k, v in failed.items()) if failed else ""))
+    if failed:
+        sys.exit(1)
 
 
 def cmd_strings(a):
@@ -784,6 +850,8 @@ def cmd_flows(a):
     wrapper = [f"# Generated by bible-language-ship: the 8 Play phone screenshots in {code}, saved to",
                f"# build/maestro/screenshots/{code}/ (then  ship.py shots {a.lang}).",
                f"appId: {PACKAGE}", "name: Screenshots " + code, "env:", f"  LANG: \"{code}\"",
+               # ASCII, for the search of Languages (screenshots/_use_language.yaml): the English name
+               f"  SEARCH: \"{loc.get('search', code)}\"",
                f"  BIBLE: \"{default['abbreviation']}\"", f"  BIBLE_ID: \"{default['id']}\"",
                # right to left: the line starts on the right (subflows/select_verse.yaml)
                f"  RTL: \"{'true' if loc.get('rtl') else 'false'}\"",
@@ -1010,7 +1078,7 @@ def main():
     p = s.add_parser("check"); p.add_argument("lang"); p.add_argument("stage", nargs="?")
     for n in ("strings", "web", "play", "flows", "shots", "feature", "report"):
         s.add_parser(n).add_argument("lang")
-    p = s.add_parser("cdn"); p.add_argument("lang"); p.add_argument("--dry-run", action="store_true")
+    p = s.add_parser("cdn"); p.add_argument("lang", nargs="+", help="one or more languages: with several, the manifest is published once"); p.add_argument("--dry-run", action="store_true"); p.add_argument("--regional", action="store_true", help="licence pending: upload only as a regional language (countries in the manifest)")
     s.add_parser("about")
     p = s.add_parser("device"); p.add_argument("lang"); p.add_argument("action", choices=["prep", "install", "restore"])
     p = s.add_parser("mark"); p.add_argument("lang"); p.add_argument("stage"); p.add_argument("--note")

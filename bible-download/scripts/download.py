@@ -95,6 +95,7 @@ class ChapterParser(html.parser.HTMLParser):
         self.stack = []
         self.verses = {}
         self.last = None
+        self.cut_notes = set()
 
     def _state(self):
         verse, title, skip, content = None, False, False, False
@@ -112,6 +113,12 @@ class ChapterParser(html.parser.HTMLParser):
             # A new paragraph or poetry line: the HTML has no space between lines.
             self.verses[self.last] += " "
         classes = set((a.get("class") or "").split())
+        if "ref" in classes and a.get("data-usfm", "").count(".") == 1 and self.stack:
+            # A cross reference cut after the book name ("Luka" = LUK.1): Bible.com puts the rest of the
+            # note ("18.20; Rom 13.9") at the end of the verse text.
+            v = self._state()[0]
+            if v is not None:
+                self.cut_notes.add(v)
         verse = None
         if "verse" in classes and a.get("data-usfm"):
             first = a["data-usfm"].split("+")[0]
@@ -134,8 +141,17 @@ class ChapterParser(html.parser.HTMLParser):
             verse = 0
         if verse is None:
             return
+        if verse in self.cut_notes and data.strip():
+            # The first text after the cut note carries its tail at the end.
+            self.cut_notes.discard(verse)
+            data = REF_TAIL.sub("", data)
         self.verses[verse] = self.verses.get(verse, "") + data
         self.last = verse
+
+
+# The tail of a cut cross-reference note: "18.20; Rom 13.9; Yak 2.11", "1.11-12; Obad 1-14; Mal 1.2-5".
+REF_TAIL = re.compile(r"\s+(?:\d+[.:]\d+[\d.,:\-–—]*|\d+-\d+)"
+                      r"(?:\s*;\s*(?:(?:[1-3]\s?)?[^\W\d_]+\.?\s+)?\d+(?:[.:,\-–—]\d+)*)*\s*$")
 
 
 def parse_chapter(content_html):
@@ -433,6 +449,10 @@ def build(c, vid, overrides=None):
     if not meta_path.exists():
         fail(f"No version metadata cached for {vid}: run `download.py get {vid} ...` first.")
     raw_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    overrides = dict(overrides or {})
+    if not overrides.get("lang"):
+        # Bible.com has no ISO 639-1 code for some languages (ti, ay): keep the one registered before.
+        overrides["lang"] = registered_lang(c, vid)
     pd = normalize_metadata(raw_meta, vid, overrides)
     refs = chapter_refs(raw_meta)
     if not refs:
@@ -465,12 +485,22 @@ def build(c, vid, overrides=None):
         "distribution_version_date": TODAY,
         "books": [books[book] for book in BOOKS if book in books],
     }
-    pd["folder"] = resolve_folder(c, pd, overrides or {})
+    pd["folder"] = resolve_folder(c, pd, overrides)
     dest = c["bibles_dir"] / pd["folder"] / f"biblecom_{vid}.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     register(c, vid, dest, pd, len(books), verses_total)
     print(f"OK: {dest} ({dest.stat().st_size / 1e6:.1f} MB, {len(books)} books, {verses_total} verses)")
+
+
+def registered_lang(c, vid):
+    if not c["manifest"].exists():
+        return None
+    manifest = json.loads(c["manifest"].read_text(encoding="utf-8"))
+    for entry in manifest.get("bibles", []):
+        if entry.get("id") == f"biblecom_{vid}":
+            return entry.get("tracker_code")
+    return None
 
 
 def register(c, vid, dest, pd, books, verses):

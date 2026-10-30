@@ -60,8 +60,10 @@ def pack_scripts(pack):
 
 
 # What every new pack carries besides its Bibles (files of Modules/common, the same ones the English pack has).
-DEFAULT_CONTENTS = [{"from": "common/en", "file": f} for f in ("quiz_en.db", "coffee_en.dev", "references_en.db",
-                                                                "jamieson-fausset-brown.cmtx")] + \
+# Not the English JFB nor Matthew Henry: they live only in the English pack (languages/en/modules), which every new
+# pack requires, and every language shows them in English. No machine-translated commentary (2026-10-27: MADLAD-400
+# added other religions and inverted doctrine, translator/doctrine.py); only es and es-lite have commentaries of their own.
+DEFAULT_CONTENTS = [{"from": "common/en", "file": f} for f in ("quiz_en.db", "coffee_en.dev", "references_en.db")] + \
                    [{"from": "common/all", "file": f} for f in ("normalPlan.db", "chronologicalPlan.db", "flexiblePlan.db")]
 RV1960 = "es/modules/reina-valera-1960.bblx"   # relative to Modules/languages
 KJV = "en/modules/king-james-version.bblx"
