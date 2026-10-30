@@ -126,12 +126,19 @@ def build_locale(config, locale, data, browser, output_dir):
     prepare_logo(config["logo"], work / "logo.png")
 
     palette = {**DEFAULT_PALETTE, **config.get("palette", {})}
-    fonts = {**DEFAULT_FONTS, **config.get("fonts", {})}
+    # A locale may override the fonts (a title in Devanagari, Tamil or Han needs a font with that script).
+    fonts = {**DEFAULT_FONTS, **config.get("fonts", {}), **data.get("fonts", {})}
     chips = data.get("chips", [])
     hero = data.get("hero_chip", 0)
     chips_html = "\n      ".join(
         f'<span class="chip{" hero" if i == hero else ""}">{chip}</span>' for i, chip in enumerate(chips)
     )
+
+    # "brand": the app's brand shown small next to the logo, when the title is a localized name.
+    brand = data.get("brand", "")
+    logo_img = '<img class="logo" src="logo.png" alt="">'
+    logo_html = (f'<div class="brand-row">{logo_img}<span class="brand">{brand}</span></div>'
+                 if brand else logo_img)
 
     # Phone sizes keep the screenshot's aspect ratio (after the crop) plus the 7 px bezel.
     center_h, side_h = 457, 393
@@ -143,6 +150,8 @@ def build_locale(config, locale, data, browser, output_dir):
         "font_query": "family=" + fonts["title"].replace(" ", "+") + f":wght@{fonts['title_weight']}"
                       + "&family=" + fonts["body"].replace(" ", "+") + ":wght@400;500;600",
         "lang": locale.split("-")[0],
+        "logo_html": logo_html,
+        "logo_size": data.get("logo_size", 92),
         "title_html": "<br>".join(data["title_lines"]),
         "title_size": data.get("title_size", 64),
         "tagline_html": data["tagline_html"],
