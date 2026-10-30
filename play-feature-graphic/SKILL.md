@@ -76,7 +76,9 @@ Guardarlo junto a la salida (por ejemplo `<carpeta de imágenes>/feature-graphic
 ```
 
 - **Idiomas:** una entrada por código de Play (`es-419`, `es-ES`, `en-US`, `pt-BR`...). Cada idioma lleva sus propias capturas, porque una captura en inglés con texto en español se nota.
-- **Nombre:** la marca no se traduce (Bible Versions sigue igual en español), salvo que la app tenga otro nombre en ese idioma.
+- **Nombre:** la marca no se traduce, salvo que la app tenga otro nombre en ese idioma.
+- **Título localizado + marca:** si la ficha de Play usa un título propio por idioma (p. ej. "Biblia Versiones y Comentarios"), ponerlo en `title_lines` y la marca en `"brand": "Bible Versions"`: sale en mayúsculas pequeñas junto al logo. Con `brand` conviene `"logo_size": 72` y `title_size` 50 (latino), 46 (cirílico, chino), 44 (coreano, japonés, devanagari), 28-38 (tamil, malayalam, canarés, telugu). Cada idioma puede llevar su propia `"fonts"` (p. ej. `{"title": "Noto Serif Tamil", "title_weight": 600}`) para escrituras que la fuente general no tiene. Revisar que el título no pase de 2 líneas ni toque los teléfonos.
+- **Coherencia con la ficha:** el lema y las etiquetas no prometen nada que la ficha de ese idioma no prometa (p. ej. sin "audio" ni "escuchar" donde Android no tiene voz). Si `play.json` tiene `rules`, leerlas antes.
 - **Lema:** 6 a 9 palabras, natural en cada idioma (no traducción literal), cortado a mano con `<br>` en 2 líneas equilibradas, una palabra clave en `<b>`.
 - **Etiquetas:** máximo 3, sin emojis (se ven baratos aquí). Si un idioma es más largo y no caben en una fila, acortarlas antes que dejar que pasen a dos filas.
 - **Tipografía:** serif elegante para el título (`Cormorant Garamond`, `Playfair Display`, `Fraunces`) y sans limpia para el resto (`Inter`). Apps juveniles o técnicas: título sans geométrica (`Poppins`, `Manrope`, 700). Se cargan de Google Fonts, así que se necesita internet. Títulos largos: bajar `title_size` (56 o 48) o ponerlos en una sola línea.
