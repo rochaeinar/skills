@@ -34,7 +34,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -107,7 +109,15 @@ def load_key(profile):
 _tokens = {}
 
 
+_token_lock = threading.Lock()
+
+
 def token(profile):
+    with _token_lock:
+        return _token(profile)
+
+
+def _token(profile):
     if profile in _tokens and _tokens[profile][1] > time.time() + 60:
         return _tokens[profile][0]
     try:
@@ -131,6 +141,9 @@ def token(profile):
     return t["access_token"]
 
 
+# A flaky connection resets uploads now and then: each call retries, waiting up to a minute.
+RETRIES = 10
+
 class Api:
     def __init__(self, profile, package):
         self.profile, self.package = profile, package
@@ -145,7 +158,7 @@ class Api:
             headers["Content-Type"] = content_type
         try:
             # A flaky connection (reset, SSL EOF, timeout) is retried; an HTTP error answer is not.
-            for attempt in range(5):
+            for attempt in range(RETRIES):
                 try:
                     with urllib.request.urlopen(urllib.request.Request(url, data=data, method=method, headers=headers),
                                                 timeout=900) as r:
@@ -154,10 +167,10 @@ class Api:
                 except urllib.error.HTTPError:
                     raise
                 except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
-                    if attempt == 4:
+                    if attempt == RETRIES - 1:
                         raise
                     print(f"  (network error on {method} {path.split('?')[0]}: {e}; retrying)")
-                    time.sleep(3 * (attempt + 1))
+                    time.sleep(min(60, 5 * (attempt + 1)))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")
             if e.code == 403:
@@ -474,23 +487,41 @@ def apply_listing(api, cfg):
     for lang, fields in texts.items():
         # PATCH only updates an existing listing; a new language is created with PUT.
         api.call("PUT" if lang in new else "PATCH", api.e(f"/listings/{lang}"), {"language": lang, **fields})
+    # Images: several languages at once (each upload waits for Play to process the image), and one
+    # language's images in order, since Play keeps them in the order they were uploaded.
+    by_lang = {}
     for c in changes:
         if c[0] == "images":
-            _, lang, t, _, files = c
-            want = [sha256(f) for f in files]
-            # A retried upload whose first try did reach Play leaves a duplicate: check and redo.
-            for attempt in range(3):
-                api.call("DELETE", api.e(f"/listings/{lang}/{t}"))
-                for f in files:
-                    mime = "image/png" if f.suffix.lower() == ".png" else "image/jpeg"
-                    api.call("POST", api.e(f"/listings/{lang}/{t}"), raw=f.read_bytes(), content_type=mime, upload=True)
-                got = [i.get("sha256") for i in api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])]
-                if got == want:
-                    break
-                print(f"  ({lang} {t}: {len(got)} images on Play instead of {len(want)}; uploading again)")
-            else:
-                fail(f"{lang} {t}: the images on Play don't match the files after 3 tries")
+            by_lang.setdefault(c[1], []).append(c)
+    if by_lang:
+        with ThreadPoolExecutor(max_workers=PARALLEL_LANGUAGES) as pool:
+            for future in [pool.submit(upload_images, api, lang, items) for lang, items in by_lang.items()]:
+                future.result()
     return changes
+
+
+# Languages whose images are uploaded at the same time.
+PARALLEL_LANGUAGES = 4
+
+
+def upload_images(api, lang, items):
+    start = time.time()
+    for _, _, t, _, files in items:
+        want = [sha256(f) for f in files]
+        # A retried upload whose first try did reach Play leaves a duplicate: check and redo.
+        for attempt in range(3):
+            api.call("DELETE", api.e(f"/listings/{lang}/{t}"))
+            for f in files:
+                mime = "image/png" if f.suffix.lower() == ".png" else "image/jpeg"
+                api.call("POST", api.e(f"/listings/{lang}/{t}"), raw=f.read_bytes(), content_type=mime, upload=True)
+            got = [i.get("sha256") for i in api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])]
+            if got == want:
+                break
+            print(f"  ({lang} {t}: {len(got)} images on Play instead of {len(want)}; uploading again)")
+        else:
+            fail(f"{lang} {t}: the images on Play don't match the files after 3 tries")
+    n = sum(len(i[4]) for i in items)
+    print(f"  [{lang}] {n} images uploaded in {time.time() - start:.0f} s")
 
 
 def cmd_push_listing(args):
@@ -561,23 +592,48 @@ def apply_release(api, cfg, args):
     print(f"versionCode {vc} -> {args.track} ({rollout}), notes in {', '.join(n['language'] for n in notes) or 'none'}")
 
 
+def edit_has_version(api, track, version_code):
+    """Whether the open edit already puts this versionCode on the track (a resumed publish)."""
+    try:
+        releases = api.call("GET", api.e(f"/tracks/{track}")).get("releases", [])
+    except SystemExit:
+        return False
+    return any(str(version_code) in r.get("versionCodes", []) for r in releases)
+
+
 def cmd_publish(args):
-    """The bundle, its notes and every listing change in ONE edit, so Google reviews them together."""
+    """The bundle, its notes and every listing change in ONE edit, so Google reviews them together.
+    On a failure (a slow or flaky connection) the edit is KEPT and its id printed: --edit <id> resumes
+    it, skipping the bundle already on the track and every listing that already matches the files."""
     cfg = find_app(args.app)
     api = Api(cfg["profile"], cfg["package"])
-    api.open()
+    if args.edit:
+        api.edit = args.edit
+        print(f"Resuming edit {args.edit}")
+    else:
+        api.open()
+        print(f"Edit {api.edit} (to resume after a failure: --edit {api.edit})")
+    done = False
     try:
-        apply_release(api, cfg, args)
+        if args.edit and args.version_code and edit_has_version(api, args.track, args.version_code):
+            print(f"versionCode {args.version_code} is already on {args.track} in this edit")
+        else:
+            apply_release(api, cfg, args)
         print()
         apply_listing(api, cfg)
         api.call("POST", api.e(":validate"))
         if not args.yes:
             print("\nValidated by Google, NOT published (dry run). Run again with --yes to publish.")
+            done = True
             return
         api.commit()
+        done = True
         print("\nOK: release and listing sent for review together.")
     finally:
-        api.discard()
+        if done:
+            api.discard()
+        elif api.edit:
+            print(f"\nFAILED: the edit is kept on Play. Resume with: publish ... --edit {api.edit}")
 
 
 def cmd_release(args):
@@ -677,6 +733,8 @@ def main():
         rl.add_argument("--track", default="internal"); rl.add_argument("--rollout", type=float, default=None)
         rl.add_argument("--name"); rl.add_argument("--yes", action="store_true")
         rl.add_argument("--version-code", type=int, help="fail unless the bundle has this versionCode")
+        if name == "publish":
+            rl.add_argument("--edit", help="resume this edit (printed by a publish that failed)")
     pr = sub.add_parser("promote"); pr.add_argument("--app")
     pr.add_argument("--from", dest="source", required=True); pr.add_argument("--to", dest="target", required=True)
     pr.add_argument("--rollout", type=float, default=None); pr.add_argument("--yes", action="store_true")
