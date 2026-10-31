@@ -157,15 +157,19 @@ class Api:
         if data is not None:
             headers["Content-Type"] = content_type
         try:
-            # A flaky connection (reset, SSL EOF, timeout) is retried; an HTTP error answer is not.
+            # A flaky connection (reset, SSL EOF, timeout) or a busy Google (HTTP 5xx) is retried;
+            # any other HTTP answer is final.
             for attempt in range(RETRIES):
                 try:
                     with urllib.request.urlopen(urllib.request.Request(url, data=data, method=method, headers=headers),
                                                 timeout=900) as r:
                         text = r.read()
                         return json.loads(text) if text else {}
-                except urllib.error.HTTPError:
-                    raise
+                except urllib.error.HTTPError as e:
+                    if e.code < 500 or attempt == RETRIES - 1:
+                        raise
+                    print(f"  (HTTP {e.code} on {method} {path.split('?')[0]}; retrying)")
+                    time.sleep(min(60, 5 * (attempt + 1)))
                 except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
                     if attempt == RETRIES - 1:
                         raise
