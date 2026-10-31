@@ -144,9 +144,20 @@ class Api:
         if data is not None:
             headers["Content-Type"] = content_type
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, data=data, method=method, headers=headers), timeout=900) as r:
-                text = r.read()
-                return json.loads(text) if text else {}
+            # A flaky connection (reset, SSL EOF, timeout) is retried; an HTTP error answer is not.
+            for attempt in range(5):
+                try:
+                    with urllib.request.urlopen(urllib.request.Request(url, data=data, method=method, headers=headers),
+                                                timeout=900) as r:
+                        text = r.read()
+                        return json.loads(text) if text else {}
+                except urllib.error.HTTPError:
+                    raise
+                except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+                    if attempt == 4:
+                        raise
+                    print(f"  (network error on {method} {path.split('?')[0]}: {e}; retrying)")
+                    time.sleep(3 * (attempt + 1))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")
             if e.code == 403:
@@ -217,7 +228,10 @@ def rel(cfg, value):
 
 
 def languages(cfg):
-    return cfg.get("languages") or [cfg.get("default_language", "en-US")]
+    """The listing languages to publish: play.json "languages" without those in "hold" (kept locally,
+    e.g. while a licence is pending, but never pushed)."""
+    hold = set(cfg.get("hold") or [])
+    return [l for l in (cfg.get("languages") or [cfg.get("default_language", "en-US")]) if l not in hold]
 
 
 # --- local listing ---------------------------------------------------------------------------------------
@@ -408,12 +422,14 @@ def plan_listing(api, cfg):
         try:
             have = api.call("GET", api.e(f"/listings/{lang}"))
         except SystemExit:
-            have = {}
+            have = None  # a language that is not on Play yet (fail() already printed the 404)
+            print(f"  ({lang}: new language on Play)")
+            changes.append(("new", lang))
         for field, value in want.items():
-            if (have.get(field) or "") != value:
-                changes.append(("text", lang, field, have.get(field) or "", value))
+            if ((have or {}).get(field) or "") != value:
+                changes.append(("text", lang, field, (have or {}).get(field) or "", value))
         for t, files in local_images(cfg, lang).items():
-            remote = api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])
+            remote = [] if have is None else api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])
             if [i.get("sha256") for i in remote] != [sha256(f) for f in files]:
                 changes.append(("images", lang, t, len(remote), files))
     return changes
@@ -423,6 +439,8 @@ def show(changes):
     if not changes:
         print("Nothing to change: the files match what is published.")
     for c in changes:
+        if c[0] == "new":
+            continue
         if c[0] == "text":
             _, lang, field, old, new = c
             print(f"[{lang}] {field}:\n   - {old[:160]!r}\n   + {new[:160]!r}")
@@ -441,28 +459,44 @@ def cmd_diff(args):
         api.discard()
 
 
+def apply_listing(api, cfg):
+    """Puts every listing change into the open edit. Returns the changes."""
+    changes = plan_listing(api, cfg)
+    show(changes)
+    texts = {}
+    for c in changes:
+        if c[0] == "text":
+            texts.setdefault(c[1], {})[c[2]] = c[4]
+    new = {c[1] for c in changes if c[0] == "new"}
+    for lang, fields in texts.items():
+        # PATCH only updates an existing listing; a new language is created with PUT.
+        api.call("PUT" if lang in new else "PATCH", api.e(f"/listings/{lang}"), {"language": lang, **fields})
+    for c in changes:
+        if c[0] == "images":
+            _, lang, t, _, files = c
+            want = [sha256(f) for f in files]
+            # A retried upload whose first try did reach Play leaves a duplicate: check and redo.
+            for attempt in range(3):
+                api.call("DELETE", api.e(f"/listings/{lang}/{t}"))
+                for f in files:
+                    mime = "image/png" if f.suffix.lower() == ".png" else "image/jpeg"
+                    api.call("POST", api.e(f"/listings/{lang}/{t}"), raw=f.read_bytes(), content_type=mime, upload=True)
+                got = [i.get("sha256") for i in api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])]
+                if got == want:
+                    break
+                print(f"  ({lang} {t}: {len(got)} images on Play instead of {len(want)}; uploading again)")
+            else:
+                fail(f"{lang} {t}: the images on Play don't match the files after 3 tries")
+    return changes
+
+
 def cmd_push_listing(args):
     cfg = find_app(args.app)
     api = Api(cfg["profile"], cfg["package"])
     api.open()
     try:
-        changes = plan_listing(api, cfg)
-        show(changes)
-        if not changes:
+        if not apply_listing(api, cfg):
             return
-        texts = {}
-        for c in changes:
-            if c[0] == "text":
-                texts.setdefault(c[1], {})[c[2]] = c[4]
-        for lang, fields in texts.items():
-            api.call("PATCH", api.e(f"/listings/{lang}"), {"language": lang, **fields})
-        for c in changes:
-            if c[0] == "images":
-                _, lang, t, _, files = c
-                api.call("DELETE", api.e(f"/listings/{lang}/{t}"))
-                for f in files:
-                    mime = "image/png" if f.suffix.lower() == ".png" else "image/jpeg"
-                    api.call("POST", api.e(f"/listings/{lang}/{t}"), raw=f.read_bytes(), content_type=mime, upload=True)
         api.call("POST", api.e(":validate"))
         if not args.yes:
             print("\nValidated by Google, NOT published (dry run). Run again with --yes to publish.")
@@ -504,28 +538,52 @@ def confirm_production(track, yes):
         print("Production: shown only. Run again with --yes to publish.")
 
 
-def cmd_release(args):
-    cfg = find_app(args.app)
+def apply_release(api, cfg, args):
+    """Uploads the bundle into the open edit and puts it on the track with its notes."""
     aab = Path(args.bundle)
     if not aab.exists() or aab.suffix != ".aab":
         fail(f"Not an .aab: {aab}")
+    print(f"Uploading {aab.name} ({aab.stat().st_size // 1048576} MB) to {cfg['package']}...")
+    bundle = api.call("POST", api.e("/bundles"), raw=aab.read_bytes(), content_type="application/octet-stream",
+                      upload=True, query="?uploadType=media")
+    vc = bundle["versionCode"]
+    if getattr(args, "version_code", None) and int(vc) != int(args.version_code):
+        fail(f"The bundle has versionCode {vc}, expected {args.version_code}: rebuild it")
+    notes = release_notes(cfg, vc)
+    if not notes:
+        print(f"  (no release notes: add changelogs/<lang>/{vc}.txt or default.txt)")
+    api.call("PUT", api.e(f"/tracks/{args.track}"),
+             {"track": args.track, "releases": [track_release([vc], notes, args.rollout, args.name)]})
+    rollout = f"{args.rollout * 100:g}%" if args.rollout and args.rollout < 1 else "100%"
+    print(f"versionCode {vc} -> {args.track} ({rollout}), notes in {', '.join(n['language'] for n in notes) or 'none'}")
+
+
+def cmd_publish(args):
+    """The bundle, its notes and every listing change in ONE edit, so Google reviews them together."""
+    cfg = find_app(args.app)
     api = Api(cfg["profile"], cfg["package"])
     api.open()
     try:
-        print(f"Uploading {aab.name} ({aab.stat().st_size // 1048576} MB) to {cfg['package']}...")
-        bundle = api.call("POST", api.e("/bundles"), raw=aab.read_bytes(), content_type="application/octet-stream",
-                          upload=True, query="?uploadType=media")
-        vc = bundle["versionCode"]
-        if getattr(args, "version_code", None) and int(vc) != int(args.version_code):
-            fail(f"The bundle has versionCode {vc}, expected {args.version_code}: rebuild it")
-        notes = release_notes(cfg, vc)
-        if not notes:
-            print(f"  (no release notes: add changelogs/<lang>/{vc}.txt or default.txt)")
-        api.call("PUT", api.e(f"/tracks/{args.track}"),
-                 {"track": args.track, "releases": [track_release([vc], notes, args.rollout, args.name)]})
+        apply_release(api, cfg, args)
+        print()
+        apply_listing(api, cfg)
         api.call("POST", api.e(":validate"))
-        rollout = f"{args.rollout * 100:g}%" if args.rollout and args.rollout < 1 else "100%"
-        print(f"versionCode {vc} -> {args.track} ({rollout}), notes in {', '.join(n['language'] for n in notes) or 'none'}")
+        if not args.yes:
+            print("\nValidated by Google, NOT published (dry run). Run again with --yes to publish.")
+            return
+        api.commit()
+        print("\nOK: release and listing sent for review together.")
+    finally:
+        api.discard()
+
+
+def cmd_release(args):
+    cfg = find_app(args.app)
+    api = Api(cfg["profile"], cfg["package"])
+    api.open()
+    try:
+        apply_release(api, cfg, args)
+        api.call("POST", api.e(":validate"))
         if not args.yes:
             print("Validated by Google, NOT published (dry run). Run again with --yes to publish.")
             return
@@ -611,10 +669,11 @@ def main():
             s.add_argument("--images", action="store_true")
         if name == "push-listing":
             s.add_argument("--yes", action="store_true")
-    rl = sub.add_parser("release"); rl.add_argument("bundle"); rl.add_argument("--app")
-    rl.add_argument("--track", default="internal"); rl.add_argument("--rollout", type=float, default=None)
-    rl.add_argument("--name"); rl.add_argument("--yes", action="store_true")
-    rl.add_argument("--version-code", type=int, help="fail unless the bundle has this versionCode")
+    for name in ("release", "publish"):
+        rl = sub.add_parser(name); rl.add_argument("bundle"); rl.add_argument("--app")
+        rl.add_argument("--track", default="internal"); rl.add_argument("--rollout", type=float, default=None)
+        rl.add_argument("--name"); rl.add_argument("--yes", action="store_true")
+        rl.add_argument("--version-code", type=int, help="fail unless the bundle has this versionCode")
     pr = sub.add_parser("promote"); pr.add_argument("--app")
     pr.add_argument("--from", dest="source", required=True); pr.add_argument("--to", dest="target", required=True)
     pr.add_argument("--rollout", type=float, default=None); pr.add_argument("--yes", action="store_true")
@@ -623,7 +682,8 @@ def main():
     args = p.parse_args()
     {"retire": cmd_retire, "auth": cmd_auth, "register": cmd_register, "status": cmd_status, "versions": cmd_versions,
      "pull": cmd_pull, "diff": cmd_diff,
-     "push-listing": cmd_push_listing, "release": cmd_release, "promote": cmd_promote}[args.cmd](args)
+     "push-listing": cmd_push_listing, "release": cmd_release, "publish": cmd_publish,
+     "promote": cmd_promote}[args.cmd](args)
 
 
 if __name__ == "__main__":

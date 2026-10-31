@@ -24,9 +24,11 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
       "featureGraphic":   { "es-419": "../Images/feature-graphic/feature-graphic-es-419.png" },
       "phoneScreenshots": { "es-419": "../Images/play/es-419/phone/" }
     },
-    "video": { "from": "../Images/promo-video/video.json" }
+    "video": { "from": "../Images/promo-video/video.json" },
+    "hold": ["af"]
   }
   ```
+  `hold` (opcional): idiomas con archivos locales que **no se publican** (ni ficha ni notas), p. ej. mientras falta un permiso. Para publicarlos, quitarlos de `hold`.
   Rutas relativas a la carpeta de `play.json` o absolutas: se reutiliza lo que generan `play-feature-graphic` (imagen destacada) y `app-promo-video` (enlace de YouTube que guarda `publish.py`).
 - Archivos (los crea `pull` a partir de lo publicado):
   ```
@@ -46,6 +48,7 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 | `diff` | Qué cambiaría `push-listing`: textos (antes → después) e imágenes (por SHA-256) |
 | `push-listing [--yes]` | Sube solo lo que cambió |
 | `release <app.aab> [--track internal] [--rollout 0.1] [--yes]` | Sube el AAB y lo pone en una pista con las notas de `changelogs/` |
+| `publish <app.aab> [--track production] [--rollout 1] [--version-code N] [--yes]` | `release` + `push-listing` en **una sola edición**: Google revisa la versión, sus notas y la ficha juntas |
 | `promote --from internal --to production [--rollout 0.1] [--yes]` | Pasa la versión de una pista a otra |
 | `retire --track alpha [--yes]` | Detiene (*halt*) la versión actual de una pista de prueba. Nunca producción |
 
