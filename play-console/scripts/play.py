@@ -428,7 +428,10 @@ def plan_listing(api, cfg):
         for field, value in want.items():
             if ((have or {}).get(field) or "") != value:
                 changes.append(("text", lang, field, (have or {}).get(field) or "", value))
+        locked = set(cfg.get("lock_images") or [])
         for t, files in local_images(cfg, lang).items():
+            if f"{lang}/{t}" in locked:
+                continue  # made by hand in Play Console: never replaced from the files
             remote = [] if have is None else api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])
             if [i.get("sha256") for i in remote] != [sha256(f) for f in files]:
                 changes.append(("images", lang, t, len(remote), files))
