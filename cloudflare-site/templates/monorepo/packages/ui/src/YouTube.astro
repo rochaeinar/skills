@@ -10,7 +10,7 @@ const { id, title, poster, vertical = false } = Astro.props;
 <lite-youtube data-id={id} data-title={title} class:list={{ vertical }}>
   <button type="button" aria-label={title}>
     {poster
-      ? <Picture src={poster} alt={title} formats={["avif", "webp"]} widths={[640, 960, 1280]} sizes="(max-width: 1000px) 100vw, 960px" loading="lazy" />
+      ? <Picture src={poster} alt={title} formats={["avif", "webp"]} widths={vertical ? [360, 720, 1080] : [640, 960, 1280]} sizes={vertical ? "(max-width: 400px) 100vw, 360px" : "(max-width: 1000px) 100vw, 960px"} loading="lazy" />
       : <img src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt={title} loading="lazy" decoding="async" />}
     <span class="play" aria-hidden="true"></span>
   </button>
