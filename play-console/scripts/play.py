@@ -270,17 +270,20 @@ def local_texts(cfg, lang):
 
 
 def local_video(cfg, lang):
-    """listing/<lang>/video.txt, or the YouTube link publish.py saved in the promo video.json."""
+    """listing/<lang>/video.txt, or the YouTube link publish.py saved in the promo video.json, of the
+    format in play.json "video": {"format": "vertical"} (default horizontal)."""
     f = cfg["_dir"] / "listing" / lang / "video.txt"
     if f.exists():
         return f.read_text(encoding="utf-8").strip()
-    src = (cfg.get("video") or {}).get("from")
+    conf = cfg.get("video") or {}
+    src = conf.get("from")
     if src and rel(cfg, src).exists():
         promo = json.loads(rel(cfg, src).read_text(encoding="utf-8"))
         uploaded = (promo.get("publish", {}).get(lang) or {}).get("uploaded", {})
-        horizontal = [v for k, v in uploaded.items() if "-horizontal" in k]
-        if horizontal:
-            return horizontal[-1]["url"]
+        fmt = conf.get("format", "horizontal")
+        matching = [v for k, v in uploaded.items() if f"-{fmt}" in k]
+        if matching:
+            return matching[-1]["url"]
     return None
 
 

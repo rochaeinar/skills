@@ -86,8 +86,28 @@ def all_captions(config, locale, fmt, variant):
     return out, props
 
 
+def image_thumbnail(source, target):
+    """Another image (e.g. the Play feature graphic, 1024x500) fitted into 1280x720: the image whole,
+    over a blurred copy of itself that covers the frame (no flat bands)."""
+    from PIL import Image, ImageFilter
+    im = Image.open(source).convert("RGB")
+    cover = max(1280 / im.width, 720 / im.height)
+    back = im.resize((round(im.width * cover), round(im.height * cover)), Image.LANCZOS)
+    back = back.crop(((back.width - 1280) // 2, (back.height - 720) // 2,
+                      (back.width - 1280) // 2 + 1280, (back.height - 720) // 2 + 720))
+    back = back.filter(ImageFilter.GaussianBlur(40))
+    fit = min(1280 / im.width, 720 / im.height)
+    im = im.resize((round(im.width * fit), round(im.height * fit)), Image.LANCZOS)
+    back.paste(im, ((1280 - im.width) // 2, (720 - im.height) // 2))
+    back.save(target, quality=92, optimize=True)
+
+
 def thumbnail(config, locale, fmt, variant, target):
-    """The hook at 1.8 s (AI scene and question), 1280x720 JPEG under 2 MB (YouTube's limit)."""
+    """The hook at 1.8 s (AI scene and question), 1280x720 JPEG under 2 MB (YouTube's limit), or the
+    image in video.json "publish.<locale>.thumbnail" (e.g. the Play feature graphic)."""
+    image = ((config.get("publish") or {}).get(locale) or {}).get("thumbnail")
+    if image:
+        return image_thumbnail(resolve(config, image), target)
     import render
     name = f"promo-{locale}-{fmt}" + (f"-{variant}" if variant else "")
     run([sys.executable, "-I", str(Path(render.__file__)), str(config["_dir"] / "video.json"), "--locale", locale,

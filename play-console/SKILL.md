@@ -24,10 +24,11 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
       "featureGraphic":   { "es-419": "../Images/feature-graphic/feature-graphic-es-419.png" },
       "phoneScreenshots": { "es-419": "../Images/play/es-419/phone/" }
     },
-    "video": { "from": "../Images/promo-video/video.json" },
+    "video": { "from": "../Images/promo-video/video.json", "format": "vertical" },
     "hold": ["af"]
   }
   ```
+  `video.format` (opcional, por defecto `horizontal`): qué video subido por `publish.py` va en cada ficha (el de ese idioma).
   `hold` (opcional): idiomas con archivos locales que **no se publican** (ni ficha ni notas), p. ej. mientras falta un permiso. Para publicarlos, quitarlos de `hold`.
   `lock_images` (opcional): `"<idioma>/<tipo>"` (p. ej. `"en-US/phoneScreenshots"`) que nunca se suben: imágenes hechas a mano en Play Console, que mandan sobre las locales. Antes de un `push-listing` o `publish`, revisar en el `diff` que no se reemplacen imágenes que el usuario cuida a mano.
   Rutas relativas a la carpeta de `play.json` o absolutas: se reutiliza lo que generan `play-feature-graphic` (imagen destacada) y `app-promo-video` (enlace de YouTube que guarda `publish.py`).

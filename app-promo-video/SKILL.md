@@ -78,6 +78,7 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 
 ## Publicar en YouTube (`publish.py`)
 
+- Miniatura: por defecto el gancho a 1,8 s; con `publish.<locale>.thumbnail` (p. ej. la imagen destacada de Play) usa esa imagen entera en 1280×720 sobre una copia desenfocada de sí misma.
 - `publish.py prepare video.json --locale <l> --format horizontal [--variant A]` → `upload/<nombre>/`: `video.mp4`, `thumbnail.jpg` (1280×720, el gancho), `captions-<lang>.srt` (de los tiempos de la voz), `title.txt`, `description.txt`, `tags.txt`, `metadata.json` y `CHECKLIST.md` con los pasos para subirlo a mano. Textos en `video.json` → `publish.<locale>`.
 - `publish.py auth [<client_secret.json>] [--no-browser] [--profile <nombre>]` (una vez por cuenta): OAuth de escritorio con PKCE; guarda `PromoVideo-YouTube-Client[@perfil]` y `PromoVideo-YouTube[@perfil]`. Sin el JSON reutiliza el cliente guardado (para volver a autorizar si el token venció). El usuario usa contenedores de Firefox: siempre `--no-browser` y pasarle el enlace. **Varias cuentas de Google:** un proyecto de Google Cloud y un perfil por cuenta; cada app elige el suyo con `"youtube_profile"` en `video.json` (ver SETUP.md 6.4). ElevenLabs y fal.ai son compartidos.
 - `publish.py check [--profile <nombre>]`: renueva el token y lee el canal, sin subir nada. Correrlo antes de `upload`; con `invalid_grant`, ver SETUP.md 6.2.6 y 6.3.
