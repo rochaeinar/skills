@@ -49,6 +49,14 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 - Elementos dibujados dentro del texto o sin id (íconos, sliders): por posición, calibrada en una captura con cuadrícula.
 - Seleccionar versículos que no arrastren títulos o números de capítulo; colores de resaltado que contrasten con el tema.
 - Búsquedas: palabras que no sean parte de otras ("misericordia", no "amor" → "amorreo").
+- **Otro idioma u otro teléfono** (aprendido 2026-11-04, Galaxy A21s con Android 12):
+  - Sin idioma por app (`cmd locale` no existe): la app se pone en el idioma desde su pantalla de Idiomas (flujo `set_language.yaml`, `SEARCH=<nombre en inglés>`) y `capture.py --app-locale`.
+  - Lo que va por posición depende del teléfono: `"gesture_by_model"` en la escena y ramas por teléfono en el flujo (Maestro no acepta un punto desde una variable: `runFlow when: true: ${PHONE === 'a21s'}`).
+  - Revisar antes las preferencias que deja otra sesión en el teléfono: alcance de la búsqueda (otra Biblia u otro idioma), módulos de la vista paralela por idioma (`parallel_modules_<idioma>`), recientes. Respaldar antes de cambiarlas.
+  - Un teléfono angosto ofrece menos paneles (A21s: 3); un idioma con una sola Biblia llena la paralela con comentarios (quitar la escena o cambiar el texto).
+  - La lectura en voz alta necesita la voz de síntesis de ese idioma en el teléfono; si la app avisa que no hay, quitar la escena de audio.
+  - Las grabaciones en un teléfono lento tardan más (la búsqueda puede girar 15 s): elegir los tramos en la hoja de contacto de cada idioma, no copiar los de otro.
+  - Un bucle de bash en segundo plano sobrevive a TaskStop: guardar su PID y detenerlo antes de lanzar otra cola (dos Maestro a la vez en el mismo teléfono arruinan ambas).
 
 **Edición**
 - Gancho: escena de IA a pantalla completa con la pregunta encima; **sin pantallas de la app** en el gancho. El menú principal va al final ("Y mucho más") antes del cierre.

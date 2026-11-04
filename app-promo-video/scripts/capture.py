@@ -2,7 +2,10 @@
 adb screenrecord records the screen.
 
 Usage:
-    python capture.py <video.json> [--locale es-419] [--scene home,parallel] [--device SERIAL] [--prep]
+    python capture.py <video.json> [--locale es-419] [--scene home,parallel] [--device SERIAL] [--prep] [--app-locale]
+
+--app-locale: the app was put in the recording's language from inside the app (its Languages
+screen or a debug link), not with the phone's language; skips the phone language check.
 
 video.json ("capture" section):
     "capture": {
@@ -15,7 +18,9 @@ video.json ("capture" section):
     }
     A scene is a flow file, or an object with "flow" and options for process_clips.py; with
     "gesture" (a JSON in flows_dir, see gesture.py) a continuous touch gesture plays after the flow,
-    still recording: for joystick-like controls a straight Maestro swipe cannot show.
+    still recording: for joystick-like controls a straight Maestro swipe cannot show. Its positions
+    are in px of one phone: "gesture_by_model": {"SM-A217M": "quick_search_a21s.json"} picks
+    another file by ro.product.model. Tap positions in flows go in the locale's env the same way.
 
 Writes recordings/<locale>/<scene>.raw.mp4 and recordings/<locale>/capture.json (device, system bar
 sizes, result of each scene). The phone's app data is never backed up or restored: the flows only
@@ -69,8 +74,10 @@ def system_bars(phone):
     import re
     dump = phone.sh("dumpsys", "window")
     top = bottom = 0
-    for kind, y1, y2 in re.findall(r"(statusBars|navigationBars)\S* frame=\[-?\d+,(-?\d+)\]\[-?\d+,(-?\d+)\]", dump):
-        if kind == "statusBars":
+    # Android 13+: "statusBars ... frame=", Android 12: "type=ITYPE_STATUS_BAR frame="
+    for kind, y1, y2 in re.findall(r"(statusBars|navigationBars|ITYPE_STATUS_BAR|ITYPE_NAVIGATION_BAR)\S* "
+                                   r"frame=\[-?\d+,(-?\d+)\]\[-?\d+,(-?\d+)\]", dump):
+        if kind in ("statusBars", "ITYPE_STATUS_BAR"):
             top = max(top, int(y2) - int(y1))
         else:
             bottom = max(bottom, int(y2) - int(y1))
@@ -85,6 +92,25 @@ def flow_vars(values):
     return args
 
 
+def unicode_wrapper(flow, values):
+    """On Windows, maestro.bat hands its arguments to Java in the ANSI code page: a -e value in
+    another script (Hindi) arrives as "???". Those values go in the env block of a small UTF-8
+    wrapper flow next to the scene's flow instead. Returns (flow to run, ASCII values, wrapper)."""
+    values = dict(values or {})
+    other = {k: v for k, v in values.items() if not str(v).isascii()}
+    if not other:
+        return flow, values, None
+    import json
+    wrapper = Path(flow).parent / f"_utf8_{Path(flow).stem}.yaml"
+    lines = ["appId: any", "---", "- runFlow:", f"    file: {Path(flow).name}", "    env:"]
+    lines += [f"      {k}: {json.dumps(str(v), ensure_ascii=False)}" for k, v in values.items()]
+    app_id = next((l.split(":", 1)[1].strip() for l in Path(flow).read_text(encoding="utf-8").splitlines()
+                   if l.startswith("appId:")), "any")
+    lines[0] = f"appId: {app_id}"
+    wrapper.write_text(chr(10).join(lines) + chr(10), encoding="utf-8")
+    return wrapper, {}, wrapper
+
+
 def record_scene(phone, maestro, env, flow, out, gesture=None, values=None):
     """Starts screenrecord, runs the flow (and the gesture), stops screenrecord, pulls the file."""
     phone.sh("rm", "-f", DEVICE_FILE)
@@ -93,7 +119,12 @@ def record_scene(phone, maestro, env, flow, out, gesture=None, values=None):
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.0)
     started = time.time()
-    result = run([maestro, "--device", phone.serial, "test", *flow_vars(values), str(flow)], check=False, env=env)
+    flow, values, wrapper = unicode_wrapper(flow, values)
+    try:
+        result = run([maestro, "--device", phone.serial, "test", *flow_vars(values), str(flow)], check=False, env=env)
+    finally:
+        if wrapper:
+            wrapper.unlink(missing_ok=True)
     if result.returncode == 0 and gesture:
         import gesture as gesture_player
         gesture_player.play(phone.adb, phone.serial, gesture)
@@ -120,6 +151,9 @@ def main():
     parser.add_argument("--scene", default="", help="Comma separated; defaults to all")
     parser.add_argument("--device", default="")
     parser.add_argument("--prep", action="store_true", help="Run the prep flows again")
+    parser.add_argument("--app-locale", action="store_true",
+                        help="The app's own language was switched inside the app (e.g. Android 12, no per-app "
+                             "locale): skip the check that the phone is in the recording's language")
     args = parser.parse_args()
 
     config = load_video_json(args.video_json)
@@ -142,12 +176,13 @@ def main():
     if f"package:{cap['app_id']}" not in phone.sh("pm", "list", "packages", cap["app_id"]):
         fail(f"{cap['app_id']} is not installed on the phone.")
     device_locale = phone.sh("getprop", "persist.sys.locale") or phone.sh("getprop", "ro.product.locale")
-    if device_locale.split("-")[0] != locale.split("-")[0]:
+    if not args.app_locale and device_locale.split("-")[0] != locale.split("-")[0]:
         fail(f"The phone is in {device_locale} and the recording is for {locale}: change the phone's "
              f"language (the app follows it) and run again.")
     top, bottom = system_bars(phone)
     size = phone.sh("wm", "size").split(":")[-1].strip()
 
+    model = phone.sh("getprop", "ro.product.model")
     out_dir = resolve(config, "recordings") / locale
     out_dir.mkdir(parents=True, exist_ok=True)
     meta_path = out_dir / "capture.json"
@@ -176,7 +211,10 @@ def main():
             for attempt in (1, 2):
                 print(f"Recording {scene} (attempt {attempt})...")
                 entry = scenes[scene]
-                gesture = flows_dir / entry["gesture"] if isinstance(entry, dict) and entry.get("gesture") else None
+                gesture = None
+                if isinstance(entry, dict) and entry.get("gesture"):
+                    # "gesture_by_model": {"SM-A217M": "x_a21s.json"}: positions measured on another phone
+                    gesture = flows_dir / entry.get("gesture_by_model", {}).get(model, entry["gesture"])
                 ok, seconds = record_scene(phone, maestro, env, flows_dir / scene_flow(entry), out, gesture,
                                            cap.get("env", {}).get(locale))
                 if ok:
