@@ -1,0 +1,200 @@
+---
+// Language picker for sites with many languages: one button (globe + the current language) that
+// opens a dialog with a search and the list of languages, each in its own name with the name in
+// the page's language below. The browser's languages come first, the first one highlighted; the
+// rest keep the order of `locales` (the priority of the site). Choosing one goes to the same page
+// in that language and turns off LangSuggest's notice. Never redirects by itself (search engines).
+interface Props {
+  lang: string;
+  path: string;
+  locales: string[];
+  defaultLocale: string;
+  labels: { label: string; search: string; browser: string; all: string; none: string; close: string };
+  class?: string;
+}
+const { lang, path, locales, defaultLocale, labels, class: cls } = Astro.props;
+
+/** BCP 47 tag of a site code (the Chinese pages are per script). */
+const tag = (l: string) => ({ "zh-hans": "zh-Hans", "zh-hant": "zh-Hant" })[l] ?? l;
+/** Own names that read better than ICU's (it has the language, not what its speakers call it). */
+const own: Record<string, string> = { id: "Bahasa Indonesia", ht: "Kreyòl ayisyen", ilo: "Ilokano", ak: "Twi", ms: "Bahasa Melayu" };
+const cap = (s: string, l: string) => s.charAt(0).toLocaleUpperCase(tag(l)) + s.slice(1);
+const nameIn = (of: string, inLang: string) => {
+  try {
+    const n = new Intl.DisplayNames([tag(inLang)], { type: "language", fallback: "none" }).of(tag(of));
+    return n ? cap(n, inLang) : undefined;
+  } catch { return undefined; }
+};
+const href = (l: string) => (l === defaultLocale ? "" : `/${l}`) + path;
+const items = locales.map((l) => {
+  const native = own[l] ?? nameIn(l, l) ?? l;
+  const local = nameIn(l, lang);
+  const english = nameIn(l, "en");
+  const search = [native, local, english, l].filter(Boolean).join(" ");
+  return { l, native, local: local && local !== native ? local : undefined, search };
+});
+const current = items.find((i) => i.l === lang)!;
+const id = `lang-picker-${Math.random().toString(36).slice(2, 8)}`;
+---
+<div class:list={["lang-picker", cls]} data-lang={lang}>
+  <button type="button" class="lp-button" aria-haspopup="dialog" aria-controls={id} aria-label={`${labels.label}: ${current.native}`}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>
+    <span class="lp-current" lang={tag(lang)}>{current.native}</span>
+    <span class="lp-code">{lang.split("-")[0].toUpperCase()}</span>
+    <svg class="lp-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+  </button>
+  <dialog id={id} class="lp-dialog" aria-label={labels.label}>
+    <div class="lp-head">
+      <h2 class="lp-title">{labels.label}</h2>
+      <button type="button" class="lp-close" aria-label={labels.close}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <label class="lp-search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <input type="search" placeholder={labels.search} aria-label={labels.search} autocomplete="off" spellcheck="false" />
+    </label>
+    <div class="lp-scroll">
+      <p class="lp-group lp-browser" hidden>{labels.browser}</p>
+      <ul class="lp-list lp-suggested" hidden></ul>
+      <p class="lp-group lp-all">{labels.all}</p>
+      <ul class="lp-list lp-rest">
+        {items.map((i) => (
+          <li data-code={i.l} data-search={i.search}>
+            <a href={href(i.l)} hreflang={tag(i.l)} lang={tag(i.l)} aria-current={i.l === lang ? "page" : undefined}>
+              <span class="lp-native">{i.native}</span>
+              {i.local && <span class="lp-local" lang={tag(lang)}>{i.local}</span>}
+              {i.l === lang && <svg class="lp-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>}
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p class="lp-none" hidden>{labels.none}</p>
+    </div>
+  </dialog>
+</div>
+<script>
+  // Same mapping as LangSuggest: a browser language -> the site's code (Chinese per script).
+  const site = (l: string) => l.startsWith("zh") ? (/hant|-tw|-hk|-mo/.test(l) ? "zh-hant" : "zh-hans")
+    : l.startsWith("tl") ? "fil" : l.split("-")[0];
+  const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  for (const root of document.querySelectorAll<HTMLElement>(".lang-picker")) {
+    const dialog = root.querySelector<HTMLDialogElement>("dialog")!;
+    const input = dialog.querySelector<HTMLInputElement>("input")!;
+    const rest = dialog.querySelector<HTMLUListElement>(".lp-rest")!;
+    const suggested = dialog.querySelector<HTMLUListElement>(".lp-suggested")!;
+    const browserLabel = dialog.querySelector<HTMLElement>(".lp-browser")!;
+    const allLabel = dialog.querySelector<HTMLElement>(".lp-all")!;
+    const none = dialog.querySelector<HTMLElement>(".lp-none")!;
+    // The browser's languages first (up to 3, in its order), the first one highlighted.
+    const wanted = [...new Set((navigator.languages || [navigator.language]).map((l) => site(l.toLowerCase())))];
+    const picks = wanted.map((c) => rest.querySelector<HTMLLIElement>(`li[data-code="${c}"]`)).filter(Boolean).slice(0, 3) as HTMLLIElement[];
+    if (picks.length) {
+      picks.forEach((li) => suggested.append(li));
+      picks[0].classList.add("lp-first");
+      suggested.hidden = browserLabel.hidden = false;
+    }
+    const all = [...dialog.querySelectorAll<HTMLLIElement>("li")];
+    const filter = () => {
+      const q = fold(input.value.trim());
+      let shown = 0;
+      for (const li of all) {
+        const ok = !q || fold(li.dataset.search || "").includes(q);
+        li.hidden = !ok;
+        if (ok) shown++;
+      }
+      const restShown = [...rest.children].some((li) => !(li as HTMLElement).hidden);
+      const sugShown = [...suggested.children].some((li) => !(li as HTMLElement).hidden);
+      suggested.hidden = browserLabel.hidden = !picks.length || !sugShown;
+      rest.hidden = allLabel.hidden = !restShown;
+      none.hidden = shown > 0;
+    };
+    input.addEventListener("input", filter);
+    // Enter in the search opens the first language shown.
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const first = all.find((li) => !li.hidden)?.querySelector("a");
+      if (first) { e.preventDefault(); first.click(); }
+    });
+    root.querySelector(".lp-button")!.addEventListener("click", () => {
+      input.value = ""; filter();
+      dialog.showModal();
+      // Phones: no keyboard over the list until the visitor taps the search.
+      if (matchMedia("(hover: hover) and (pointer: fine)").matches) input.focus();
+      else dialog.querySelector<HTMLElement>(".lp-close")!.focus();
+      dialog.querySelector(".lp-first, [aria-current]")?.scrollIntoView({ block: "nearest" });
+    });
+    dialog.querySelector(".lp-close")!.addEventListener("click", () => dialog.close());
+    // A click on the backdrop (outside the panel) closes it.
+    dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.close(); });
+    dialog.addEventListener("click", (e) => {
+      if ((e.target as Element).closest("a[hreflang]")) {
+        try { localStorage.setItem("lang-suggest", "off"); } catch {}
+      }
+    });
+  }
+</script>
+<style>
+  .lang-picker { position: relative; }
+  .lp-button { display: inline-flex; align-items: center; gap: 7px; height: 44px; padding: 0 12px; border-radius: 999px;
+               border: 1px solid var(--border, rgb(0 0 0 / .12)); background: transparent; color: inherit; font: inherit;
+               font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .lp-button:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+  .lp-current { max-width: 10em; overflow: hidden; text-overflow: ellipsis; }
+  .lp-code { display: none; font-weight: 600; letter-spacing: .02em; }
+  .lp-chev { opacity: .6; }
+
+  .lp-dialog { width: min(640px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); padding: 0;
+               border: 1px solid var(--border, rgb(0 0 0 / .12)); border-radius: 20px; background: var(--bg, #fff);
+               color: var(--text, #111); box-shadow: 0 24px 64px -16px rgb(0 0 0 / .45); overflow: hidden; }
+  .lp-dialog[open] { display: flex; flex-direction: column; animation: lp-in .16s ease-out; }
+  .lp-dialog::backdrop { background: rgb(0 0 0 / .45); backdrop-filter: blur(2px); }
+  @keyframes lp-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+  .lp-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 12px 4px 24px; }
+  .lp-title { margin: 0; font-size: 18px; font-weight: 600; font-family: inherit; letter-spacing: -0.01em; }
+  .lp-close { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%;
+              background: transparent; color: inherit; cursor: pointer; }
+  .lp-close:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+  .lp-search { display: flex; align-items: center; gap: 10px; margin: 8px 20px 8px; padding: 0 14px; height: 46px;
+               border-radius: 12px; background: var(--surface, rgb(0 0 0 / .05)); color: var(--muted, #666);
+               border: 1px solid var(--border, transparent); }
+  .lp-search:focus-within { border-color: var(--accent, #2a7); }
+  .lp-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent;
+                     color: var(--text, #111); font: inherit; font-size: 16px; }
+  .lp-head, .lp-search { flex: 0 0 auto; }
+  .lp-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 12px 16px; overscroll-behavior: contain; }
+  .lp-group { margin: 12px 12px 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+              color: var(--muted, #666); }
+  .lp-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+  .lp-list[hidden], .lp-group[hidden], .lp-list li[hidden] { display: none; }
+  .lp-list a { position: relative; display: flex; flex-direction: column; justify-content: center; min-height: 52px;
+               padding: 7px 32px 7px 12px; border-radius: 10px; text-decoration: none; color: inherit; }
+  .lp-list a:hover, .lp-list a:focus-visible { background: var(--surface, rgb(0 0 0 / .05)); outline: none; }
+  .lp-list a:focus-visible { box-shadow: inset 0 0 0 2px var(--accent, #2a7); }
+  .lp-native { font-size: 15px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+  .lp-local { font-size: 13px; line-height: 1.3; color: var(--muted, #666); overflow-wrap: anywhere; }
+  .lp-list a[aria-current] { background: color-mix(in srgb, var(--accent, #2a7) 12%, transparent); }
+  .lp-list a[aria-current] .lp-native { color: var(--accent, #2a7); font-weight: 600; }
+  .lp-check { position: absolute; inset-inline-end: 10px; top: 50%; translate: 0 -50%; color: var(--accent, #2a7); }
+  .lp-first a:not([aria-current]) { box-shadow: inset 0 0 0 1px var(--accent, #2a7); }
+  .lp-list a { text-align: start; }
+  .lp-none { margin: 24px 12px; color: var(--muted, #666); text-align: center; }
+
+  @media (max-width: 720px) {
+    .lp-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .lp-current, .lp-chev { display: none; }
+    .lp-code { display: inline; }
+    .lp-button { padding: 0 10px; gap: 6px; }
+    /* A sheet from the bottom on phones. */
+    .lp-dialog { width: 100vw; max-width: 100vw; max-height: 85dvh; margin: auto 0 0; border-radius: 20px 20px 0 0;
+                 border-bottom: 0; }
+    .lp-dialog[open] { animation: lp-up .2s ease-out; }
+    @keyframes lp-up { from { transform: translateY(24px); opacity: .6; } }
+    .lp-head { padding-left: 20px; }
+    .lp-search { margin: 8px 16px; }
+    .lp-scroll { padding: 4px 8px calc(16px + env(safe-area-inset-bottom)); }
+  }
+  @media (prefers-reduced-motion: reduce) { .lp-dialog[open] { animation: none; } }
+</style>

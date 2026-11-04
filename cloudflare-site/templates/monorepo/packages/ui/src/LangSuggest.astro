@@ -23,7 +23,9 @@ const targets = Object.fromEntries(locales.filter((l) => l !== lang && texts[l])
     const targets = JSON.parse(el.dataset.targets || "{}");
     let dismissed = false;
     try { dismissed = localStorage.getItem("lang-suggest") === "off"; } catch {}
-    const wanted = (navigator.languages || [navigator.language]).map((l) => l.toLowerCase().split("-")[0]);
+    // Chinese pages are per script: zh-TW/HK/MO and zh-Hant-* read Traditional, the rest Simplified.
+    const site = (l: string) => l.startsWith("zh") ? (/hant|-tw|-hk|-mo/.test(l) ? "zh-hant" : "zh-hans") : l.split("-")[0];
+    const wanted = (navigator.languages || [navigator.language]).map((l) => site(l.toLowerCase()));
     const pick = wanted.find((l) => l !== el.dataset.lang && targets[l]);
     if (pick && !dismissed && wanted[0] !== el.dataset.lang) {
       const t = targets[pick];
@@ -42,10 +44,11 @@ const targets = Object.fromEntries(locales.filter((l) => l !== lang && texts[l])
 </script>
 <style>
   .lang-suggest { position: fixed; z-index: 50; left: 50%; bottom: 20px; translate: -50% 0; display: flex; align-items: center;
-                  gap: 10px; padding: 10px 10px 10px 18px; border-radius: 999px; font-size: 15px; max-width: calc(100vw - 32px);
+                  gap: 10px; padding: 10px 10px 10px 18px; border-radius: 22px; width: max-content; font-size: 15px; max-width: calc(100vw - 32px);
                   background: var(--surface-strong, #1E2420); color: var(--on-strong, #fff); box-shadow: 0 12px 32px -12px rgb(0 0 0 / .4); }
   .lang-suggest[hidden] { display: none; }
   .ls-link { color: inherit; font-weight: 600; }
-  .ls-close { width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgb(255 255 255 / .12); color: inherit;
+  .ls-link { white-space: nowrap; }
+  .ls-close { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgb(255 255 255 / .12); color: inherit;
               font-size: 18px; line-height: 1; cursor: pointer; }
 </style>

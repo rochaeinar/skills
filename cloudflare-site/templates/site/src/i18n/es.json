@@ -84,6 +84,13 @@
     "link": "Ver en español",
     "close": "Cerrar"
   },
+  "langPicker": {
+    "label": "Idioma",
+    "search": "Buscar idioma",
+    "browser": "Tu navegador",
+    "all": "Todos los idiomas",
+    "none": "Ningún idioma coincide"
+  },
   "legal": {
     "privacy": {
       "title": "Política de privacidad",

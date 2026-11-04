@@ -84,6 +84,13 @@
     "link": "View in English",
     "close": "Close"
   },
+  "langPicker": {
+    "label": "Language",
+    "search": "Search languages",
+    "browser": "Your browser",
+    "all": "All languages",
+    "none": "No language matches"
+  },
   "legal": {
     "privacy": {
       "title": "Privacy policy",
