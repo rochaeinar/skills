@@ -94,7 +94,19 @@ Con la **misma cuenta** del canal:
 1. **console.cloud.google.com** → aceptar términos → selector de proyecto → **Proyecto nuevo / New project** (p. ej. "<App> Promo") y dejarlo seleccionado.
 2. ☰ → **APIs y servicios / APIs & Services → Biblioteca / Library** → **YouTube Data API v3** → **Habilitar / Enable**.
 3. ☰ → **APIs y servicios → Pantalla de consentimiento de OAuth / OAuth consent screen** (o **Google Auth Platform**): nombre de la app, correo de asistencia (**User support email**), público **Externo / External**, contacto; en **Público / Audience → Usuarios de prueba / Test users** agregar la cuenta del canal.
-4. ☰ → **Credenciales / Credentials** (o **Clientes / Clients**) → **Crear credenciales / Create credentials → ID de cliente de OAuth / OAuth client ID** → **App de escritorio / Desktop app** → **Descargar JSON / Download JSON**. Guardarlo fuera de cualquier repo.
+4. **Desarrollo de la marca / Branding** (`console.cloud.google.com/auth/branding`): llenar los tres enlaces con la web de la app. Se piden para publicar la app (paso 6) y deben responder en público (comprobarlo en el navegador o con `curl -I`).
+
+   | Campo | Qué poner | Ejemplo (Bible Versions) |
+   |---|---|---|
+   | **Application home page** | la web de la app | `https://bibleversions.timelesslabs.app` |
+   | **Application privacy policy link** | su política de privacidad | `https://bibleversions.timelesslabs.app/privacy` |
+   | **Application terms of service link** | sus términos | `https://bibleversions.timelesslabs.app/terms` |
+
+   No usar un dominio que no responda (p. ej. `timelesslabs.app` a secas, que no tiene sitio). Si Google pide el dominio en **Dominios autorizados / Authorized domains**, agregar el dominio raíz (`timelesslabs.app`).
+5. ☰ → **Credenciales / Credentials** (o **Clientes / Clients**, `console.cloud.google.com/auth/clients`) → **Crear credenciales / Create credentials → ID de cliente de OAuth / OAuth client ID** → **App de escritorio / Desktop app** → **Descargar JSON / Download JSON**. Guardarlo fuera de cualquier repo. Se usa una sola vez (6.3): después el cliente queda en el Administrador de credenciales y el JSON ya no hace falta.
+6. **Publicar la app para que la autorización no caduque** (`console.cloud.google.com/auth/audience`): **Estado de publicación / Publishing status: Testing** → **Publicar app / Publish app** → confirmar, hasta que diga **En producción / In production**. En modo Prueba el token **caduca a los 7 días**.
+   - Si aparece **"Your app requires verification... please submit your app for review"**: **no enviarla a revisión**. El aviso sale por los permisos sensibles de YouTube. La app queda "sin verificar", que basta para el canal propio (límite de 100 usuarios, sin importancia aquí). La verificación solo hace falta si otras personas fueran a autorizar la app, y tarda semanas.
+   - Si ya se autorizó en modo Prueba, repetir 6.3 una vez después de publicar: el token viejo sigue caducando a los 7 días.
 
 ### 6.3 Autorizar (una vez por PC)
 
@@ -102,20 +114,32 @@ Con la **misma cuenta** del canal:
 python -I "$env:USERPROFILE\.claude\skills\app-promo-video\scripts\publish.py" auth "<ruta>\client_secret.json"
 ```
 
+**Volver a autorizar** (token vencido o revocado, en una PC que ya tiene el cliente guardado): sin el JSON, el script usa el cliente del Administrador de credenciales.
+
+```
+python -I "$env:USERPROFILE\.claude\skills\app-promo-video\scripts\publish.py" auth --no-browser
+```
+
+**Comprobar** que se puede subir (renueva el token y lee el canal, no sube nada):
+
+```
+python -I "$env:USERPROFILE\.claude\skills\app-promo-video\scripts\publish.py" check
+```
+
+Debe decir `OK: channel '<canal>' (...)`. Si responde `HTTP 400 invalid_grant: Token has been expired or revoked`, la autorización venció (app en Prueba, 7 días) o se quitó el acceso en la cuenta de Google: revisar que la app esté **En producción** (6.2.6) y volver a autorizar.
+
 Se abre el navegador: elegir la cuenta del canal → aviso **"Google no verificó esta app" / "Google hasn't verified this app"** (normal, la app es propia) → **Avanzado / Advanced → Ir a ... (no seguro) / Go to ... (unsafe)** → aceptar los permisos (**Continuar / Continue**). Debe terminar con `OK: authorized for the channel '<canal>'`. Guarda `PromoVideo-YouTube-Client` (id y secreto del cliente) y `PromoVideo-YouTube` (token de actualización).
 
-- **Contenedores de Firefox u otro perfil:** con `--no-browser` el script solo imprime el enlace; pegarlo en la pestaña donde está iniciada la cuenta del canal (la respuesta vuelve a `127.0.0.1`, sirve cualquier navegador de la PC). El enlace sirve una sola vez y el script espera 15 minutos.
+- **Contenedores de Firefox u otro perfil (el caso de Bible Versions):** usar siempre `--no-browser`. Sin esa opción, el script abre el navegador predeterminado fuera del contenedor, con otra cuenta. Con `--no-browser` solo imprime el enlace; pegarlo en la pestaña donde está iniciada la cuenta del canal (la respuesta vuelve a `127.0.0.1`, sirve cualquier navegador de la PC). El enlace sirve una sola vez y el script espera 15 minutos.
 - **Error 403: access_denied** ("...can only be accessed by developer-approved testers"): la cuenta elegida no está en **Usuarios de prueba / Test users** (paso 6.2.3). Agregarla, esperar 1-2 minutos y volver a abrir el enlace.
-- Con la app en modo **Prueba / Testing**, la autorización **caduca a los 7 días** (los videos subidos no se ven afectados; solo hay que repetir 6.3). **Para que no caduque:**
-  1. Google Cloud Console → **Google Auth Platform → Público / Audience** → **Estado de publicación / Publishing status: Testing** → **Publicar app / Publish app** → confirmar.
-  2. Repetir 6.3 una vez para obtener un token que ya no caduca.
-  3. El aviso de "app no verificada" sigue apareciendo al autorizar (se acepta: la app es propia). Las apps sin verificar tienen un límite de usuarios, que no importa para un uso personal.
+- Con la app en modo **Prueba / Testing**, la autorización **caduca a los 7 días** (los videos ya subidos no se ven afectados). Solución: publicar la app (6.2.6) y volver a autorizar. El aviso de "app no verificada" sigue apareciendo al autorizar y se acepta, porque la app es propia.
+- **Historial (Bible Versions, canal Timeless Labs):** se autorizó el 2026-10-19 en modo Prueba. El 2026-11-03 el token había vencido (`invalid_grant`). Se llenó el Branding, se publicó la app (En producción, sin verificar) y se volvió a autorizar con `auth --no-browser` en el contenedor de Firefox. `check`: canal `Timeless Labs` (`UCThpY2K24VdLlzFTWshGqDw`), videos largos permitidos.
 
 ### 6.4 Varias cuentas de Google (un perfil por cuenta)
 
 La generación (ElevenLabs, fal.ai) es compartida por todas las apps. Lo que cambia por cuenta es **YouTube**: cada cuenta de Google tiene **su propio proyecto de Google Cloud** y su propio canal, y en el skill un **perfil** (un nombre corto, p. ej. `otrodev`).
 
-1. Con la **otra cuenta de Google**, repetir 6.1 (canal) y 6.2 (proyecto, API, pantalla de consentimiento con esa cuenta en **Test users**, cliente de escritorio) y descargar **su** JSON.
+1. Con la **otra cuenta de Google**, repetir 6.1 (canal) y 6.2 completo (proyecto, API, pantalla de consentimiento con esa cuenta en **Test users**, Branding, cliente de escritorio y publicar la app) y descargar **su** JSON.
 2. Autorizar con el nombre del perfil:
    ```
    python -I "$env:USERPROFILE\.claude\skills\app-promo-video\scripts\publish.py" auth "<ruta>\client_secret.json" --no-browser --profile otrodev
@@ -124,7 +148,7 @@ La generación (ElevenLabs, fal.ai) es compartida por todas las apps. Lo que cam
 3. En el `video.json` de cada app que sube a ese canal: `"youtube_profile": "otrodev"`. Sin esa línea se usa la cuenta sin perfil (la primera que se configuró).
 4. `publish.py upload` muestra al empezar el perfil y el canal que va a usar, y guarda el canal en `publish.<locale>.uploaded`. Para una subida puntual a otro canal: `--profile <nombre>`.
 
-Cada perfil tiene su propio vencimiento de 7 días (modo Prueba) y su propia auditoría, porque cada uno es un proyecto distinto.
+Cada perfil es un proyecto distinto: hay que publicar cada uno (si no, su token vence a los 7 días) y cada uno tiene su propia auditoría. Comprobar uno: `publish.py check --profile otrodev`. Volver a autorizarlo: `publish.py auth --no-browser --profile otrodev`.
 
 ### 6.5 Auditoría de la API (para que no quede en privado)
 
@@ -145,5 +169,5 @@ En Play Console → **Presencia en Play Store → Ficha principal → <idioma> �
 | Herramientas | `ffmpeg -version`, `node --version`, `adb devices` (el teléfono como `device`) |
 | ElevenLabs | el comando del paso 4.5 devuelve el plan |
 | fal.ai | `broll.py ... --stage placeholder` genera una imagen (≈ $0,025) |
-| YouTube | `publish.py auth` termina con `OK: authorized for the channel` |
+| YouTube | `publish.py auth` termina con `OK: authorized for the channel`; después, `publish.py check` dice `OK: channel` |
 | Todo | `capture.py`, `process_clips.py`, `audio.py`, `render.py --still 2` sin errores |

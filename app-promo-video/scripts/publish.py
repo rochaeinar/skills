@@ -1,7 +1,8 @@
 """Publishing a promo video on YouTube: everything for the upload, and the upload itself.
 
     python publish.py prepare <video.json> --locale en-US --format horizontal [--variant A]
-    python publish.py auth    <client_secret.json> [--no-browser] [--profile name]   once per account
+    python publish.py auth    [<client_secret.json>] [--no-browser] [--profile name]   once per account
+    python publish.py check   [--profile name]   is the stored authorization still valid? (no upload)
     python publish.py upload  <video.json> --locale en-US --format horizontal [--variant A] [--privacy unlisted] [--profile name]
 
 prepare writes upload/<name>/ next to video.json, enough to upload by hand in YouTube Studio:
@@ -22,6 +23,7 @@ Google Cloud project per account and a profile name for each, whose credentials 
 --profile; without a profile, the plain names below:
     PromoVideo-YouTube-Client   user = OAuth client id, secret = client secret (Desktop app client)
     PromoVideo-YouTube          user = channel, secret = refresh token (written by "auth")
+"auth" without the JSON reuses the stored client: enough to authorize again when the token expired.
 """
 import argparse
 import base64
@@ -172,11 +174,17 @@ def http_json(method, url, data=None, headers=None, raw=None):
         fail(f"{method} {url.split('?')[0]}: HTTP {e.code} {e.read().decode('utf-8', 'replace')[:800]}")
 
 
-def auth(client_file, open_browser=True, profile=None):
-    """Installed-app OAuth with PKCE on a loopback port; stores the client and the refresh token."""
-    data = json.loads(Path(client_file).read_text(encoding="utf-8"))
-    c = data.get("installed") or fail("The JSON must be an OAuth client of type 'Desktop app'.")
-    save_credential(profiled(CLIENT, profile), c["client_id"], c["client_secret"])
+def auth(client_file=None, open_browser=True, profile=None):
+    """Installed-app OAuth with PKCE on a loopback port; stores the client and the refresh token.
+    Without client_file, the client already stored for the profile is used (re-authorizing)."""
+    if client_file:
+        data = json.loads(Path(client_file).read_text(encoding="utf-8"))
+        c = data.get("installed") or fail("The JSON must be an OAuth client of type 'Desktop app'.")
+        save_credential(profiled(CLIENT, profile), c["client_id"], c["client_secret"])
+    else:
+        client_id = credential_user(profiled(CLIENT, profile)) or fail(
+            "No stored OAuth client for this profile: pass the client_secret.json downloaded from Google Cloud.")
+        c = {"client_id": client_id, "client_secret": credential(profiled(CLIENT, profile))}
 
     verifier = secrets.token_urlsafe(64)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
@@ -230,10 +238,27 @@ def access_token(profile=None):
     client_id = credential_user(client) or fail(
         f"No YouTube credentials for this profile: run 'publish.py auth <client_secret.json>{hint}' first.")
     refresh = credential(tok)
-    token, _ = http_json("POST", "https://oauth2.googleapis.com/token", {
-        "client_id": client_id, "client_secret": credential(client), "refresh_token": refresh,
-        "grant_type": "refresh_token"})
+    try:
+        token, _ = http_json("POST", "https://oauth2.googleapis.com/token", {
+            "client_id": client_id, "client_secret": credential(client), "refresh_token": refresh,
+            "grant_type": "refresh_token"})
+    except SystemExit:
+        hint = f" --profile {profile}" if profile else ""
+        fail("Could not refresh the YouTube token (error above). With invalid_grant the authorization expired"
+             " (app in Testing: 7 days) or was revoked; authorize again with"
+             f" 'publish.py auth --no-browser{hint}' (SETUP.md 6.3).")
     return token["access_token"]
+
+
+def check(profile=None):
+    """Refreshes the token and reads the channel: the authorization works, nothing is uploaded."""
+    channel = credential_user(profiled(TOKEN, profile))
+    print(f"YouTube profile: {profile or '(default)'}, stored channel: {channel}")
+    me, _ = http_json("GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet,status&mine=true",
+                      headers={"Authorization": f"Bearer {access_token(profile)}"})
+    for item in me.get("items", []):
+        print(f"OK: channel '{item['snippet']['title']}' ({item['id']}),"
+              f" long uploads {item.get('status', {}).get('longUploadsStatus')}")
 
 
 # --- upload ---------------------------------------------------------------------------------------
@@ -318,10 +343,16 @@ def main():
         if cmd == "upload":
             p.add_argument("--privacy", default="unlisted", choices=["private", "unlisted", "public"])
     a = sub.add_parser("auth")
-    a.add_argument("client_secret")
+    a.add_argument("client_secret", nargs="?", default=None,
+                   help="OAuth client JSON (Desktop app); omit it to reuse the stored client")
     a.add_argument("--no-browser", action="store_true", help="Only print the link (to open it in a chosen browser)")
     a.add_argument("--profile", default=None, help="Account profile these credentials belong to")
+    c = sub.add_parser("check")
+    c.add_argument("--profile", default=None, help="Account profile to check")
     args = parser.parse_args()
+    if args.command == "check":
+        check(args.profile)
+        return
     if args.command == "auth":
         auth(args.client_secret, not args.no_browser, args.profile)
         return
