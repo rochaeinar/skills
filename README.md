@@ -21,7 +21,7 @@ Los cuatro skills bible-* comparten la carpeta de datos `D:\Documents\BibleVersi
 
 1. Copiar cada carpeta de skill a `%USERPROFILE%\.claude\skills\`:
    ```powershell
-   Copy-Item -Recurse D:\Projects\skills\app-promo-video, D:\Projects\skills\play-feature-graphic, D:\Projects\skills\play-console, D:\Projects\skills\android-release, D:\Projects\skills\cloudflare-site, D:\Projects\skills\bible-download, D:\Projects\skills\bible-language-pack, D:\Projects\skills\bible-language-ship, D:\Projects\skills\bible-devotional-translate "$env:USERPROFILE\.claude\skills\"
+   Copy-Item -Recurse D:\Projects\skills\app-promo-video, D:\Projects\skills\play-feature-graphic, D:\Projects\skills\play-console, D:\Projects\skills\android-release, D:\Projects\skills\cloudflare-site, D:\Projects\skills\bible-download, D:\Projects\skills\bible-language-pack, D:\Projects\skills\bible-language-ship, D:\Projects\skills\bible-devotional-translate, D:\Projects\skills\app-screen-design "$env:USERPROFILE\.claude\skills\"
    ```
 2. Seguir el `SETUP.md` de cada skill (herramientas, cuentas y claves). **Las claves nunca están en esta carpeta**: se crean de nuevo en cada PC, en el Administrador de credenciales de Windows.
 3. Abrir una sesión nueva de Claude Code: los skills aparecen en la lista. Para usarlos, pedir por ejemplo "haz un video promocional de mi app" o "genera la imagen destacada de Play".
