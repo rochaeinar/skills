@@ -1,19 +1,19 @@
 <!--
-TEMPLATE · Privacy Policy (English). Read references/app-integration.md first.
-Write the final file at <app>/app/src/main/assets/legal/privacy_en.md.
+TEMPLATE · Privacy Policy (English only, never translated). Read references/app-integration.md first.
+Write the final file at <app>/app/src/main/assets/legal/privacy.md.
 - Every sentence must be TRUE for this app, verified in its code (manifest, Gradle dependencies,
   network calls, storage, backup rules, SDK initialisation). Keep a section only if it applies;
   rewrite it with the app's real features, never copy the example wording blindly.
 - Replace every {{PLACEHOLDER}} and delete every comment like this one.
   `web.py legal <slug>` refuses a document that still has "{{" or "<!--".
-- Same structure and numbering in every language; natural translations, not literal.
+- ENGLISH ONLY: legal documents are never translated, in the app or on the website.
 - Not legal advice: the user reviews the final text.
 -->
 **{{APP}}** · {{DEVELOPER}}  
-*Last updated: {{UPDATED_EN}}*
+*Last updated: {{UPDATED}}*
 
 <!-- One or two sentences: who made the app, what it is for, free or paid, "provided as is". -->
-{{DEVELOPER}} built **{{APP}}** as {{ONE_LINE_PURPOSE_EN}}. The service is provided as is.
+{{DEVELOPER}} built **{{APP}}** as {{ONE_LINE_PURPOSE}}. The service is provided as is.
 
 This policy explains what information the app uses, what for and how it is protected.
 

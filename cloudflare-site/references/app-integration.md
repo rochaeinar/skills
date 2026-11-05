@@ -5,8 +5,10 @@ Cada web de una app cierra el círculo con la app y con Google Play. **No queda 
 | Dónde | Qué tiene que haber |
 |---|---|
 | **App › Acerca de** | Versión, **enlace al sitio** (abre el navegador) y los documentos **Política de privacidad**, **Términos y condiciones** y **Licencias de terceros**, mostrados en Markdown dentro de la app |
-| **App › assets/legal/** | `privacy_<lang>.md`, `terms_<lang>.md`, `licenses_<lang>.md`: la **única fuente** de los textos |
-| **Web** | `/privacy/` (obligatoria para Play) y `/terms/`, copias exactas de los de la app (`web.py legal`) |
+| **App › assets/legal/** | `privacy.md`, `terms.md`, `licenses.md`, **solo en inglés**: la **única fuente** de los textos |
+| **Web** | `/privacy/` (obligatoria para Play) y `/terms/`, copias exactas de los de la app (`web.py legal`), en inglés en todos los idiomas del sitio |
+
+**Regla: los documentos legales van SOLO en inglés, en la app y en la web, y nunca se traducen** (un único texto que vale, sin versiones que puedan contradecirse). Lo que sí se traduce es la interfaz alrededor: las etiquetas de Acerca de ("Política de privacidad"…) y, en la web, el título y el enlace de volver.
 | **Play** | `<carpeta de la app>/play/app-content.md`: la URL de la política de privacidad, el sitio web y las respuestas de "Contenido de la app" |
 
 Orden: análisis (SKILL.md paso 1) → **documentos** → **Acerca de en la app** → web → `web.py legal` → deploy → `web.py legal --check --online`.
@@ -27,7 +29,7 @@ Leer el código, no suponer. Anotar en `content/analysis.md` (sección "Integrac
 
 ## 2. Los documentos (análisis, no copiar y pegar)
 
-Plantillas en `templates/android/legal/` (en y es). Cada sección trae, en un comentario, **qué hay que verificar en el código**. Son documentos importantes: cada afirmación se comprueba, se anota la evidencia en el análisis y el resultado se redacta para esta app. Una sección que no aplica se reescribe o se quita; nunca queda texto de ejemplo.
+Plantillas en `templates/android/legal/` (solo inglés). Cada sección trae, en un comentario, **qué hay que verificar en el código**. Son documentos importantes: cada afirmación se comprueba, se anota la evidencia en el análisis y el resultado se redacta para esta app. Una sección que no aplica se reescribe o se quita; nunca queda texto de ejemplo.
 
 ### Qué revisar para la privacidad y los términos
 | Tema | Dónde mirarlo |
@@ -51,8 +53,7 @@ Plantillas en `templates/android/legal/` (en y es). Cada sección trae, en un co
 5. Sin licencia encontrada, o copyleft (GPL, LGPL, AGPL): avisar al usuario antes de publicar.
 
 ### Formato y archivos
-- `app/src/main/assets/legal/<doc>_<lang>.md`, `<doc>` = `privacy`, `terms`, `licenses`; `<lang>` = etiqueta de Android sin la `r` (`en`, `es`, `pt-BR`, `zh-TW`).
-- **Inglés obligatorio** (respaldo de todo idioma sin archivo) + **cada idioma de la web** + el idioma por defecto de la ficha de Play. Los demás idiomas de la app ven el inglés hasta que se traduzcan.
+- `app/src/main/assets/legal/privacy.md`, `terms.md`, `licenses.md`: **un archivo por documento, en inglés**. Nunca `privacy_es.md` ni otra traducción (`web.py legal` las rechaza); si la app traía traducciones, se borran.
 - Cabecera: `**App** · Desarrollador` + fecha de actualización en cursiva; `---`; secciones `## 1. …` numeradas; tablas para permisos, servicios y licencias; contacto al final con el enlace al sitio.
 - Fecha de actualización: la del día en que cambia el contenido (no la del build).
 - Markdown simple (CommonMark + tablas): lo muestran igual Markwon en la app y Astro en la web. Sin HTML.
@@ -73,7 +74,7 @@ Plantillas en `templates/android/legal/` (en y es). Cada sección trae, en un co
 ### Plantillas (`templates/android/`)
 | Archivo | Para | Qué es |
 |---|---|---|
-| `common/LegalDocs.kt` | todas | Elige `assets/legal/<doc>_<lang>.md` según el idioma **en que se muestra la app** (configuración de la actividad: sigue al idioma por app), con respaldo al inglés |
+| `common/LegalDocs.kt` | todas | La ruta `assets/legal/<doc>.md` de cada documento (inglés, sin elegir idioma) y su lectura segura |
 | `common/MarkdownRenderer.kt` | todas | Markwon con tablas, tachado y enlaces automáticos; colores del tema |
 | `compose/AboutDocuments.kt` | Compose | `AboutScreen` completa, o sus piezas `WebsiteLink` y `LegalDocumentsCard` para un Acerca de existente, y `MarkdownDocumentScreen` |
 | `views/AboutActivity.kt`, `MarkdownActivity.kt`, `MaxWidthLinearLayout.kt`, `views/res/layout/*` | Views | Las dos pantallas como Activities (pasarlas a Fragments si la app navega con Fragments) |
@@ -89,11 +90,11 @@ Pasos:
 5. Las pantallas nuevas también entran en los flujos de prueba de la app: si tiene Maestro, un flujo de humo "Acerca de → cada documento se abre → atrás"; si tiene tests de UI, lo mismo.
 
 ### Comprobar en el dispositivo
-`./gradlew installDebug` (o la variante que use la app) y en el teléfono o el emulador: Acerca de en claro y oscuro, el enlace abre el sitio, cada documento se abre con sus tablas y enlaces, en inglés, en español y en un idioma sin documento (muestra el inglés), en horizontal y con letra grande. Revisar las capturas con Read. Release: `assembleRelease` sin errores de R8.
+`./gradlew installDebug` (o la variante que use la app) y en el teléfono o el emulador: Acerca de en claro y oscuro, el enlace abre el sitio, cada documento se abre con sus tablas y enlaces (en inglés aunque la app esté en otro idioma), en horizontal y con letra grande. Revisar las capturas con Read. Release: `assembleRelease` sin errores de R8.
 
 ## 4. Web y Play
 
-- `web.py legal <slug>` copia `privacy` y `terms` de la app a `src/legal/<doc>.<lang>.md` (los idiomas de la web, con respaldo al inglés), quita las plantillas que quedaron sin usar (p. ej. créditos de imágenes si la app no tiene), comprueba que la app enlace el dominio (`about_web_url`, `privacy_policy_url`) y que use los documentos, y crea o actualiza `play/app-content.md` con los enlaces. Las respuestas de "Seguridad de los datos" las completa Claude desde el análisis.
+- `web.py legal <slug>` copia `privacy.md` y `terms.md` de la app a `src/legal/<doc>.md` (la misma página en inglés, marcada `lang="en"`, para todos los idiomas del sitio), quita las plantillas y las copias por idioma que quedaron sin usar (p. ej. créditos de imágenes si la app no tiene), comprueba que la app enlace el dominio (`about_web_url`, `privacy_policy_url`) y que use los documentos, y crea o actualiza `play/app-content.md` con los enlaces. Las respuestas de "Seguridad de los datos" las completa Claude desde el análisis.
 - La carpeta de Play: `site.json › play_dir` (la pone `new`: la registrada por `play-console` para el paquete, o `<carpeta de la app>/play`).
 - Después del deploy de producción y del dominio: `web.py legal <slug> --check --online` (la URL de privacidad responde 200 con el texto de la app).
 - Cada cambio de un documento: editar el de la app → `web.py legal` → `build` → `deploy`; y una versión nueva de la app (`android-release`).

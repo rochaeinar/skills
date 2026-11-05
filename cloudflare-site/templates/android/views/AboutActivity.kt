@@ -44,7 +44,7 @@ class AboutActivity : AppCompatActivity() {
         row.findViewById<ImageView>(R.id.rowIcon).setImageResource(icon)
         row.findViewById<TextView>(R.id.rowTitle).setText(title)
         row.setOnClickListener {
-            startActivity(MarkdownActivity.intent(this, getString(title), LegalDocs.assetPath(this, doc)))
+            startActivity(MarkdownActivity.intent(this, getString(title), LegalDocs.assetPath(doc)))
         }
     }
 

@@ -1,8 +1,9 @@
 ---
-// Privacy and terms: the same Markdown the app ships in assets/legal/<doc>_<lang>.md, copied here as
-// src/legal/<doc>.<lang>.md by `web.py legal` (never edited here: change the app's file and run it
-// again). Image credits, if the app has them, the same way. A language without its own copy shows
-// the site's default language, then English.
+// Privacy and terms: the same Markdown the app ships in assets/legal/<doc>.md, copied here as
+// src/legal/<doc>.md by `web.py legal` (never edited here: change the app's file and run it again).
+// Legal documents are ENGLISH ONLY (never translated): every site language shows the same English
+// text, marked lang="en"; only the page chrome (title, back link) follows the site language.
+// Image credits, if the app has them, the same way.
 import Layout from "./Layout.astro";
 import { t, localePath, site } from "../i18n";
 
@@ -11,7 +12,7 @@ interface Props { lang: string; doc: Doc }
 const { lang, doc } = Astro.props;
 const tx = t(lang);
 const files = import.meta.glob<{ Content: any }>("../legal/*.md", { eager: true });
-const file = files[`../legal/${doc}.${lang}.md`] ?? files[`../legal/${doc}.${site.default_locale}.md`] ?? files[`../legal/${doc}.en.md`];
+const file = files[`../legal/${doc}.md`];
 const { Content } = file;
 const meta = tx.legal[doc];
 ---
@@ -19,15 +20,18 @@ const meta = tx.legal[doc];
   <article class="wrap legal">
     <a class="back" href={localePath(lang)}>← {tx.legal.back}</a>
     <h1 class="display">{meta.title}</h1>
-    <div class="prose"><Content /></div>
+    {!lang.startsWith("en") && <p class="english">{tx.legal.english}</p>}
+    <div class="prose" lang="en"><Content /></div>
   </article>
 </Layout>
 <style>
   .legal { max-width: 780px; padding-top: 56px; }
   .back { font-size: 14px; text-decoration: none; color: var(--muted); }
   h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); margin: 20px 0 8px; }
+  .english { margin: 0 0 28px; padding: 12px 16px; border-radius: 12px; background: var(--surface); color: var(--muted); font-size: 15px; }
   .prose { font-size: 17px; line-height: 1.7; color: var(--body); }
   .prose :global(h2) { font-family: var(--serif); font-weight: 500; font-size: 1.6rem; color: var(--text); margin: 2.2em 0 .5em; }
+  .prose :global(p), .prose :global(ul), .prose :global(ol) { margin: 0 0 1em; }
   .prose :global(hr) { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
   .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 15px; display: block; overflow-x: auto; }
   .prose :global(th), .prose :global(td) { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }

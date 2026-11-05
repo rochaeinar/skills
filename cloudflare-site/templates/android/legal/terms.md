@@ -1,13 +1,14 @@
 <!--
-TEMPLATE · Terms and Conditions (English). Read references/app-integration.md first.
-Final file: <app>/app/src/main/assets/legal/terms_en.md.
+TEMPLATE · Terms and Conditions (English only, never translated). Read references/app-integration.md first.
+Final file: <app>/app/src/main/assets/legal/terms.md.
 - Adapt every section to what the app really does and how it is distributed (free, ads, in-app
   purchases, subscriptions, accounts, user content, content licensed from others).
 - Keep it consistent with the Privacy Policy (same age, same statements about data and ads).
+- ENGLISH ONLY: legal documents are never translated, in the app or on the website.
 - Replace every {{PLACEHOLDER}} and delete every comment. Not legal advice: the user reviews it.
 -->
 **{{APP}}** · {{DEVELOPER}}  
-*Last updated: {{UPDATED_EN}}*
+*Last updated: {{UPDATED}}*
 
 By downloading, accessing or using **{{APP}}**, you agree to these terms. If you don't agree with any part of them, don't use the app.
 

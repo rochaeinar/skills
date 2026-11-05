@@ -1,6 +1,6 @@
 <!--
-TEMPLATE · Third-party (open-source) licenses (English). Read references/app-integration.md first.
-Final file: <app>/app/src/main/assets/legal/licenses_en.md.
+TEMPLATE · Third-party (open-source) licenses (English only, never translated). Read references/app-integration.md first.
+Final file: <app>/app/src/main/assets/legal/licenses.md.
 - Source of truth: `web.py licenses <slug>` (content/licenses-inventory.md): every artifact on the
   RELEASE runtime classpath with the license declared in its POM. Add what Gradle does not see:
   local modules/AARs, fonts in res/font or assets (OFL…), icon sets, sounds, images, data files.
@@ -13,6 +13,7 @@ Final file: <app>/app/src/main/assets/legal/licenses_en.md.
   copyright line and link the OFL 1.1 text.
 - A component with no license found, or a copyleft license (GPL/LGPL/AGPL), is reported to the
   user before publishing: it may be incompatible with the app's distribution.
+- ENGLISH ONLY: legal documents are never translated, in the app or on the website.
 - Replace every {{PLACEHOLDER}} and delete every comment.
 -->
 **{{APP}}** uses open-source components and resources from third parties. Thanks to their authors and communities.

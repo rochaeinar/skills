@@ -154,7 +154,6 @@ fun WebsiteLink(modifier: Modifier = Modifier) {
 /** "Legal & information": privacy policy, terms, third-party licenses (+ app-specific documents). */
 @Composable
 fun LegalDocumentsCard(onOpenDocument: (title: String, assetPath: String) -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     val rows = listOf(
         Triple(R.drawable.ic_about_privacy, R.string.about_privacy, LegalDocs.Doc.PRIVACY),
         Triple(R.drawable.ic_about_terms, R.string.about_terms, LegalDocs.Doc.TERMS),
@@ -175,7 +174,7 @@ fun LegalDocumentsCard(onOpenDocument: (title: String, assetPath: String) -> Uni
                 rows.forEachIndexed { index, (icon, title, doc) ->
                     if (index > 0) HorizontalDivider(Modifier.padding(start = 66.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     val label = stringResource(title)
-                    DocumentRow(icon, label) { onOpenDocument(label, LegalDocs.assetPath(context, doc)) }
+                    DocumentRow(icon, label) { onOpenDocument(label, LegalDocs.assetPath(doc)) }
                 }
             }
         }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- About and its documents (English, the default). Every language of the app gets these labels
-     translated (values-xx/about_strings.xml or the app's strings.xml); the documents themselves fall
-     back to English when assets/legal has no file for that language (LegalDocs). -->
+     translated (values-xx/about_strings.xml or the app's strings.xml). The documents themselves
+     (assets/legal/*.md) are in English only and are never translated. -->
 <resources>
     <string name="about_title">About</string>
     <!-- %1$s versionName, %2$d versionCode -->
