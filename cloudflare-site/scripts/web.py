@@ -8,6 +8,8 @@
     python web.py assets <slug>                        inventory of the external images/videos folder
     python web.py import <slug> <file>... [--to screens] [--name x]   copy into the site (videos are compressed)
     python web.py capture <slug> shot <name> | record <name> [--seconds 20]   from the connected phone
+    python web.py licenses <slug> [--module app]        open-source inventory of the app's release dependencies
+    python web.py legal <slug> [--check] [--online]    app documents -> website, app links to the site, Play links file
     python web.py build <slug> | --all                 npm build + checks (sizes, SEO tags, links, alt texts)
     python web.py qa <slug> [--lighthouse]             screenshots desktop/phone of every page (+ Lighthouse)
     python web.py preview <slug>                       local server of the built site
@@ -217,7 +219,7 @@ def cmd_auth(args):
         save_token(args.profile, account, token)
         root = repo(args.repo)
         data = accounts(root)
-        data[args.profile] = {"account_id": account, "zones": zones}
+        data.setdefault(args.profile, {}).update({"account_id": account, "zones": zones})  # keeps "developer"
         (root / "accounts.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         print(f"\nOK: saved as {CRED.format(args.profile)}. Zones the token sees: {', '.join(zones) or 'none'}")
         input("Enter to close this window.")
@@ -246,10 +248,316 @@ def cmd_new(args):
     cfg["play"]["package"] = args.package or ""
     cfg["app_project"] = args.app_project or ""
     cfg["assets_dir"] = args.assets or ""
+    cfg["play_dir"] = args.play_dir or default_play_dir(cfg)
     (folder / "site.json").write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     pkg = folder / "package.json"
     pkg.write_text(pkg.read_text(encoding="utf-8").replace("__SLUG__", slug), encoding="utf-8")
     print(f"OK: sites/{slug}. Next: npm install (in {root}), then the analysis (SKILL.md step 1)")
+
+
+# --- the app and its website: documents, About, Google Play (references/app-integration.md) -------
+
+PLAY_APPS = SKILL.parent / "play-console" / "apps.json"  # play-console: package -> its play folder
+WEB_DOCS = ("privacy", "terms")  # published on the website; licenses stay in the app
+APP_DOCS = ("privacy", "terms", "licenses")
+LINKS_START, LINKS_END = "<!-- web.py:links -->", "<!-- /web.py:links -->"
+
+
+def default_play_dir(cfg):
+    package = cfg.get("play", {}).get("package")
+    if package and PLAY_APPS.exists():
+        known = json.loads(PLAY_APPS.read_text(encoding="utf-8")).get(package)
+        if known:
+            return Path(known).as_posix()
+    assets = cfg.get("assets_dir")
+    return (Path(assets).parent / "play").as_posix() if assets else ""
+
+
+def app_module(cfg, module):
+    project = cfg.get("app_project") or fail("site.json has no app_project (the Android project folder)")
+    folder = Path(project) / module
+    if not folder.is_dir():
+        fail(f"No module '{module}' in {project} (--module)")
+    return Path(project), folder
+
+
+def page_url(cfg, lang, path):
+    prefix = "" if lang == cfg["default_locale"] else f"/{lang}"
+    return f"https://{cfg['domain']}{prefix}{path}"
+
+
+def unfinished(text):
+    """Template leftovers in a document: placeholders, guidance comments, TODO."""
+    return [m for m in ("{{", "<!--", "TODO") if m in text]
+
+
+POM_REPOS = ("https://dl.google.com/dl/android/maven2", "https://repo1.maven.org/maven2")
+_pom_cache = {}
+
+
+def pom_text(cache, group, artifact, version):
+    """The POM from Gradle's cache; Gradle skips it when the artifact has module metadata (.module),
+    so then from Google Maven or Maven Central (public, read only)."""
+    key = (group, artifact, version)
+    if key in _pom_cache:
+        return _pom_cache[key]
+    text = None
+    local = sorted((cache / group / artifact / version).glob("*/*.pom"))
+    if local:
+        text = local[0].read_text(encoding="utf-8", errors="replace")
+    else:
+        for base in POM_REPOS:
+            url = f"{base}/{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}.pom"
+            try:
+                with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "cloudflare-site-licenses"}), timeout=20) as r:
+                    text = r.read().decode("utf-8", "replace")
+                break
+            except Exception:  # noqa: BLE001 - not in this repository: try the next one
+                continue
+    _pom_cache[key] = text
+    return text
+
+
+def pom_licenses(cache, group, artifact, version, depth=0):
+    """Licenses declared in a Maven POM, following <parent> POMs (AndroidX, Google and Square declare
+    them there). Returns [(name, url)] or []."""
+    import xml.etree.ElementTree as ET
+    text = pom_text(cache, group, artifact, version) if version and depth <= 6 else None
+    if not text:
+        return []
+    try:
+        tree = ET.fromstring(text)
+    except ET.ParseError:
+        return []
+    for el in tree.iter():  # drop the Maven namespace
+        el.tag = el.tag.split("}")[-1]
+    found = [((l.findtext("name") or "").strip(), (l.findtext("url") or "").strip()) for l in tree.findall("./licenses/license")]
+    if found:
+        return found
+    parent = tree.find("./parent")
+    if parent is not None:
+        return pom_licenses(cache, parent.findtext("groupId"), parent.findtext("artifactId"), parent.findtext("version"), depth + 1)
+    return []
+
+
+def license_family(name, url):
+    s = f"{name} {url}".lower()
+    for family, keys in (("Apache 2.0", ("apache",)), ("MIT", ("mit license", "opensource.org/licenses/mit", " mit")),
+                         ("BSD 3-Clause", ("bsd-3", "bsd 3", "new bsd", "revised bsd")), ("BSD 2-Clause", ("bsd-2", "bsd 2", "simplified bsd")),
+                         ("BSD", ("bsd",)), ("ISC", ("isc",)), ("EPL", ("eclipse public",)), ("MPL 2.0", ("mozilla",)),
+                         ("LGPL", ("lgpl", "lesser general")), ("GPL", ("gpl", "general public")), ("CC0", ("cc0",)),
+                         ("Unicode", ("unicode",)), ("OFL", ("open font", "ofl"))):
+        if any(k in s for k in keys):
+            return family
+    return name or "?"
+
+
+def cmd_licenses(args):
+    """Every artifact on the app's release runtime classpath with the license its POM declares, plus
+    what Gradle does not see (local modules, jars/aars in libs/, fonts) -> content/licenses-inventory.md.
+    It is the evidence for assets/legal/licenses_<lang>.md, written by hand from it."""
+    root = repo(args.repo)
+    cfg = site(root, args.slug)
+    project, module = app_module(cfg, args.module)
+    wrapper = project / ("gradlew.bat" if os.name == "nt" else "gradlew")
+    if not wrapper.exists():
+        fail(f"No Gradle wrapper in {project}")
+    print(f"> gradle :{args.module}:dependencies --configuration {args.configuration}", flush=True)
+    out = run([str(wrapper), f":{args.module}:dependencies", "--configuration", args.configuration, "-q"],
+              cwd=project, capture=True).stdout
+    line_re = re.compile(r"--- (project \S+|[\w.\-]+:[\w.\-]+(?::[^\s]+)?)(?: -> ([^\s]+))?(?: \(([*cn])\))?\s*$")
+    artifacts, modules = {}, set()
+    for line in out.splitlines():
+        m = line_re.search(line)
+        if not m or m.group(3) in ("c", "n"):  # constraints and unresolved entries do not ship
+            continue
+        coord, arrow = m.group(1), m.group(2)
+        if coord.startswith("project "):
+            modules.add(coord.split(" ", 1)[1])
+            continue
+        parts = coord.split(":")
+        version = arrow or (parts[2] if len(parts) > 2 else None)
+        if parts[1].endswith("-bom") or not version:
+            continue
+        artifacts[(parts[0], parts[1])] = version
+    if not artifacts:
+        fail(f"Gradle listed no dependencies for {args.configuration}: check the module and the configuration name")
+    cache = Path(os.environ.get("GRADLE_USER_HOME", Path.home() / ".gradle")) / "caches" / "modules-2" / "files-2.1"
+    rows, unknown = [], []
+    for (group, artifact), version in sorted(artifacts.items()):
+        lic = pom_licenses(cache, group, artifact, version)
+        family = ", ".join(sorted({license_family(n, u) for n, u in lic})) if lic else "?"
+        urls = " ".join(sorted({u for _, u in lic if u}))
+        rows.append((family, group, artifact, version, urls))
+        if family == "?":
+            unknown.append(f"{group}:{artifact}:{version}")
+    extra = []
+    for folder, kinds in ((module / "libs", (".jar", ".aar")), (module / "src/main/res/font", (".ttf", ".otf", ".xml")),
+                          (module / "src/main/assets/fonts", (".ttf", ".otf"))):
+        if folder.is_dir():
+            extra += [f"`{p.relative_to(project).as_posix()}`" for p in sorted(folder.iterdir()) if p.suffix.lower() in kinds]
+    by_family = {}
+    for row in rows:
+        by_family.setdefault(row[0], []).append(row)
+    md = [f"# Open-source inventory — {cfg['name']}", "",
+          f"`{args.module}` · `{args.configuration}` (what ships in the release). Generated by `web.py licenses`; "
+          "the evidence for `assets/legal/licenses_<lang>.md` (references/app-integration.md §2). Not published.", "",
+          "| License | Components |", "| --- | --- |"]
+    md += [f"| {fam} | {len(items)} |" for fam, items in sorted(by_family.items(), key=lambda kv: -len(kv[1]))]
+    for fam, items in sorted(by_family.items(), key=lambda kv: -len(kv[1])):
+        md += ["", f"## {fam}", "", "| Component | Version | License URL |", "| --- | --- | --- |"]
+        md += [f"| `{g}:{a}` | {v} | {u} |" for _, g, a, v, u in items]
+    md += ["", "## Not seen by Gradle: check each one by hand", ""]
+    md += [f"- Local module `{m}`: its own license (its LICENSE file or the author's)" for m in sorted(modules)] or []
+    md += [f"- {e}" for e in extra]
+    if not modules and not extra:
+        md.append("- (nothing)")
+    if unknown:
+        md += ["", "## No license in the POM", "", "Find it in the project's repository (LICENSE file) before writing the document:", ""]
+        md += [f"- `{u}`" for u in unknown]
+    target = cfg["_dir"] / "content" / "licenses-inventory.md"
+    target.write_text("\n".join(md) + "\n", encoding="utf-8")
+    print(f"  {len(rows)} components: " + ", ".join(f"{f} {len(i)}" for f, i in sorted(by_family.items(), key=lambda kv: -len(kv[1]))))
+    copyleft = [r for r in rows if r[0] in ("GPL", "LGPL")]
+    for r in copyleft:
+        print(f"  WARNING copyleft: {r[1]}:{r[2]} ({r[0]}) — tell the user before publishing")
+    if unknown:
+        print(f"  WARNING {len(unknown)} without a license in the POM (listed in the inventory)")
+    print(f"OK: {target.relative_to(root)}. Next: write assets/legal/licenses_<lang>.md from it")
+
+
+def play_links_block(cfg):
+    rows = [("Política de privacidad (Contenido de la app › Política de privacidad)", page_url(cfg, cfg["default_locale"], "/privacy/")),
+            ("Sitio web (Ficha de Play Store › Detalles de contacto)", f"https://{cfg['domain']}/"),
+            ("Términos y condiciones", page_url(cfg, cfg["default_locale"], "/terms/"))]
+    for lang in cfg["locales"]:
+        if lang != cfg["default_locale"]:
+            rows.append((f"Política de privacidad en {lang}", page_url(cfg, lang, "/privacy/")))
+    return "\n".join([LINKS_START, "| Campo de Play Console | Valor |", "| --- | --- |"]
+                     + [f"| {k} | {v} |" for k, v in rows] + [LINKS_END])
+
+
+def cmd_legal(args):
+    """The app's documents (assets/legal/<doc>_<lang>.md) are the single source: privacy and terms are
+    copied to the website; the app must link the site and show the documents; the Play folder gets the
+    links (app-content.md). --check verifies without writing; --online fetches the live privacy page."""
+    root = repo(args.repo)
+    cfg = site(root, args.slug)
+    project, module = app_module(cfg, args.module)
+    src = module / "src" / "main" / "assets" / "legal"
+    problems, done, notes = [], [], []
+
+    # 1. The documents in the app: English (every language's fallback) and the site's default language
+    default = cfg["default_locale"]
+    for doc in APP_DOCS:
+        if not (src / f"{doc}_en.md").exists():
+            problems.append(f"app: no assets/legal/{doc}_en.md (English is every language's fallback)")
+    for doc in WEB_DOCS:
+        if not (src / f"{doc}_{default}.md").exists():
+            problems.append(f"app: no assets/legal/{doc}_{default}.md (the website's default language)")
+    fallback_langs = [l for l in cfg["locales"] if l not in (default, "en") and not (src / f"privacy_{l}.md").exists()]
+    if fallback_langs:
+        notes.append(f"{len(fallback_langs)} site languages show the {default} documents ({', '.join(fallback_langs[:12])}"
+                     f"{'…' if len(fallback_langs) > 12 else ''}): translate them in the app when it matters")
+    clean = {}
+    for f in sorted(src.glob("*.md")) if src.is_dir() else []:
+        left = unfinished(f.read_text(encoding="utf-8"))
+        if left:
+            problems.append(f"app: {f.name} still has template leftovers ({', '.join(left)})")
+        else:
+            clean[f.stem] = f
+
+    # 2. Website: copy privacy/terms for every language the app has them in (the default language
+    #    always: from English if needed); other languages fall back to it in Legal.astro
+    legal_dir = cfg["_dir"] / "src" / "legal"
+    for lang in cfg["locales"]:
+        for doc in WEB_DOCS:
+            source = clean.get(f"{doc}_{lang}") or (clean.get(f"{doc}_en") if lang == default else None)
+            target = legal_dir / f"{doc}.{lang}.md"
+            if not source:
+                if lang == default or (target.exists() and unfinished(target.read_text(encoding="utf-8"))):
+                    problems.append(f"web: {target.relative_to(root).as_posix()} is not the app's document yet")
+                continue
+            text = source.read_text(encoding="utf-8")
+            if target.exists() and target.read_text(encoding="utf-8") == text:
+                continue
+            if args.check:
+                problems.append(f"web: {target.relative_to(root).as_posix()} differs from the app's {source.name}")
+            else:
+                target.write_text(text, encoding="utf-8")
+                done.append(f"web: {target.relative_to(root).as_posix()} <- {source.name}")
+    if not args.check:  # template documents the site does not use (another language, no image credits)
+        for f in sorted(legal_dir.glob("*.md")):
+            if f.read_text(encoding="utf-8").startswith("TODO: copy the app's own"):
+                f.unlink()
+                done.append(f"web: removed unused template {f.relative_to(root).as_posix()}")
+        if not list(legal_dir.glob("credits.*.md")):
+            for page in (cfg["_dir"] / "src/pages/credits.astro", cfg["_dir"] / "src/pages/[lang]/credits.astro"):
+                if page.exists():
+                    page.unlink()
+                    done.append(f"web: removed {page.relative_to(root).as_posix()} (the app has no image credits; drop its links)")
+
+    # 3. The app links the website and shows the documents
+    strings = " ".join(p.read_text(encoding="utf-8", errors="replace") for p in (module / "src/main/res").glob("values*/*.xml"))
+    if f"https://{cfg['domain']}" not in strings:
+        problems.append(f"app: no string with https://{cfg['domain']} (About › website: about_web_url)")
+    if not re.search(rf"https://{re.escape(cfg['domain'])}(/[a-z\-]+)?/privacy", strings):
+        problems.append(f"app: no string with the privacy URL https://{cfg['domain']}/privacy/ (privacy_policy_url)")
+    code = " ".join(p.read_text(encoding="utf-8", errors="replace") for p in (module / "src/main").rglob("*")
+                    if p.suffix in (".kt", ".java")) + strings
+    for doc in APP_DOCS:  # LegalDocs.Doc.PRIVACY (templates) or an asset path "legal/privacy_…"
+        if not re.search(rf"Doc\.{doc.upper()}\b|legal/{doc}", code):
+            problems.append(f"app: nothing opens the {doc} document (About › documents: LegalDocs.Doc.{doc.upper()})")
+
+    # 4. Google Play: the links (and the app-content declarations to complete from the analysis)
+    pdir = Path(cfg.get("play_dir") or default_play_dir(cfg) or fail("site.json has no play_dir"))
+    play_file = pdir / "app-content.md"
+    block = play_links_block(cfg)
+    if play_file.exists():
+        text = play_file.read_text(encoding="utf-8")
+    else:
+        text = (TEMPLATES / "play" / "app-content.md").read_text(encoding="utf-8")
+        text = text.replace("{{APP}}", cfg["name"]).replace("{{SLUG}}", cfg["slug"])
+    if LINKS_START in text and LINKS_END in text:
+        new = re.sub(re.escape(LINKS_START) + r".*?" + re.escape(LINKS_END), lambda _: block, text, flags=re.S)
+    else:
+        new = text.rstrip() + "\n\n## Enlaces\n\n" + block + "\n"
+    if new != text or not play_file.exists():
+        if args.check:
+            problems.append(f"play: {play_file} does not have the current links (run without --check)")
+        else:
+            pdir.mkdir(parents=True, exist_ok=True)
+            play_file.write_text(new, encoding="utf-8")
+            done.append(f"play: {play_file} (links)")
+    left = [l.strip() for l in new.splitlines() if "{{" in l]
+    if left:
+        problems.append(f"play: {play_file.name} has {len(left)} answers to complete from the analysis ({{{{…}}}})")
+
+    # 5. Live page
+    if args.online:
+        url = page_url(cfg, cfg["default_locale"], "/privacy/")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "cloudflare-site-check"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                html = r.read().decode("utf-8", "replace")
+            first = clean.get(f"privacy_{cfg['default_locale']}") or clean.get("privacy_en")
+            heading = next((l[3:].strip() for l in first.read_text(encoding="utf-8").splitlines() if l.startswith("## ")), "") if first else ""
+            if heading and heading.split(". ", 1)[-1] not in html:
+                problems.append(f"online: {url} does not show the app's current policy (deploy again)")
+            else:
+                done.append(f"online: {url} OK")
+        except Exception as e:  # noqa: BLE001 - report any network/HTTP error as a problem
+            problems.append(f"online: {url} -> {e}")
+
+    for d in done:
+        print(f"  {d}")
+    for n in notes:
+        print(f"  NOTE {n}")
+    for p in problems:
+        print(f"  PROBLEM {p}")
+    if problems:
+        fail(f"{len(problems)} things left to integrate the app and its website (references/app-integration.md)")
+    print("OK: app documents, website and Play links are consistent")
 
 
 # --- assets ----------------------------------------------------------------------------------------
@@ -401,6 +709,8 @@ def check_dist(dist, cfg):
         visible = re.sub(r"<(script|style)\b.*?</\1>", "", html, flags=re.S)
         if "TODO" in visible:
             problems.append(f"{rel}: placeholder text (TODO) left in the page")
+        if "{{" in visible:
+            problems.append(f"{rel}: template placeholder ({{{{…}}}}) left in the page")
         for img in re.findall(r"<img\b[^>]*>", html):
             if not re.search(r'\salt(=|\s|/?>)', img):  # alt="" may be minified to a bare alt
                 problems.append(f"{rel}: <img> without alt: {img[:90]}")
@@ -681,6 +991,12 @@ def main():
     s = sub.add_parser("auth"); s.add_argument("--profile", required=True); s.add_argument("--store", action="store_true", help=argparse.SUPPRESS)
     s = sub.add_parser("new"); s.add_argument("slug"); s.add_argument("--profile", required=True); s.add_argument("--domain", required=True)
     s.add_argument("--package"); s.add_argument("--name"); s.add_argument("--project"); s.add_argument("--app-project"); s.add_argument("--assets")
+    s.add_argument("--play-dir", help="the app's Google Play folder (default: play-console's, else <app folder>/play)")
+    s = sub.add_parser("licenses"); s.add_argument("slug"); s.add_argument("--module", default="app")
+    s.add_argument("--configuration", default="releaseRuntimeClasspath")
+    s = sub.add_parser("legal"); s.add_argument("slug"); s.add_argument("--module", default="app")
+    s.add_argument("--check", action="store_true", help="only verify, write nothing")
+    s.add_argument("--online", action="store_true", help="also fetch the published privacy page")
     s = sub.add_parser("assets"); s.add_argument("slug"); s.add_argument("--folder")
     s = sub.add_parser("import"); s.add_argument("slug"); s.add_argument("files", nargs="+"); s.add_argument("--to", default="screens"); s.add_argument("--name")
     s.add_argument("--trim", action="store_true", help="phone screenshots: cut the status and navigation bars")

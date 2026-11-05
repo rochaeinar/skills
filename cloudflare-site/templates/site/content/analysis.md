@@ -21,4 +21,10 @@
 ## Recursos existentes
 - Ver `assets-inventory.md`. Faltantes a capturar del teléfono.
 
+## Integración con la app (references/app-integration.md)
+- Pila de interfaz (Compose/Views, Kotlin/Java), navegación, tema e idiomas.
+- Acerca de: ¿existe? ¿dónde se entra? textos legales actuales (diálogos, assets) y qué conservar.
+- Para los documentos: permisos del manifiesto final, red y servidores, SDK de terceros, qué se guarda, respaldo de Android, registros, contenido sensible, edad del público (preguntar), usos que Play vigila. Cada punto con su evidencia.
+- Licencias: `web.py licenses` (`licenses-inventory.md`) + lo que Gradle no ve (módulos locales, fuentes, íconos).
+
 ## Palabras clave (SEO)

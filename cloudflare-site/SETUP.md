@@ -109,6 +109,9 @@ python "$env:USERPROFILE\.claude\skills\cloudflare-site\scripts\web.py" --repo D
 
 Debe aparecer `account cuenta2 <Account ID> token OK zones: otrodominio.com`. Si no aparece el dominio, revisa B2 (zona **Active**) y B4 paso 6.
 
+### B7. El nombre del desarrollador
+Es el que firma los documentos de las apps de esa cuenta ("Desarrollado por…", la política de privacidad, los términos): el mismo nombre de desarrollador de su cuenta de Google Play. Agrégalo en `accounts.json`, dentro del perfil: `"developer": "Mi Estudio"`. `auth` lo conserva si lo vuelves a correr.
+
 Listo: la cuenta está configurada. Para crear sitios en ella, sigue la **Guía C** con `--profile cuenta2`.
 
 ---

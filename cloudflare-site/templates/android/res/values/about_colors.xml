@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- About colors, LIGHT theme (Views apps; Compose apps use their theme tokens instead).
+     Derive every value from the app's own palette (colors.xml / themes / design tokens):
+     accent = the app's primary/brand color; check 4.5:1 contrast for the text colors on
+     about_background and about_card. values-night/about_colors.xml has the dark ones. -->
+<resources>
+    <color name="about_background">{{BACKGROUND_LIGHT}}</color>
+    <color name="about_card">{{SURFACE_LIGHT}}</color>
+    <color name="about_divider">{{OUTLINE_LIGHT}}</color>
+    <!-- accent at ~12 % alpha (#1F + rgb) -->
+    <color name="about_icon_bg">{{ACCENT_12_LIGHT}}</color>
+    <color name="about_accent">{{ACCENT_LIGHT}}</color>
+    <!-- accent at ~45 % alpha (#73 + rgb) -->
+    <color name="about_web_border">{{ACCENT_45_LIGHT}}</color>
+    <color name="about_text_primary">{{ON_SURFACE_LIGHT}}</color>
+    <color name="about_text_body">{{ON_SURFACE_BODY_LIGHT}}</color>
+    <color name="about_text_secondary">{{ON_SURFACE_VARIANT_LIGHT}}</color>
+    <color name="about_text_tertiary">{{ON_SURFACE_TERTIARY_LIGHT}}</color>
+    <color name="about_chevron">{{OUTLINE_STRONG_LIGHT}}</color>
+</resources>

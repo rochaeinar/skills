@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- About: tinted square behind each row icon. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/about_icon_bg" />
+    <corners android:radius="10dp" />
+</shape>

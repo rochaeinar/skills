@@ -12,5 +12,6 @@
   "youtube": {},
   "analytics_token": "",
   "app_project": "",
-  "assets_dir": ""
+  "assets_dir": "",
+  "play_dir": ""
 }

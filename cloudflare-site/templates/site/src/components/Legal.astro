@@ -1,7 +1,8 @@
 ---
-// Privacy, terms and image credits: the same Markdown the app ships (assets/legal/*.md and
-// assets/credits/photo_credits_*.md), copied to src/legal/<doc>.<lang>.md. A language without its
-// own copy shows the English one. Keep them in sync with the app when they change.
+// Privacy and terms: the same Markdown the app ships in assets/legal/<doc>_<lang>.md, copied here as
+// src/legal/<doc>.<lang>.md by `web.py legal` (never edited here: change the app's file and run it
+// again). Image credits, if the app has them, the same way. A language without its own copy shows
+// the site's default language, then English.
 import Layout from "./Layout.astro";
 import { t, localePath, site } from "../i18n";
 
@@ -10,7 +11,7 @@ interface Props { lang: string; doc: Doc }
 const { lang, doc } = Astro.props;
 const tx = t(lang);
 const files = import.meta.glob<{ Content: any }>("../legal/*.md", { eager: true });
-const file = files[`../legal/${doc}.${lang}.md`] ?? files[`../legal/${doc}.en.md`];
+const file = files[`../legal/${doc}.${lang}.md`] ?? files[`../legal/${doc}.${site.default_locale}.md`] ?? files[`../legal/${doc}.en.md`];
 const { Content } = file;
 const meta = tx.legal[doc];
 ---

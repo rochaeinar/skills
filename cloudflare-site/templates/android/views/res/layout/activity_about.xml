@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- About: identity (icon, name, version, website), the documents in one card of rows, and the
+     developer pinned to the bottom. No title bar: the back button floats beside the icon.
+     The content is at most 480 dp wide and centred, so tablets and landscape keep the phone
+     proportions. fillViewport stretches the content on tall screens (developer at the bottom);
+     on short screens and in landscape it keeps its height and scrolls. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/aboutRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/about_background">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <{{PACKAGE}}.about.MaxWidthLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:maxWidth="480dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp">
+
+            <!-- With the Space before the developer, centres identity and documents on tall screens -->
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Identity -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingTop="24dp">
+
+                <!-- The app icon. Use the adaptive icon's foreground on its background, or the
+                     brand logo drawable; animate it only if the app already animates its logo. -->
+                <ImageView
+                    android:layout_width="84dp"
+                    android:layout_height="84dp"
+                    android:contentDescription="@string/app_name"
+                    android:elevation="6dp"
+                    android:src="@mipmap/ic_launcher" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/app_name"
+                    android:textColor="@color/about_text_primary"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/aboutVersion"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/about_text_secondary"
+                    android:textSize="13sp" />
+
+                <!-- Opens the official website (AboutActivity.openWebsite) -->
+                <LinearLayout
+                    android:id="@+id/aboutWeb"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="20dp"
+                    android:background="@drawable/about_web_pill"
+                    android:clickable="true"
+                    android:contentDescription="@string/about_open_website"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="17dp"
+                        android:layout_height="17dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_about_web"
+                        app:tint="@color/about_accent" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="8dp"
+                        android:importantForAccessibility="no"
+                        android:maxLines="1"
+                        android:text="@string/about_web_label"
+                        android:textColor="@color/about_accent"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_about_external"
+                        app:tint="@color/about_accent" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Documents -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:layout_marginBottom="8dp"
+                android:accessibilityHeading="true"
+                android:letterSpacing="0.05"
+                android:paddingHorizontal="8dp"
+                android:text="@string/about_section_documents"
+                android:textAllCaps="true"
+                android:textColor="@color/about_text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/about_card_background"
+                android:orientation="vertical">
+
+                <include
+                    android:id="@+id/aboutPrivacy"
+                    layout="@layout/about_row" />
+
+                <View style="@style/AboutDivider" />
+
+                <include
+                    android:id="@+id/aboutTerms"
+                    layout="@layout/about_row" />
+
+                <View style="@style/AboutDivider" />
+
+                <include
+                    android:id="@+id/aboutLicenses"
+                    layout="@layout/about_row" />
+
+                <!-- More app-specific documents (image credits, content sources…) go here,
+                     each after an AboutDivider, with a row in AboutActivity. -->
+            </LinearLayout>
+
+            <!-- Pushes the developer to the bottom on tall screens -->
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Developer -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_developed_by"
+                    android:textColor="@color/about_text_secondary"
+                    android:textSize="14.5sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/about_copyright"
+                    android:textColor="@color/about_text_tertiary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </{{PACKAGE}}.about.MaxWidthLinearLayout>
+    </ScrollView>
+
+    <!-- Floats over the top-start corner -->
+    <ImageView
+        android:id="@+id/aboutBack"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/about_back"
+        android:padding="12dp"
+        android:src="@drawable/ic_about_back"
+        app:tint="@color/about_text_primary" />
+</FrameLayout>

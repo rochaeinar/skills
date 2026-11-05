@@ -1,1 +1,1 @@
-TODO: copy the app's own privacy document here (es), or write it from the analysis (content/analysis.md, privacy section). The user reviews it: it is not legal advice.
+TODO: copy the app's own privacy document (es) with `web.py legal <slug>` (references/app-integration.md). Never write it here.

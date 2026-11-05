@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_title">Acerca de</string>
+    <string name="about_version">Versión %1$s (%2$d)</string>
+    <string name="about_section_documents">Legal e información</string>
+    <string name="about_privacy">Política de privacidad</string>
+    <string name="about_terms">Términos y condiciones</string>
+    <string name="about_licenses">Licencias de terceros</string>
+    <string name="about_open_website">Abrir el sitio web</string>
+    <string name="about_back">Atrás</string>
+    <string name="about_developed_by">Desarrollado por <b>{{DEVELOPER}}</b></string>
+</resources>

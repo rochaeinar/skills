@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One About document (MarkdownActivity): back button and title, then the Markdown, at most
+     680 dp wide (comfortable line length on tablets). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/markdownRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/about_background"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp">
+
+        <ImageView
+            android:id="@+id/markdownBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/about_back"
+            android:padding="12dp"
+            android:src="@drawable/ic_about_back"
+            app:tint="@color/about_text_primary" />
+
+        <TextView
+            android:id="@+id/markdownTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="16dp"
+            android:layout_weight="1"
+            android:accessibilityHeading="true"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/about_text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <{{PACKAGE}}.about.MaxWidthLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:maxWidth="680dp"
+            android:orientation="vertical">
+
+            <!-- Not selectable: Markwon sets LinkMovementMethod so the links can be tapped. -->
+            <TextView
+                android:id="@+id/markdownBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="4dp"
+                android:paddingHorizontal="20dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="32dp"
+                android:textColor="@color/about_text_body"
+                android:textSize="15sp" />
+        </{{PACKAGE}}.about.MaxWidthLinearLayout>
+    </ScrollView>
+</LinearLayout>

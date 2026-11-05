@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- About: divider between document rows, aligned after the icon tile (16 + 36 + 14 dp). -->
+    <style name="AboutDivider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:layout_marginStart">66dp</item>
+        <item name="android:background">@color/about_divider</item>
+    </style>
+</resources>

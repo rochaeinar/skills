@@ -20,6 +20,8 @@ const { lang, path, title, description, home = false } = Astro.props;
 const tx = t(lang);
 // Share image per language: public/og-<lang>.png, else public/og.png.
 const ogImage = lang !== defaultLocale && existsSync(`public/og-${lang}.png`) ? `/og-${lang}.png` : "/og.png";
+// Image credits only when the app has them (web.py legal removes the page otherwise).
+const hasCredits = Object.keys(import.meta.glob("../legal/credits.*.md")).length > 0;
 const anchor = (id: string) => (home ? `#${id}` : `${localePath(lang)}#${id}`);
 ---
 <!doctype html>
@@ -60,7 +62,7 @@ const anchor = (id: string) => (home ? `#${id}` : `${localePath(lang)}#${id}`);
         <nav aria-label="Legal">
           <a href={localePath(lang, "/privacy/")}>{tx.footer.privacy}</a>
           <a href={localePath(lang, "/terms/")}>{tx.footer.terms}</a>
-          <a href={localePath(lang, "/credits/")}>{tx.footer.credits}</a>
+          {hasCredits && <a href={localePath(lang, "/credits/")}>{tx.footer.credits}</a>}
         </nav>
       </div>
     </footer>

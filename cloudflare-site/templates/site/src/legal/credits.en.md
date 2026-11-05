@@ -1,1 +1,1 @@
-TODO: copy the app's own credits document here (en), or write it from the analysis (content/analysis.md, privacy section). The user reviews it: it is not legal advice.
+TODO: copy the app's own credits document (en) with `web.py legal <slug>` (references/app-integration.md). Never write it here.
