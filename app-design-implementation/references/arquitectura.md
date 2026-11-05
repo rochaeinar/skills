@@ -1,6 +1,6 @@
 # Arquitectura, buenas prácticas y calidad de código
 
-Guía para Android (Kotlin + Compose). Para otro stack, aplicar los mismos principios con sus herramientas. Si el proyecto ya tiene una arquitectura sana, se respeta; si no, se propone el cambio en la fase 2.
+Guía para Android (Kotlin + Compose). En un proyecto solo Java se aplican los mismos principios en Java (ViewModel + `LiveData`/estado inmutable, interfaces para los puertos, sin lógica en las Activities) con su sistema de UI existente. Para otro stack, aplicar los mismos principios con sus herramientas. Si el proyecto ya tiene una arquitectura sana, se respeta; si no, se propone el cambio en la fase 2.
 
 ## Capas (Clean Architecture pragmática, guía oficial de Android)
 
@@ -78,7 +78,7 @@ testing/ (debug) Dobles reales, escenarios, panel de pruebas
 
 ## Idiomas y accesibilidad
 
-- Todos los textos en `strings.xml` (de `design/strings/`), plurales con `pluralStringResource`, formatos con marcadores, nada concatenado.
+- Todos los textos en `strings.xml` (en inglés durante la implementación; las traducciones al final, `idiomas.md`), plurales con `pluralStringResource`, formatos con marcadores, nada concatenado.
 - RTL: `start/end`, íconos direccionales espejados solo donde el diseño lo indica.
 - Fuente al 200 %: nada cortado; alturas mínimas, no fijas, en textos.
 - `contentDescription` y semántica (roles, estados, `liveRegion`) como en las anotaciones del diseño; objetivos táctiles ≥ 48 dp; contraste del diseño.

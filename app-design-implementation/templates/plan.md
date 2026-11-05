@@ -17,12 +17,13 @@
 |---|---|---|---|
 
 ## Orden
-1. Cimientos: tema, componentes, navegación, DI, puertos + dobles + panel de pruebas, migraciones, textos
+1. Cimientos: tema, componentes, navegación, DI, puertos + dobles + panel de pruebas, migraciones, textos en inglés
 2. Flujo principal (núcleo)
 3. Flujos secundarios
 4. Adaptativo (horizontal, tablet)
-5. Idiomas, RTL, accesibilidad
-6. Maestro completo · 7. QA y release
+5. RTL y accesibilidad (con el inglés)
+6. Traducciones a los idiomas del diseño (al final, `references/idiomas.md`)
+7. Maestro completo · 8. QA y release
 
 ## Tests previstos
 | Lógica | Por qué protege algo | Tipo (unit / contrato / migración / humo) |

@@ -23,6 +23,9 @@ Referencias (leer cada una en la fase donde se usa):
 - `references/qa.md`: el rol de QA, la lista de producción y Google Play, formato de bugs. **Fase 6.**
 - `references/librerias-propias.md`: data-access (base de datos), RestLog4Android (logs y sus reglas de seguridad), synchronizer (Drive): cómo se incluyen y se usan. **Fase 0, 2, 3 y toda la implementación.**
 - `references/seguridad.md`: OWASP MASVS aplicado (almacenamiento, logs, cripto, red, plataforma, privacidad) y cómo se verifica. **Fase 3 y 6.**
+- `references/idiomas.md`: los 30 idiomas del diseño con su carpeta `values-`, escritura y lo que hay que probar. **Fase 6.**
+- `references/politicas-google.md`: qué revisar en línea de las políticas de Google Play y de Android, y cómo proponer soluciones. **Fase 1-2 y 6.**
+- `scripts/validar_strings.py`: compara cada `values-*/strings.xml` con el inglés (claves que faltan o sobran, marcadores, plurales, apóstrofos sin escapar). **Fase 6.**
 - `scripts/monkey.py`: monkey testing en paralelo en todos los dispositivos, con resumen de crashes/ANR. **Fase 6.**
 - `templates/`: `preguntas.md`, `plan.md`, `progreso.md`, `qa-informe.md`.
 - `scripts/`: `cobertura_diseno.py` (matriz de pantallas y variantes desde el lienzo), `devices.py` (dispositivos y espera con reintento), `maestro_paralelo.py` (Maestro repartido entre todos los dispositivos).
@@ -47,7 +50,7 @@ Si `impl/` ya existe: leer `progreso.md` y seguir desde ahí sin repetir fases c
 
 ### 0. Entrada y entorno
 - **El diseño**: por defecto `design/` del proyecto (lo que deja el skill `app-screen-design`: `design/canvas/*.dc.html` + `canvas.json`, `pantallas/*.md`, `plan.md`, `decisiones.md`, `entrega.md`, `strings/`). Si pasan un enlace de Claude Design, leerlo con la herramienta Artifact (`read`, archivos `project/canvas.json` y cada `project/*.dc.html`) y guardar una copia en `design/canvas/`. Si no hay diseño, este skill no aplica: sugerir `app-screen-design`.
-- **Plataforma**: Android (Kotlin + Jetpack Compose + Material 3) salvo que el proyecto o el usuario digan otra cosa; respetar el stack existente si ya hay uno. **Si se empieza de cero, siempre Kotlin** (nada de Java nuevo); en un proyecto Java, el código nuevo va en Kotlin y migrar lo existente es pregunta de la fase 2.
+- **Plataforma**: Android (Kotlin + Jetpack Compose + Material 3) salvo que el proyecto o el usuario digan otra cosa; respetar el stack existente si ya hay uno. **Lenguaje**: proyecto nuevo → **Kotlin**; proyecto **solo Java** → se sigue en **Java** (mismo estilo, mismas librerías de UI, sin mezclar Kotlin); proyecto **híbrido** (Java + Kotlin) → el código nuevo en **Kotlin**, sin reescribir el Java existente que no se toca. Detectarlo contando `.java` y `.kt` en `src/main` y mirando los plugins de Gradle.
 - **Librerías propias** (`references/librerias-propias.md`): base de datos con **data-access** (`D:\Projects\Android\data-access`), logs con **RestLog4Android** (`D:\Projects\Android\RestLog4Android`) siguiendo sus reglas de seguridad, y si hay sincronización con Google Drive, **synchronizer** (`D:\Projects\Android\synchronizer`). Otra librería para lo mismo solo si el proyecto ya la usa o el usuario lo decide.
 - **Entorno**: comprobar JDK, Android SDK, Gradle (`./gradlew --version`), `adb`, Maestro (`maestro --version`) y dispositivos con `python scripts/devices.py`. Lo que falte es una pregunta de la fase 2 (instalar Maestro es una acción del usuario o con su permiso).
 - **Rama**: proponer trabajar en una rama (`feature/impl-design`) con commits por pantalla; es pregunta de la fase 2 (nunca commit ni push sin que el usuario lo autorice).
@@ -58,10 +61,12 @@ Si `impl/` ya existe: leer `progreso.md` y seguir desde ahí sin repetir fases c
 3. Leer **todo** el código actual (cada archivo, clase y método): qué existe, qué se reutiliza, qué hay que reescribir. Anotar la deuda técnica que afecta la implementación.
 4. **Brechas**: para cada elemento del diseño, ¿qué hace falta en código (datos, API del sistema, permiso, migración, servicio)? ¿Es factible en la plataforma y con los datos que hay? Lo dudoso va a la fase 2.
 5. **Interfaces externas**: listar todo lo que la app no controla (hardware como Bluetooth/cámara/sensores, otro equipo como una PC o un TV, red/servidores, base de datos con datos reales, tiempo, permisos y diálogos del sistema, notificaciones, servicios de Google). Para cada una, investigar la interfaz real (documentación oficial, especificación, comportamiento observado) y definir su **doble real** (`references/dobles-reales.md`).
-6. Cierre: `impl/analisis.md` completo y `impl/cobertura.md` con todas las filas.
+6. **Restricciones y políticas de Google (investigación en línea, obligatoria)**: con `WebSearch`/`WebFetch` sobre la documentación **vigente** (las políticas cambian varias veces al año), revisar cada función, permiso, API y librería del diseño y del código según `references/politicas-google.md`: políticas de Google Play (permisos restringidos, servicios en primer plano, accesibilidad, datos del usuario, pagos, anuncios, comportamiento engañoso), requisitos técnicos (targetSdk exigido, 16 KB de página, edge-to-edge) y restricciones de Android por versión. Cada riesgo va a `impl/analisis.md` §Políticas con la fuente (URL y fecha de consulta) y a `impl/preguntas.md` con **soluciones propuestas**.
+7. Cierre: `impl/analisis.md` completo y `impl/cobertura.md` con todas las filas.
 
 ### 2. Preguntas (todo se resuelve ANTES de programar)
 1. Escribir `impl/preguntas.md` con `templates/preguntas.md`. Siempre incluir:
+   - Cada **riesgo de política de Google o restricción de implementación** encontrado en la fase 1 paso 6: qué política o restricción, la fuente, qué parte de la app la viola o podría violarla, y 2-3 soluciones concretas (cambiar el permiso o la API, pedir el permiso solo en el momento de uso, declaración en Play Console, quitar o cambiar la función) con la recomendada. Si no se encontró ninguno, decirlo con la lista de lo revisado.
    - Cada elemento del diseño **no factible** o factible solo en parte (con alternativas concretas y la recomendada). Nunca simplificar en silencio.
    - Contradicciones entre el diseño y el código o entre tableros.
    - Arquitectura y librerías: mantener lo existente o migrar (DI, navegación, persistencia); confirmar data-access + RestLog4Android (+ synchronizer si hay Drive) y cómo se incluyen (módulo local, JitPack o submódulo); versión mínima de Android; si se agregan análisis estático, tests de captura u otras prácticas de `references/arquitectura.md` §Extras.
@@ -76,7 +81,7 @@ Si `impl/` ya existe: leer `progreso.md` y seguir desde ahí sin repetir fases c
 
 ### 3. Plan y cimientos
 - `impl/plan.md` (`templates/plan.md`): arquitectura (`references/arquitectura.md`), paquetes/módulos, el mapa pantalla → ViewModel → casos de uso → repositorios → fuentes de datos, los puertos de cada interfaz externa con su adaptador real y su doble, el orden de implementación (cimientos → flujo principal → secundarios → adaptativo → idiomas) y la lista de tests y flujos Maestro.
-- Cimientos primero, en este orden: módulos de las librerías propias (DAL, RestLog con su `rest-log.json` de debug y de release y la fachada `AppLogger` con `redact()`, synchronizer si aplica), `network_security_config.xml` y reglas de respaldo (`references/seguridad.md`), tema (tokens claro/oscuro del diseño, tipografía, formas, movimiento), componentes del sistema de diseño, navegación, inyección de dependencias, puertos + adaptadores reales + dobles reales con su panel de pruebas (solo en debug), migraciones, textos (`values-*/strings.xml` de `design/strings/`).
+- Cimientos primero, en este orden: módulos de las librerías propias (DAL, RestLog con su `rest-log.json` de debug y de release y la fachada `AppLogger` con `redact()`, synchronizer si aplica), `network_security_config.xml` y reglas de respaldo (`references/seguridad.md`), tema (tokens claro/oscuro del diseño, tipografía, formas, movimiento), componentes del sistema de diseño, navegación, inyección de dependencias, puertos + adaptadores reales + dobles reales con su panel de pruebas (solo en debug), migraciones, textos **solo en inglés** (`values/strings.xml` desde `design/strings/en.json`, con todas las claves del diseño).
 
 ### 4. Implementación (autónoma)
 - Pantalla por pantalla, en el orden del plan. Para cada una:
@@ -100,6 +105,7 @@ Si `impl/` ya existe: leer `progreso.md` y seguir desde ahí sin repetir fases c
 ### 6. QA y preparación para producción
 - Tomar el rol de QA (`references/qa.md`): no basta con que "funcione". Probar con Maestro y a mano (capturas) la funcionalidad, la usabilidad, la fidelidad al diseño, la accesibilidad, la robustez (rotación, muerte del proceso, sin permisos, sin conexión, Bluetooth apagado, datos vacíos y muchos datos), el rendimiento y los crashes.
 - Cada bug: registrarlo en `impl/qa-informe.md`, corregir la causa raíz, agregar el test o flujo que lo habría detectado, volver a probar.
+- **Traducciones (recién al final, con todas las pantallas terminadas)**: los idiomas del diseño según `references/idiomas.md` (los 30 del skill `app-screen-design`, o los que tenga `design/strings/`). Partir de `design/strings/<idioma>.json` si existe; las claves que la implementación agregó o cambió se traducen ahora (natural, no literal). Generar `values-<código>/strings.xml`, `locales_config.xml` (idioma por app) y las fuentes Noto de cada escritura; validar con `scripts/validar_strings.py` (claves, marcadores y plurales) y probar en el dispositivo alemán, árabe (RTL), hindi o birmano y japonés.
 - Compilar el **release** (R8/minify activado) y correr el humo de Maestro sobre él: muchos errores solo aparecen ahí.
 - **Monkey testing**: `python scripts/monkey.py <paquete> --events 10000` en todos los dispositivos, sobre un escenario de dobles reales (`--scenario`), en debug y en release. Cada crash o ANR es un bug: se reproduce con el mismo `--seed`, se corrige la causa y se agrega el test que lo cubre. Se repite hasta una pasada limpia.
 - **Seguridad (OWASP MASVS)**: la tabla de `references/seguridad.md` completa (almacenamiento, logs sin datos sensibles, red solo HTTPS con `network_security_config`, componentes exportados, dobles fuera del release, permisos que agregan las librerías).
@@ -133,7 +139,9 @@ Cada punto del pedido que dio origen a este skill y dónde se cumple:
 | Monkey testing con los dobles reales | Fase 6, `scripts/monkey.py`, `qa.md` |
 | Seguridad OWASP MASVS: almacenamiento, logs, red | Fase 6, `seguridad.md` |
 | data-access para base de datos, RestLog4Android para logs con buenas prácticas de seguridad, synchronizer si hay Drive | Fase 0, fase 3, `librerias-propias.md` |
-| Si se empieza de cero, Kotlin | Fase 0 |
+| Si se empieza de cero, Kotlin; proyecto Java sigue en Java; híbrido sigue en Kotlin | Fase 0 |
+| Traducciones recién al final, en los idiomas del diseño (en el skill o referenciados) | Fase 3 (solo inglés), fase 6, `idiomas.md`, `validar_strings.py` |
+| Antes de implementar, investigar en línea restricciones y violaciones de políticas de Google y proponer soluciones en las preguntas iniciales | Fase 1 paso 6, fase 2, `politicas-google.md` |
 
 ## Errores que hay que evitar
 - Empezar a programar con preguntas abiertas, o preguntar a mitad de la noche.
@@ -144,5 +152,7 @@ Cada punto del pedido que dio origen a este skill y dónde se cumple:
 - Flujos Maestro que dependen unos de otros, del orden o de hardware real sin etiqueta; `sleep` fijos en lugar de esperas por condición.
 - Dobles reales que se cuelan en el build release.
 - Datos sensibles en los logs (en cualquier nivel), el appender `rest` u `overlay` activo en release, o los permisos que agregan las librerías sin revisar.
-- Usar Room, Timber u otro sync en lugar de las librerías propias sin que el usuario lo decida; Java nuevo en un proyecto que empieza de cero.
+- Usar Room, Timber u otro sync en lugar de las librerías propias sin que el usuario lo decida; Java en un proyecto nuevo o híbrido, o Kotlin mezclado en un proyecto solo Java.
+- Traducir antes de terminar las pantallas (cada cambio de texto obliga a retraducir 29 idiomas) o terminar sin traducir.
+- Empezar a programar sin haber revisado las políticas vigentes de Google Play, o citar una política de memoria sin la fuente.
 - Dar por terminado sin el QA, sin probar el release minificado o sin el veredicto de producción.
