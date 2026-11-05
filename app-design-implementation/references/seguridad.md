@@ -1,0 +1,18 @@
+# Seguridad (OWASP MASVS)
+
+Se aplica durante la implementación y se verifica en el QA. Referencia: OWASP MASVS v2 y su guía de pruebas (MASTG). No es una auditoría: es lo mínimo para que una app de Play no filtre datos ni abra puertas.
+
+| Área MASVS | Qué se hace | Cómo se verifica en el QA |
+|---|---|---|
+| **STORAGE** (almacenamiento) | Datos solo en almacenamiento interno (`filesDir`, base de DAL interna). Nada sensible en `getExternalFilesDir`, Descargas ni caché compartida. Preferencias sensibles con cifrado (Keystore). `android:allowBackup` y `dataExtractionRules` decididos a propósito: excluir del respaldo lo sensible o lo que depende del dispositivo (p. ej. emparejamientos). | `adb shell run-as <pkg> ls -R` y `adb shell ls /sdcard/Android/data/<pkg>`: nada sensible fuera de lo interno. Revisar el XML de reglas de respaldo. |
+| **STORAGE: logs** | Reglas de `librerias-propias.md` §Reglas de seguridad de los logs. Nada sensible en ningún nivel, nivel `warn` en release, sin appender `rest` ni exportación a Descargas. | `adb logcat -d` durante la pasada completa de Maestro (debug y release) y buscar: `@`, `password`, `token`, `Bearer`, `key=`, MACs completas (`([0-9A-F]{2}:){5}[0-9A-F]{2}`), textos de prueba conocidos (lo que Maestro tecleó). Cero resultados. |
+| **CRYPTO** | Sin algoritmos propios ni claves fijas en el código. Keystore para las claves; `SecureRandom`. | `grep` de `AES/ECB`, `MD5`, `SHA1` para seguridad, `Random(` para secretos, literales con aspecto de clave. |
+| **AUTH** | Si hay cuentas (Drive, login): tokens en Keystore o en el SDK de Google, nunca en logs ni en preferencias en claro; cerrar sesión borra todo. | Probar cerrar sesión y revocar el acceso desde la cuenta. |
+| **NETWORK** | Solo HTTPS. `network_security_config.xml` con `cleartextTrafficPermitted="false"` (en debug, como mucho, `localhost`/emulador). Sin `TrustManager` que acepta todo ni `HostnameVerifier` permisivo. | Revisar el manifiesto y el XML; `grep` de `http://`, `X509TrustManager`, `ALLOW_ALL`. |
+| **PLATFORM** | `exported` explícito en cada componente; exportados solo los que lo necesitan, con permiso si se puede. Enlaces profundos validados (nunca abren pantallas internas ni ejecutan acciones sin confirmar). `PendingIntent` con `FLAG_IMMUTABLE`. WebView sin JavaScript si no hace falta. Pantallas sensibles con `FLAG_SECURE` si el diseño lo pide. Permisos mínimos. | `aapt dump xmltree` / `apkanalyzer manifest print` del release: componentes exportados, permisos (incluidos los que agregan las librerías). |
+| **PLATFORM: test** | El enlace `myapp-test://`, los dobles reales y el panel de pruebas **no existen** en el release (están en `src/debug`). | `apkanalyzer dex packages` o el `mapping.txt`: ninguna clase de `testing`/`fake`; el esquema `myapp-test` no está en el manifiesto release. |
+| **CODE** | Dependencias al día y sin vulnerabilidades conocidas; `minSdk` acordado; entradas validadas (lo que llega por enlace, Bluetooth, archivos o red). `debuggable=false`, R8 activado. | `./gradlew dependencies` y las advertencias de Lint de seguridad (`lint` con las comprobaciones `Security`). |
+| **RESILIENCE** | Solo si la app lo necesita (pagos, contenido con licencia): Play Integrity. Por defecto, no aplica. | — |
+| **PRIVACY** | Solo los datos que la app necesita; Data safety y política de privacidad coherentes con lo que se recoge, se guarda y se envía (incluidas las librerías: RestLog, Drive, crashes). | Comparar el formulario de Data safety con los permisos y los envíos de red reales. |
+
+Cada hallazgo va a `impl/qa-informe.md` como bug (severidad alta si expone datos del usuario) y se corrige antes del veredicto.

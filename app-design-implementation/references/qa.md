@@ -26,6 +26,10 @@ En la fase 6 el rol es el de un **QA exigente**, no el del programador que defie
 **Estabilidad y rendimiento**
 - Cero crashes y ANR en `logcat` durante toda la pasada; StrictMode sin violaciones en el núcleo; LeakCanary sin fugas (si está).
 - Arranque y listas fluidas; nada pesado en el hilo principal.
+- **Monkey**: `python scripts/monkey.py <paquete> --events 10000 --scenario <enlace de prueba>` en cada dispositivo, en debug y en release, hasta una pasada sin crashes ni ANR. El mono usa los dobles reales, así recorre la app completa sin hardware. Un crash se reproduce con el mismo `--seed`.
+
+**Seguridad (OWASP MASVS)**
+- Cada fila de `references/seguridad.md` verificada: almacenamiento interno, `logcat` de toda la pasada sin datos sensibles (patrones de la tabla), red solo HTTPS, componentes exportados y permisos del manifiesto release (incluidos los que agregan RestLog y synchronizer), dobles y enlace de prueba fuera del release.
 
 **Release**
 - `./gradlew assembleRelease`/`bundleRelease` con R8: instalar (firmado con la clave de debug si no hay otra) y correr el humo de Maestro (`release/`). Revisar reglas de ProGuard (Room, serialización, reflexión).
@@ -38,7 +42,7 @@ En la fase 6 el rol es el de un **QA exigente**, no el del programador que defie
 - Permisos: solo los necesarios, cada uno con su explicación en la app; permisos especiales (servicio en primer plano y su tipo, Bluetooth, notificaciones) declarados y justificados para el formulario de Play.
 - Seguridad de los datos (Data safety) coherente con lo que la app hace; política de privacidad si se recogen o comparten datos.
 - Ícono adaptativo y monocromo, nombre, pantalla de inicio (splash API).
-- Sin logs de depuración con datos, sin claves en el código, `debuggable` falso en release.
+- Sin logs de depuración con datos, sin claves en el código, `debuggable` falso en release; RestLog en release con nivel `warn`, sin `rest` ni `overlay`.
 - Accesibilidad básica (el reporte previo al lanzamiento de Play la revisa) y compatibilidad de pantallas.
 
 ## Bugs

@@ -12,6 +12,8 @@
 | Robustez (rotación, proceso, permisos, sin conexión, datos) | | |
 | Idiomas, RTL, fuente 200 %, accesibilidad | | |
 | Crashes / ANR / StrictMode / fugas | | |
+| Monkey (eventos, seed, dispositivos) | | |
+| Seguridad OWASP MASVS (almacenamiento, logs, red, plataforma) | | |
 | Release con R8 (humo Maestro) | | |
 | Google Play (targetSdk, permisos, Data safety, privacidad, ícono) | | |
 

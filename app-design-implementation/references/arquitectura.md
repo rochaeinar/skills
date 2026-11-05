@@ -85,8 +85,8 @@ testing/ (debug) Dobles reales, escenarios, panel de pruebas
 
 ## Datos
 
-- Room con migraciones explícitas y probadas (`MigrationTestHelper`); nunca `fallbackToDestructiveMigration` en producción si hay datos de usuarios.
-- Preferencias en DataStore. Datos sensibles nunca en logs.
+- Base de datos con **data-access** (DAL), logs con **RestLog4Android** y sincronización con Drive con **synchronizer**: ver `librerias-propias.md` (entidades de DAL solo en la capa de datos, mapeadas a modelos de dominio; migraciones con `UpgradeListener` probadas). Room solo si el proyecto ya lo usa, con `MigrationTestHelper` y nunca `fallbackToDestructiveMigration` en producción si hay datos de usuarios.
+- Preferencias en DataStore. Datos sensibles nunca en logs (`librerias-propias.md` §Reglas de seguridad de los logs) ni fuera del almacenamiento interno (`seguridad.md`).
 
 ## Robustez de plataforma
 
@@ -103,3 +103,4 @@ testing/ (debug) Dobles reales, escenarios, panel de pruebas
 - CI (GitHub Actions / Bitbucket Pipelines): compilar, lint, unit tests, build release en cada push.
 - Reporte de crashes (Firebase Crashlytics u otro) si el usuario lo acepta (implica política de privacidad).
 - Commits pequeños por pantalla con mensajes claros; ADR para decisiones de arquitectura.
+- Ya obligatorios (no son extras): monkey testing (`scripts/monkey.py`) y seguridad OWASP MASVS (`seguridad.md`) en la fase 6.
