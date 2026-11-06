@@ -4,6 +4,7 @@ Copia de seguridad de los skills propios. Claude Code los carga desde `%USERPROF
 
 | Skill | Qué hace | Configuración |
 |---|---|---|
+| `app-init` | Primer skill de cada app: carpeta de datos `D:\Documents\Apps\<App>\` con `app.json` y la referencia desde el repo, certificado de subida sin contraseñas en disco (Administrador de credenciales, respaldo en Bitwarden paso a paso), firma Gradle para Groovy y Kotlin DSL, proyecto base Kotlin + Compose, librerías propias, `CLAUDE.md` y `.claude` con las reglas comunes, marca y paquete, perfiles de Play/Cloudflare/YouTube y repo en Bitbucket por la API; ordena paso a paso un repo existente y termina con un resumen | `app-init/SETUP.md` |
 | `play-feature-graphic` | Imagen destacada de Google Play (1024×500) desde capturas reales, en varios idiomas | `play-feature-graphic/SETUP.md` |
 | `play-console` | Ficha de Play Store (textos, video, ícono, imagen destacada, capturas) y versiones (AAB, pistas, notas, lanzamiento escalonado) desde archivos, para varias cuentas de desarrollador | `play-console/SETUP.md` |
 | `android-release` | Versión nueva a Google Play de punta a punta: versión = fecha de hoy y código verificado contra Play, tests, AAB release firmado, notas por idioma y publicación con `play-console` | `android-release/SETUP.md` |
