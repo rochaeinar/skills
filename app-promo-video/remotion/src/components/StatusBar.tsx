@@ -2,12 +2,14 @@ import type { Theme } from "../types";
 
 // A clean status bar drawn over the phone screen (the real one is cropped from the recordings):
 // always 9:41, full signal, Wi-Fi and battery.
-export const StatusBar: React.FC<{ width: number; height: number; theme: Theme; font: string }> = ({ width, height, theme, font }) => {
+export const StatusBar: React.FC<{ width: number; height: number; theme: Theme; font: string; background?: string }> = ({
+  width, height, theme, font, background,
+}) => {
   const s = height / 112; // designed for a 1080 px wide screen, then scaled
   return (
     <div
       style={{
-        position: "absolute", top: 0, left: 0, width, height, background: theme.screenBg,
+        position: "absolute", top: 0, left: 0, width, height, background: background ?? theme.screenBg,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: `0 ${60 * s}px`, boxSizing: "border-box", color: theme.text,
         fontFamily: font, fontWeight: 600, fontSize: 40 * s,

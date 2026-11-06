@@ -65,6 +65,7 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 **Edición**
 - Gancho: escena de IA a pantalla completa con la pregunta encima; **sin pantallas de la app** en el gancho. El menú principal va al final ("Y mucho más") antes del cierre.
 - Teléfono: entra inclinado con resorte y **termina recto**; durante la escena solo un zoom de 1,5 %.
+- La pantalla del teléfono toma la proporción de cada grabación (`clipRatio`, de `<escena>.json`): un teléfono más alto la hace más angosta, nunca se recorta arriba ni abajo. La barra de estado limpia lleva detrás las primeras filas de la grabación estiradas, así una barra de color de la app (REC roja) llega hasta arriba como en el teléfono. Revisar siempre el borde superior en un still de cada escena.
 - Subtítulos solo en escenas de funciones (en gancho y cierre repiten el texto grande o tapan el botón); ninguna palabra sola en un subtítulo.
 - Vertical: textos dentro de las zonas seguras de TikTok (arriba 8 %, abajo 20 %, lado derecho). Horizontal: título y subtítulos a la izquierda, teléfono grande a la derecha.
 - Cierre: logo (si es SVG con fondo, quitarlo; los huecos de letras pintados con el color de fondo se convierten en máscara), lema, botón de la tienda y, si el logo tiene partes, su animación (`logo_parts`). El nombre va en Cormorant por defecto; para apps técnicas o con marca sans, `"title_font": "sans"` (Inter 800).

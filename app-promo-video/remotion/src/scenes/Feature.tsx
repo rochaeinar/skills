@@ -23,7 +23,7 @@ export const Feature: React.FC<{ scene: FeatureScene; theme: Theme }> = ({ scene
         <KineticText text={scene.text} keyword={scene.keyword} theme={theme} font={body} size={vertical ? 78 : 92} />
       </div>
       <div style={{ position: "absolute", top: vertical ? height * 0.235 : height * 0.035, left: vertical ? (width - phoneW) / 2 : width * 0.6 }}>
-        <Phone clip={scene.clip} clipFrom={scene.clipFrom} clipTo={scene.clipTo} rate={scene.rate} width={phoneW} theme={theme} enterDelay={2} />
+        <Phone clip={scene.clip} clipFrom={scene.clipFrom} clipTo={scene.clipTo} rate={scene.rate} clipRatio={scene.clipRatio} width={phoneW} theme={theme} enterDelay={2} />
       </div>
     </AbsoluteFill>
   );

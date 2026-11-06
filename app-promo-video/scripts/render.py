@@ -143,7 +143,8 @@ def build_props(config, locale, fmt, manifest=None, variant=None):
             frames = max(round(span / rate * FPS), need)
             rate = span / (frames / FPS)  # slower when the voice needs more time
             scenes.append({"type": "feature", "frames": frames, "text": s["text"], "keyword": s.get("keyword"),
-                           "clip": f"{rec}/{s['clip']}.mp4", "clipFrom": s["in"], "clipTo": s["out"], "rate": rate})
+                           "clip": f"{rec}/{s['clip']}.mp4", "clipFrom": s["in"], "clipTo": s["out"], "rate": rate,
+                           "clipRatio": clip_ratio(config, rec, s["clip"])})
         elif s["type"] == "hook":
             hook = {"type": "hook", "frames": max(round(s["seconds"] * FPS), need), "text": s["text"], "keyword": s.get("keyword")}
             if s.get("clip"):
@@ -198,6 +199,17 @@ def build_props(config, locale, fmt, manifest=None, variant=None):
         "theme": theme_from(config), "transitionFrames": transition,
         "scenes": scenes, "voice": voice_tracks, "captions": captions, "sfx": sfx, "music": music,
     }
+
+
+def clip_ratio(config, rec, clip):
+    """Width / height of a cleaned recording (its system bars cropped): each phone has its own, and
+    the screen in the video takes it, so nothing of the app is cut (process_clips.py writes it)."""
+    meta = resolve(config, f"{rec}/{clip}.json")
+    if meta.exists():
+        info = json.loads(meta.read_text(encoding="utf-8"))
+        if info.get("width") and info.get("height"):
+            return info["width"] / info["height"]
+    return None
 
 
 def promo_frames(props):

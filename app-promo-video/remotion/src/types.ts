@@ -32,6 +32,7 @@ export type FeatureScene = {
   clipFrom: number; // seconds
   clipTo: number;
   rate: number;
+  clipRatio?: number; // width / height of the recording, without system bars
 };
 
 export type OutroScene = {
