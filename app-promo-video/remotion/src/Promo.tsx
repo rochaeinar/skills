@@ -27,6 +27,7 @@ const renderScene = (scene: Scene, props: PromoProps) => {
           appName={props.appName}
           logo={props.logo}
           logoIncludesName={props.logoIncludesName}
+          titleFont={props.titleFont}
           logoParts={props.logoParts}
         />
       );

@@ -17,6 +17,14 @@ A gesture file (JSON, next to the Maestro flows):
       ]
     }
 
+Or a list of quick taps and swipes, for screens Maestro cannot drive at a natural pace (a ticking
+timer, like a REC clock, never lets the screen settle, so Maestro waits seconds before every tap):
+    {"steps": [{"tap": [540, 1700], "after_ms": 350},
+               {"swipe": [300, 900, 700, 1100, 600], "after_ms": 400},   x1 y1 x2 y2 duration_ms
+               {"wait_ms": 1500}]}
+Positions in px of the recording phone (read them from `adb shell uiautomator dump`: Compose
+testTags appear as resource-id when the app exposes them).
+
 Used by capture.py when a scene has "gesture": the flow prepares the screen, then the gesture plays,
 all while recording. Can also be run alone: python gesture.py <gesture.json> [--device SERIAL]
 """
@@ -45,8 +53,26 @@ def point(spec, angle, share):
     return round(ax + dx), round(ay - math.cos(theta) * r)
 
 
+def steps_script(spec):
+    """Quick taps and swipes ("steps"), each followed by its pause."""
+    lines = []
+    for step in spec["steps"]:
+        if "tap" in step:
+            x, y = step["tap"]
+            lines.append(f"input tap {x} {y}")
+        elif "swipe" in step:
+            x1, y1, x2, y2, ms = step["swipe"]
+            lines.append(f"input swipe {x1} {y1} {x2} {y2} {ms}")
+        wait = step.get("after_ms", step.get("wait_ms", 0))
+        if wait:
+            lines.append(f"sleep {wait / 1000:.3f}")
+    return "\n".join(lines) + "\n"
+
+
 def script(spec):
     """The shell commands of the gesture: motion events with short sleeps between them."""
+    if "steps" in spec:
+        return steps_script(spec)
     hz = spec.get("hz", 45)
     step = 1.0 / hz
     lines = []

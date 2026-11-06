@@ -16,7 +16,16 @@ export const KineticText: React.FC<{
 }> = ({ text, keyword, theme, font, size, delay = 0, stagger = 3, weight = 800 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const keys = new Set((keyword ?? "").split(" ").filter(Boolean).map(bare));
+  // The keyword is matched as a phrase (its words in a row), so a short word of it ("y", "a") does
+  // not light up the same word elsewhere in the text ("¿Y si...").
+  const words = text.split(" ");
+  const keyWords = (keyword ?? "").split(" ").filter(Boolean).map(bare);
+  const lit = new Set<number>();
+  if (keyWords.length) {
+    for (let i = 0; i + keyWords.length <= words.length; i++) {
+      if (keyWords.every((k, j) => bare(words[i + j]) === k)) keyWords.forEach((_, j) => lit.add(i + j));
+    }
+  }
   return (
     <div
       style={{
@@ -24,14 +33,14 @@ export const KineticText: React.FC<{
         fontFamily: font, fontWeight: weight, fontSize: size, lineHeight: 1.12, textAlign: "center", letterSpacing: -0.5,
       }}
     >
-      {text.split(" ").map((word, i) => {
+      {words.map((word, i) => {
         const s = spring({ frame: frame - delay - i * stagger, fps, config: { damping: 14, stiffness: 140 } });
         return (
           <span
             key={i}
             style={{
               display: "inline-block",
-              color: keys.has(bare(word)) ? theme.accent : theme.text,
+              color: lit.has(i) ? theme.accent : theme.text,
               opacity: s,
               transform: `translateY(${interpolate(s, [0, 1], [size * 0.6, 0])}px) scale(${interpolate(s, [0, 1], [0.92, 1])})`,
               textShadow: "0 4px 24px rgba(0,0,0,0.45)",

@@ -13,8 +13,9 @@ export const Outro: React.FC<{
   appName: string;
   logo: string;
   logoIncludesName: boolean;
+  titleFont?: "serif" | "sans";
   logoParts?: { school: string; fish: string } | null;
-}> = ({ scene, theme, appName, logo, logoIncludesName, logoParts }) => {
+}> = ({ scene, theme, appName, logo, logoIncludesName, logoParts, titleFont }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const vertical = height > width;
@@ -62,7 +63,9 @@ export const Outro: React.FC<{
         />
       )}
       {logoIncludesName ? null : (
-        <div style={{ ...rise(nameS), fontFamily: title, fontWeight: 700, fontSize: vertical ? 150 : 120, color: theme.text, lineHeight: 0.95, textAlign: "center" }}>
+        <div style={{ ...rise(nameS), fontFamily: titleFont === "sans" ? body : title, fontWeight: titleFont === "sans" ? 800 : 700,
+          fontSize: (vertical ? 150 : 120) * (titleFont === "sans" ? 0.8 : 1), letterSpacing: titleFont === "sans" ? -2 : 0,
+          color: theme.text, lineHeight: 0.95, textAlign: "center" }}>
           {appName}
         </div>
       )}

@@ -57,6 +57,7 @@ export type PromoProps = {
   fps: number;
   appName: string;
   logo: string;
+  titleFont?: "serif" | "sans"; // the app name in the outro: Cormorant (default) or Inter 800 (tech apps)
   logoIncludesName: boolean; // the logo already shows the app name: the outro does not repeat it
   // The logo in two layers of the same size, to animate its fish as the app's splash does.
   logoParts?: { school: string; fish: string } | null;

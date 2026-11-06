@@ -46,6 +46,10 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 - **No hacer limpiezas** de ajustes que no afecten a otras grabaciones (p. ej. paneles). **Sí devolver y comprobar con assert** lo que cambia cómo se ven las demás (tamaño de letra, fuente, tema).
 - Datos reales del usuario, nunca su correo ni datos personales en pantalla (p. ej. en Ajustes no bajar hasta la cuenta).
 - Controles tipo joystick o gestos curvos: `"gesture"` en la escena (JSON para `gesture.py`), medir el centro del control en el código (márgenes en dp × densidad).
+- **Pantallas que nunca se quedan quietas** (un reloj REC, una animación continua): Maestro espera segundos antes de cada toque (también con `waitToSettleTimeoutMs`) y el reloj marca minutos. Los toques van en un `"gesture"` con `"steps"` (`tap`, `swipe`, `wait_ms`: `adb input`, a ritmo natural), incluido el botón que arranca el reloj; el flujo solo deja la pantalla lista. Posiciones con `adb shell uiautomator dump` (los testTag de Compose salen como resource-id), en px del teléfono de la grabación (aprendido con Keyboard & Mouse, 2026-11-05).
+- Lo que la app manda afuera (teclas a una PC, audio a otro equipo) no se ve en el teléfono: elegir escenas donde la app muestre la respuesta (globos de las teclas, contadores, barras de progreso). `show_touches` no sale en `screenrecord` en Samsung.
+- `freeze_noise` por escena: cambios chicos (el globo de una tecla, un número) necesitan 0,0003-0,0005; con el valor por defecto la hoja marca 0 segmentos activos. Los tramos se eligen igual en la hoja (`in`/`out`/`rate`).
+- Tamaño de pantalla forzado (`wm size`/`wm density` para grabar a 1080 px): respaldar y devolver al final, con assert. Si `capture.json` queda con `navigation_bar: 0` y la barra se ve en la hoja, corregirlo (el script ya usa la altura que declara el sistema cuando no encuentra la barra).
 - Elementos dibujados dentro del texto o sin id (íconos, sliders): por posición, calibrada en una captura con cuadrícula.
 - Seleccionar versículos que no arrastren títulos o números de capítulo; colores de resaltado que contrasten con el tema.
 - Búsquedas: palabras que no sean parte de otras ("misericordia", no "amor" → "amorreo").
@@ -63,7 +67,10 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 - Teléfono: entra inclinado con resorte y **termina recto**; durante la escena solo un zoom de 1,5 %.
 - Subtítulos solo en escenas de funciones (en gancho y cierre repiten el texto grande o tapan el botón); ninguna palabra sola en un subtítulo.
 - Vertical: textos dentro de las zonas seguras de TikTok (arriba 8 %, abajo 20 %, lado derecho). Horizontal: título y subtítulos a la izquierda, teléfono grande a la derecha.
-- Cierre: logo (si es SVG con fondo, quitarlo; los huecos de letras pintados con el color de fondo se convierten en máscara), lema, botón de la tienda y, si el logo tiene partes, su animación (`logo_parts`).
+- Cierre: logo (si es SVG con fondo, quitarlo; los huecos de letras pintados con el color de fondo se convierten en máscara), lema, botón de la tienda y, si el logo tiene partes, su animación (`logo_parts`). El nombre va en Cormorant por defecto; para apps técnicas o con marca sans, `"title_font": "sans"` (Inter 800).
+- `keyword` se marca como frase (sus palabras seguidas): "teclado y mouse" no pinta el "¿Y" del principio.
+- `palette` en `video.json` pisa la de `feature-graphic.json`: si el acento de la marca es oscuro (azul #2D5BFF sobre navy), usar uno más claro para que las palabras clave se lean.
+- `--variant A` necesita `locales.<l>.hook_variants.A` y su audio (`audio.py --variant A`): sin eso el still falla o sale con otra duración.
 - Cada escena dura lo que necesite su frase; el clip se ralentiza para cubrirla.
 
 **Audio**

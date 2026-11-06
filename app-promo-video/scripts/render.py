@@ -194,6 +194,7 @@ def build_props(config, locale, fmt, manifest=None, variant=None):
         "appName": config["app_name"], "logo": config.get("logo", "assets/logo.png"),
         "logoIncludesName": bool(config.get("logo_includes_name", False)),
         "logoParts": config.get("logo_parts"),
+        "titleFont": config.get("title_font", "serif"),
         "theme": theme_from(config), "transitionFrames": transition,
         "scenes": scenes, "voice": voice_tracks, "captions": captions, "sfx": sfx, "music": music,
     }

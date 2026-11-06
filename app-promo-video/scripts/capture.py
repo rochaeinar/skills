@@ -81,6 +81,12 @@ def system_bars(phone):
             top = max(top, int(y2) - int(y1))
         else:
             bottom = max(bottom, int(y2) - int(y1))
+    if not bottom:
+        # The bar can be hidden at that moment (seen on Android 12 with "wm size" forced) while the
+        # recordings show it: fall back to the height the system declares for it.
+        declared = re.search(r"navigation_bar_height\)=(\d+)", dump)
+        if declared:
+            bottom = int(declared.group(1))
     return top, bottom
 
 
