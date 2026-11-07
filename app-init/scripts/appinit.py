@@ -365,7 +365,8 @@ def cmd_appdir(a):
     data = {
         "schema": 1,
         "name": a.name or existing.get("name"),
-        "slug": existing.get("slug") or slug_of(a.name or app_dir.name),
+        "slug": a.slug or existing.get("slug")
+        or (slug_of(a.package.rsplit(".", 1)[-1]) if a.package else slug_of(a.name or app_dir.name)),
         "package": a.package or existing.get("package"),
         "brand": brand,
         "repo": existing.get("repo", {}),
@@ -811,7 +812,8 @@ def main():
     s.add_argument("--brand"); s.add_argument("--repo"); s.add_argument("--language", choices=["kotlin", "java", "hybrid"])
     s.add_argument("--ui", choices=["compose", "views"]); s.add_argument("--libs")
     s.add_argument("--play-profile"); s.add_argument("--cloudflare-profile"); s.add_argument("--youtube-profile")
-    s.add_argument("--domain"); s.add_argument("--yes", action="store_true")
+    s.add_argument("--domain"); s.add_argument("--slug", help="default: last part of the package")
+    s.add_argument("--yes", action="store_true")
     s = sub.add_parser("scaffold"); s.add_argument("repo"); s.add_argument("--app-dir", required=True)
     s.add_argument("--name", required=True); s.add_argument("--package", required=True); s.add_argument("--libs")
     s.add_argument("--min-sdk", type=int, default=26); s.add_argument("--yes", action="store_true")

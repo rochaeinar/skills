@@ -10,8 +10,8 @@
       "Bash(git log:*)",
       "Bash(git branch:*)",
       "Bash(git show:*)",
-      "PowerShell(.\gradlew.bat assembleDebug:*)",
-      "PowerShell(.\gradlew.bat :app:testDebugUnitTest:*)",
+      "PowerShell(.\\gradlew.bat assembleDebug:*)",
+      "PowerShell(.\\gradlew.bat :app:testDebugUnitTest:*)",
       "PowerShell(git status:*)",
       "PowerShell(git diff:*)",
       "PowerShell(git log:*)"
