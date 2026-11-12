@@ -8,6 +8,7 @@ Cómo se firma la app **sin contraseñas en texto plano ni en el repo**. Generad
 |---|---|
 | **La clave de la app** (`{{ALIAS}}`, PKCS12, RSA 4096): una sola para todo | `{{KEYSTORE_PATH}}`, **fuera del repo**, en la carpeta de la app |
 | Contraseña | Administrador de credenciales de Windows: `{{CREDENTIAL}}` (usuario = alias). Respaldo: Bitwarden |
+| Certificado (público, igual en todas las apps de la marca) | `{{DNAME}}`, válido {{VALIDITY}} días. Cada app tiene **su propia** clave privada y contraseña |
 | Huellas públicas (SHA-256, SHA-1) y certificado | `keystore-info.json` y `upload_certificate.pem`, junto a la clave |
 | En Google Play | La **misma** clave: es la clave de subida y también la clave de firma de la app (Play App Signing con **clave propia**, subida con PEPK en el primer lanzamiento). Google guarda una copia |
 
@@ -34,7 +35,7 @@ Remove-Item Env:{{ENV_PREFIX}}_STORE_PASSWORD
 ## Verificar
 
 ```powershell
-& "$env:ProgramFiles\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore "{{KEYSTORE_PATH}}" -alias {{ALIAS}}
+& "$env:ProgramFiles\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore "{{KEYSTORE_PATH}}" -alias "{{ALIAS}}"
 ```
 
 El SHA-256 debe coincidir con los dos certificados de **Play Console → Prueba y lanzamiento → Integridad de la app → Firma de apps**: el de la clave de firma de la app y el de la clave de subida.

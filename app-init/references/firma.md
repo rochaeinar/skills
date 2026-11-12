@@ -4,19 +4,21 @@ Se lo guía al usuario **la primera vez**, un paso a la vez, esperando su "listo
 
 ## El modelo: una sola clave para todo (explicarlo en una línea al usuario)
 
-- **Una clave por app** (`upload.jks`, alias `upload`) firma el **debug**, el **release** y, en Google Play, es a la vez la **clave de subida** y la **clave de firma de la app**. Es el modelo de Bible Versions, Tracker y Forever Note.
+- **Una clave por app** (`upload.jks`, alias de `app.json`; Erasoft: `Era Soft Labs`) firma el **debug**, el **release** y, en Google Play, es a la vez la **clave de subida** y la **clave de firma de la app**. Es el modelo de Bible Versions, Tracker y Forever Note.
 - En Play se activa con **Play App Signing con clave propia**: en el primer lanzamiento se sube la clave cifrada con **PEPK** (paso 5). Google guarda una copia y firma con ella lo que instalan los usuarios: el mismo certificado que los builds locales.
 - Ventajas: un solo SHA-1 (Google Sign-In, Drive, Firebase), los builds locales sin `applicationIdSuffix` se instalan encima del de Play sin borrar datos, una sola cosa que respaldar.
 - Cuidado: es la **identidad permanente** de la app. Si se **pierde**, Google tiene la copia y se pide un restablecimiento de la clave de subida. Si se **filtra** (archivo + contraseña), alguien puede firmar APKs que se instalan encima de la app fuera de Play, y Google solo permite actualizar la clave de firma una vez. Por eso el archivo y la contraseña nunca van juntos sin cifrar.
 - El archivo PKCS12 ya está cifrado con la contraseña: puede estar en la carpeta de la app, en Mega y en Bitwarden. La contraseña, solo en Bitwarden y en el Administrador de credenciales.
-- Formato PKCS12, RSA 4096, válida 10.000 días (Play exige validez hasta después del 22-10-2033). Una sola contraseña para el almacén y la clave (PKCS12 no admite dos).
+- Formato PKCS12, RSA 4096. Una sola contraseña para el almacén y la clave (PKCS12 no admite dos).
+- **Datos del certificado** (públicos: van en cada APK y no se cambian después): los de la marca en `BRANDS` de `appinit.py`, copiados a `app.json` (`signing.dname`, `signing.alias`, `signing.validity_days`). Erasoft: `CN=Era Soft Labs, OU=Era Soft Labs, O=Era Soft Labs, L=Cochabamba, ST=Cochabamba, C=BO`, alias `Era Soft Labs`, 36.500 días (100 años; Play exige validez hasta después del 22-10-2033). Son **los mismos para todas las apps** de la marca; lo que cambia por app es la clave privada (otro archivo), sus huellas y la contraseña. **Nunca reutilizar la misma clave en varias apps**: una filtración las comprometería todas. Nada personal en el certificado (nombre propio, correo, dirección).
+- El alias con espacios funciona (probado: `keytool` lo guarda tal cual y Gradle firma con él), pero va **entre comillas** en `keytool`, `jarsigner` y PEPK.
 - `applicationIdSuffix ".debug"`: se mantiene si los escenarios de prueba del debug escriben datos falsos (así no pisan los datos reales de la app de Play); sin sufijo, el debug se instala encima del de Play.
 
 ## Paso 1. Bitwarden: crear el ítem y generar la contraseña (antes de crear la clave)
 
 1. Bitwarden → **Nuevo → Inicio de sesión** (*Login*).
 2. **Nombre**: `Android · <App> · signing key`. Carpeta: `Android / Keystores` (crearla la primera vez).
-3. **Usuario**: `upload` (el alias).
+3. **Usuario**: el alias (`signing.alias` de `app.json`; Erasoft: `Era Soft Labs`).
 4. **Contraseña**: botón **Generar** → 24 caracteres o más, mayúsculas, minúsculas, números y símbolos. Evitar `"`, `'`, `` ` `` y `$` si el generador lo permite (la contraseña pasa por PowerShell y Gradle). **Guardar el ítem ya**, así la contraseña nunca se pierde.
 5. Dejar Bitwarden abierto: la contraseña se copia de ahí en el paso 2.
 
@@ -24,7 +26,7 @@ Se lo guía al usuario **la primera vez**, un paso a la vez, esperando su "listo
 
 `appinit.py keystore <repo>` abre PowerShell con `setup-signing.ps1 -Create`. El usuario:
 1. Pega la contraseña de Bitwarden dos veces (no se ve al escribir).
-2. Confirma la organización (la marca) y el país (2 letras).
+2. Confirma los datos del certificado que muestra (los de la marca, de `app.json`); si la marca no tiene, escribe la organización y el país.
 
 El script crea `D:\Documents\Apps\<App>\KeyStore\upload.jks`, comprueba la contraseña contra la clave, la guarda en el **Administrador de credenciales de Windows** (`<slug>-release-signing`, usuario = alias) y escribe junto a la clave lo público: `keystore-info.json` (SHA-256, SHA-1, vencimiento) y `upload_certificate.pem`. Nunca sobrescribe una clave que ya existe.
 
@@ -51,7 +53,7 @@ Antes de subir el **primer** AAB (después ya no se puede cambiar sin el proceso
 3. En una **ventana de PowerShell aparte** (la contraseña la escribe el usuario, oculta):
    ```powershell
    cd "D:\Documents\Apps\<App>\KeyStore\pepk"
-   & "$env:ProgramFiles\Android\Android Studio\jbr\bin\java.exe" -jar pepk.jar --keystore=..\upload.jks --alias=upload --output=output.zip --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
+   & "$env:ProgramFiles\Android\Android Studio\jbr\bin\java.exe" -jar pepk.jar --keystore=..\upload.jks --alias="<alias de app.json>" --output=output.zip --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
    ```
    `output.zip` solo lo puede abrir Google: no es un secreto.
 4. Subir `output.zip` en esa pantalla. Si Play ofrece registrar **otra clave de subida** (opcional), no hacerlo: la misma clave queda como clave de subida.

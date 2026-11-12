@@ -51,7 +51,12 @@ LIBS = {
 LIB_NEEDS = {"restlog": ["dal"], "synchronizer": ["dal"]}
 
 BRANDS = {
-    "erasoft": {"package_prefix": "com.erasoft", "web_zone": "era-soft.app", "developer": "Erasoft"},
+    # Certificate data is public (inside every APK) and the same for every app of the brand;
+    # each app still gets its own key pair and password.
+    "erasoft": {"package_prefix": "com.erasoft", "web_zone": "era-soft.app", "developer": "Erasoft",
+                "key_alias": "Era Soft Labs",
+                "dname": "CN=Era Soft Labs, OU=Era Soft Labs, O=Era Soft Labs, L=Cochabamba, ST=Cochabamba, C=BO",
+                "validity_days": 36500},
     "timeless": {"package_prefix": "com.timeless", "web_zone": "timelesslabs.app", "developer": "Timeless Labs"},
 }
 
@@ -394,7 +399,11 @@ def cmd_appdir(a):
     if brand in BRANDS and not data["web"].get("zone"):
         data["web"]["zone"] = BRANDS[brand]["web_zone"]
     data["signing"].setdefault("keystore", "KeyStore/upload.jks")
-    data["signing"].setdefault("alias", "upload")
+    brand_info = BRANDS.get(brand or "", {})
+    data["signing"].setdefault("alias", brand_info.get("key_alias", "upload"))
+    if brand_info.get("dname"):
+        data["signing"].setdefault("dname", brand_info["dname"])
+    data["signing"].setdefault("validity_days", brand_info.get("validity_days", 10000))
     data["signing"].setdefault("credential", f"{data['slug']}-release-signing")
     data["signing"].setdefault("env_prefix", env_prefix(data["slug"]))
     # One key for everything: debug, release and Play's app signing key (uploaded with PEPK on the first release)
@@ -530,6 +539,7 @@ def cmd_wire(a):
               "APP_DIR": fwd(app_dir), "KEYSTORE": sign["keystore"], "ALIAS": sign["alias"],
               "CREDENTIAL": sign["credential"], "ENV_PREFIX": sign["env_prefix"],
               "KEYSTORE_PATH": fwd(app_dir / sign["keystore"]),
+              "DNAME": sign.get("dname", ""), "VALIDITY": str(sign.get("validity_days", 10000)),
               "DEVELOPER": BRANDS.get(data.get("brand") or "", {}).get("developer", data["name"])}
     changes, actions = [], []
 
