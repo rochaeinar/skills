@@ -397,6 +397,9 @@ def cmd_appdir(a):
     data["signing"].setdefault("alias", "upload")
     data["signing"].setdefault("credential", f"{data['slug']}-release-signing")
     data["signing"].setdefault("env_prefix", env_prefix(data["slug"]))
+    # One key for everything: debug, release and Play's app signing key (uploaded with PEPK on the first release)
+    data["signing"].setdefault("model", "single-key")
+    data["signing"].setdefault("play_app_signing", "own key via PEPK on the first release (references/firma.md, step 5)")
     if not data["package"]:
         fail("Give --package")
 
@@ -784,7 +787,8 @@ def cmd_summary(a):
         f"| Remoto | {info.get('remote') or 'sin remoto'} |",
         f"| Carpeta de la app | `{info.get('app_dir')}` |",
         f"| Firma | `{s.get('keystore')}` alias `{s.get('alias')}`, credencial `{s.get('credential')}` |",
-        f"| SHA-256 (subida) | `{s.get('sha256', 'pendiente')}` |",
+        f"| Modelo de firma | una sola clave: debug, release y firma de la app en Play (`{s.get('model', 'single-key')}`) |",
+        f"| SHA-256 (la clave) | `{s.get('sha256', 'pendiente')}` |",
         f"| Librerías | {', '.join(libs) or 'ninguna'} |",
         f"| Perfiles | Play `{p.get('play', '-')}`, Cloudflare `{p.get('cloudflare', '-')}`, YouTube `{p.get('youtube', '-')}` |",
         f"| Web | {d.get('web', {}).get('domain') or d.get('web', {}).get('zone') or '-'} |",

@@ -2,16 +2,20 @@
 
 Se lo guía al usuario **la primera vez**, un paso a la vez, esperando su "listo" entre pasos. Claude nunca ve ni escribe la contraseña.
 
-## Qué es cada clave (explicarlo en una línea al usuario)
+## El modelo: una sola clave para todo (explicarlo en una línea al usuario)
 
-- **Clave de firma de la app**: la que firma lo que instalan los usuarios. Con **Play App Signing** (obligatorio para apps nuevas desde 2021) la genera y la guarda Google; no se descarga.
-- **Clave de subida** (la que creamos aquí): firma el AAB que subimos. Si se pierde o se filtra, Google la **restablece** (Play Console → Integridad de la app → Solicitar restablecimiento de la clave de subida) con un certificado nuevo. Igual hay que cuidarla: con ella alguien podría subir versiones si además entra a la cuenta.
-- Formato PKCS12, RSA 4096, válida 10.000 días (Play exige validez hasta después del 22-10-2033), alias `upload`. Una sola contraseña para el almacén y la clave (PKCS12 no admite dos).
+- **Una clave por app** (`upload.jks`, alias `upload`) firma el **debug**, el **release** y, en Google Play, es a la vez la **clave de subida** y la **clave de firma de la app**. Es el modelo de Bible Versions, Tracker y Forever Note.
+- En Play se activa con **Play App Signing con clave propia**: en el primer lanzamiento se sube la clave cifrada con **PEPK** (paso 5). Google guarda una copia y firma con ella lo que instalan los usuarios: el mismo certificado que los builds locales.
+- Ventajas: un solo SHA-1 (Google Sign-In, Drive, Firebase), los builds locales sin `applicationIdSuffix` se instalan encima del de Play sin borrar datos, una sola cosa que respaldar.
+- Cuidado: es la **identidad permanente** de la app. Si se **pierde**, Google tiene la copia y se pide un restablecimiento de la clave de subida. Si se **filtra** (archivo + contraseña), alguien puede firmar APKs que se instalan encima de la app fuera de Play, y Google solo permite actualizar la clave de firma una vez. Por eso el archivo y la contraseña nunca van juntos sin cifrar.
+- El archivo PKCS12 ya está cifrado con la contraseña: puede estar en la carpeta de la app, en Mega y en Bitwarden. La contraseña, solo en Bitwarden y en el Administrador de credenciales.
+- Formato PKCS12, RSA 4096, válida 10.000 días (Play exige validez hasta después del 22-10-2033). Una sola contraseña para el almacén y la clave (PKCS12 no admite dos).
+- `applicationIdSuffix ".debug"`: se mantiene si los escenarios de prueba del debug escriben datos falsos (así no pisan los datos reales de la app de Play); sin sufijo, el debug se instala encima del de Play.
 
 ## Paso 1. Bitwarden: crear el ítem y generar la contraseña (antes de crear la clave)
 
 1. Bitwarden → **Nuevo → Inicio de sesión** (*Login*).
-2. **Nombre**: `Android · <App> · upload key`. Carpeta: `Android / Keystores` (crearla la primera vez).
+2. **Nombre**: `Android · <App> · signing key`. Carpeta: `Android / Keystores` (crearla la primera vez).
 3. **Usuario**: `upload` (el alias).
 4. **Contraseña**: botón **Generar** → 24 caracteres o más, mayúsculas, minúsculas, números y símbolos. Evitar `"`, `'`, `` ` `` y `$` si el generador lo permite (la contraseña pasa por PowerShell y Gradle). **Guardar el ítem ya**, así la contraseña nunca se pierde.
 5. Dejar Bitwarden abierto: la contraseña se copia de ahí en el paso 2.
@@ -39,11 +43,22 @@ Claude corre `gradlew bundleRelease` (sin `UNSIGNED` en la salida) y `jarsigner 
 3. Bitwarden con **verificación en dos pasos** y su **código de recuperación** impreso o guardado fuera de Bitwarden.
 4. Cuando el usuario confirme, Claude anota en `app.json`: `"signing": {"backup": {"bitwarden": "<fecha>", "offline": "<fecha o pendiente>"}}`.
 
-## Paso 5. Play Console (cuando se cree la app ahí; lo hace `play-console`)
+## Paso 5. Play Console: clave propia en el primer lanzamiento (lo guía `play-console`)
 
-- Al subir el primer AAB, aceptar **Play App Signing** (lo propone por defecto). Google registra nuestra clave como **de subida**.
-- Comprobar: **Prueba y lanzamiento → Integridad de la app → Firma de apps → Certificado de clave de subida**: el SHA-256 debe ser el de `keystore-info.json`.
-- Si la app usa **Google Sign-In / Drive** (synchronizer) o Firebase: el cliente OAuth y Firebase necesitan **el SHA-1 de las dos claves**: la de subida (builds de debug y de prueba firmadas aquí) y la de firma de la app (copiarla de esa misma pantalla de Play).
+Antes de subir el **primer** AAB (después ya no se puede cambiar sin el proceso de actualización de clave):
+1. Play Console → la app → **Prueba y lanzamiento → Integridad de la app → Firma de apps de Google Play** (o el aviso de firma al crear la primera versión) → **Cambiar clave de firma / Change app signing key** → **Exportar y subir una clave de un almacén de claves Java / Export and upload a key from Java keystore**.
+2. Descargar **`pepk.jar`** y la **clave pública de cifrado** (`encryption_public_key.pem`) a `D:\Documents\Apps\<App>\KeyStore\pepk\`.
+3. En una **ventana de PowerShell aparte** (la contraseña la escribe el usuario, oculta):
+   ```powershell
+   cd "D:\Documents\Apps\<App>\KeyStore\pepk"
+   & "$env:ProgramFiles\Android\Android Studio\jbr\bin\java.exe" -jar pepk.jar --keystore=..\upload.jks --alias=upload --output=output.zip --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem
+   ```
+   `output.zip` solo lo puede abrir Google: no es un secreto.
+4. Subir `output.zip` en esa pantalla. Si Play ofrece registrar **otra clave de subida** (opcional), no hacerlo: la misma clave queda como clave de subida.
+5. Subir el primer AAB (`bundleRelease`) a prueba interna.
+6. Comprobar en **Integridad de la app → Firma de apps**: el SHA-256 de la **clave de firma de la app** y el de la **clave de subida** son los dos el de `keystore-info.json`. Anotar en `app.json`: `"signing": {"play_app_signing": "own key, verified <fecha>"}`.
+- **Google Sign-In / Drive / Firebase**: un solo SHA-1 (el de `keystore-info.json`) para el cliente OAuth y Firebase.
+- Si el texto de la pantalla de Play no coincide con estos pasos, leer lo que muestra y seguirlo con el mismo objetivo (clave propia por PEPK); no aceptar la clave generada por Google sin preguntar.
 
 ## Otra PC, o una clave que ya existe
 
@@ -54,8 +69,8 @@ Claude corre `gradlew bundleRelease` (sin `UNSIGNED` en la salida) y `jarsigner 
 
 `references/repo-existente.md`, paso 4. Nunca se crea una clave nueva para una app **ya publicada** sin preguntar: la app publicada se sigue firmando con su clave de subida actual. Si esa clave es la única (app anterior a Play App Signing) o se desconoce cuál es, mirar en Play Console → Integridad de la app qué certificado espera Google y comparar su SHA-256 con el de la clave local (`keytool -list -v`).
 
-## Clave comprometida (contraseña en git, en un chat o en un archivo)
+## Clave comprometida (contraseña en git, en un chat o en un archivo, o el archivo y la contraseña juntos fuera de lugar)
 
-1. Crear una clave de subida nueva (`-Create` con otro nombre de archivo, p. ej. `upload-2026.jks`, y `signing.keystore` en `gradle.properties`).
-2. Play Console → Integridad de la app → **Solicitar restablecimiento de la clave de subida** con su `upload_certificate.pem`. Google tarda unos días.
-3. Borrar la contraseña vieja de donde estuvo (historial de git: con el usuario, `git filter-repo`), y el ítem viejo de Bitwarden marcado como "revocada".
+1. **Subida**: crear una clave de subida nueva (`-Create` con otro archivo, p. ej. `upload-2026.jks`, y `signing.keystore` en `gradle.properties`) y pedir en Play Console → Integridad de la app → **Solicitar restablecimiento de la clave de subida** con su `upload_certificate.pem`. Google tarda unos días.
+2. **Firma de la app** (la misma clave en este modelo): Play Console → Integridad de la app → **Actualizar la clave de firma de la app** (una sola vez por app; vale para instalaciones nuevas, las viejas siguen con la anterior). Hacerlo solo si hay sospecha real de que el archivo **y** la contraseña se filtraron.
+3. Cambiar la contraseña en Bitwarden y en el Administrador de credenciales de cada PC.

@@ -6,17 +6,17 @@ Cómo se firma la app **sin contraseñas en texto plano ni en el repo**. Generad
 
 | Qué | Dónde |
 |---|---|
-| Clave de subida (`{{ALIAS}}`, PKCS12, RSA 4096) | `{{KEYSTORE_PATH}}`, **fuera del repo**, en la carpeta de la app |
+| **La clave de la app** (`{{ALIAS}}`, PKCS12, RSA 4096): una sola para todo | `{{KEYSTORE_PATH}}`, **fuera del repo**, en la carpeta de la app |
 | Contraseña | Administrador de credenciales de Windows: `{{CREDENTIAL}}` (usuario = alias). Respaldo: Bitwarden |
 | Huellas públicas (SHA-256, SHA-1) y certificado | `keystore-info.json` y `upload_certificate.pem`, junto a la clave |
-| Clave de firma de la app | La guarda Google (**Play App Signing**). La nuestra es solo la de **subida** |
+| En Google Play | La **misma** clave: es la clave de subida y también la clave de firma de la app (Play App Signing con **clave propia**, subida con PEPK en el primer lanzamiento). Google guarda una copia |
 
 - `gradle/signing.gradle` resuelve la firma en este orden: variables `{{ENV_PREFIX}}_STORE_FILE`, `{{ENV_PREFIX}}_KEY_ALIAS`, `{{ENV_PREFIX}}_STORE_PASSWORD`, `{{ENV_PREFIX}}_KEY_PASSWORD` (CI o build manual), luego la credencial de Windows con la clave en `appDataDir` + `signing.keystore` de `gradle.properties`.
-- Con la credencial, el release se firma con la clave de subida, y también el debug si `signing.signDebug=true`. Así el inicio de sesión de Google funciona y se puede instalar el debug encima del de Play. Sin la credencial, el release sale **sin firmar** (el build lo avisa) y el debug usa la clave de depuración de Android.
+- Con la credencial, el release **y el debug** (`signing.signDebug=true`) se firman con esta clave, la misma que firma Google en Play. Así hay un solo SHA-1 (Google Sign-In, Firebase) y un build sin `applicationIdSuffix` se instala encima del de Play sin borrar datos. Sin la credencial, el release sale **sin firmar** (el build lo avisa) y el debug usa la clave de depuración de Android.
 
 ## PC nueva
 
-1. Restaurar `{{KEYSTORE}}` desde Bitwarden (adjunto del ítem "Android · {{APP_NAME}} · upload key") a `{{KEYSTORE_PATH}}`.
+1. Restaurar `{{KEYSTORE}}` desde Bitwarden (adjunto del ítem "Android · {{APP_NAME}} · signing key") a `{{KEYSTORE_PATH}}`.
 2. `.\setup-signing.ps1 -Register`: pide el alias y la contraseña (ocultos), los comprueba contra la clave y los guarda en el Administrador de credenciales.
 3. `.\gradlew.bat bundleRelease`: no debe avisar `UNSIGNED`.
 
@@ -37,7 +37,7 @@ Remove-Item Env:{{ENV_PREFIX}}_STORE_PASSWORD
 & "$env:ProgramFiles\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore "{{KEYSTORE_PATH}}" -alias {{ALIAS}}
 ```
 
-El SHA-256 debe coincidir con el de **Play Console → Prueba y lanzamiento → Integridad de la app → Firma de apps → Certificado de clave de subida**.
+El SHA-256 debe coincidir con los dos certificados de **Play Console → Prueba y lanzamiento → Integridad de la app → Firma de apps**: el de la clave de firma de la app y el de la clave de subida.
 
 ## Reglas
 
@@ -45,4 +45,5 @@ El SHA-256 debe coincidir con el de **Play Console → Prueba y lanzamiento → 
 - ❌ Nunca `*.jks` / `*.keystore` en el repo (están en `.gitignore`).
 - ✅ Contraseña solo en el Administrador de credenciales (por PC) y en Bitwarden (respaldo).
 - ✅ La clave, en 3 lugares: la carpeta de la app, el adjunto de Bitwarden y una copia cifrada sin conexión.
-- 🔁 Si se pierde o se filtra la clave de subida: **Play Console → Integridad de la app → Solicitar restablecimiento de la clave de subida**, con un `upload_certificate.pem` nuevo. Para eso existe Play App Signing.
+- 🔁 **Si se pierde** (archivo o contraseña): Google tiene una copia y Play sigue firmando; se pide en **Integridad de la app → Solicitar restablecimiento de la clave de subida** con una clave de subida nueva, y los builds locales dejan de instalarse encima del de Play.
+- 🚨 **Si se filtra** (archivo + contraseña): es la identidad permanente de la app; con ella se firman APKs que se instalan encima de la tuya fuera de Play. Google solo permite **actualizarla una vez** (Integridad de la app → Actualizar clave de firma de la app; vale para instalaciones nuevas). Por eso: el archivo y la contraseña nunca juntos sin cifrar, nunca por chat ni correo, Bitwarden y Mega con verificación en dos pasos.

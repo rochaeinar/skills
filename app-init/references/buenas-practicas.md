@@ -5,6 +5,7 @@ Recopiladas de los `CLAUDE.md` de las apps del usuario (Bible Versions en Java, 
 | Regla | Visto en | Por qué |
 |---|---|---|
 | Firma sin contraseñas en disco: Administrador de credenciales + variables de entorno; el debug firmado con la clave de release | bible-versions, forever-note (`SIGNING.md`, `setup-signing.ps1`) | Google Sign-In / Drive funcionan en desarrollo y el debug se instala encima del de Play sin borrar datos |
+| Una sola clave por app: debug, release y clave de firma de la app en Play (subida con PEPK) | tracker, forever-note (`pepk.jar`, `output.zip` en su carpeta de claves), bible-versions | Un solo SHA-1, el debug se instala encima del de Play, una sola cosa que respaldar; a cambio, la clave es la identidad permanente y no debe filtrarse |
 | Clave fuera del repo, en la carpeta de la app | bible-versions (`D:/Documents/BibleVersions/KeyStore`), forever-note | Un `.jks` en git es una fuga permanente |
 | Regla de bugs: todo arreglo con un test de regresión que falla antes y pasa después, en JVM con JUnit 4 sin Mockito; extraer la lógica a una clase pura con interfaz | bible-versions (obligatoria, skill `bugfix`) | Los crashes de Play vuelven si no hay un test que los fije |
 | Clean code: nombres que explican, métodos cortos, retornos tempranos, 2-3 niveles de anidación, sin números mágicos, sin comentarios que repiten el código | tracker (Clean Code de Robert C. Martin, política de comentarios) | El código lo mantienen personas sin IA |

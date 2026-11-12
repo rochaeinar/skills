@@ -14,7 +14,7 @@ Todo pasa por `scripts/appinit.py` (con `python`). Lo que no hace el script lo h
 | Referencia | Cuándo |
 |---|---|
 | `references/carpeta-app.md` | Pasos 2-3: la carpeta `D:\Documents\Apps\<App>\`, `app.json`, mover carpetas viejas |
-| `references/firma.md` | Paso 6: certificado de subida, Play App Signing, Bitwarden paso a paso |
+| `references/firma.md` | Paso 6: la clave única de la app, Play App Signing con clave propia (PEPK), Bitwarden paso a paso |
 | `references/librerias.md` | Paso 5: librerías por defecto, cuándo incluir cada una, cómo extenderlas |
 | `references/repo-existente.md` | Repo que ya existe: ordenar paso a paso |
 | `references/buenas-practicas.md` | Paso 7: de dónde salen las reglas del `CLAUDE.md` base |
@@ -52,7 +52,8 @@ Una carpeta como `D:\Documents\BibleVersions` se mueve a `D:\Documents\Apps\Bibl
 ### 5. Librerías propias
 Nuevo: ya incluidas por `scaffold`. Existente: agregar los `include` en `settings.gradle(.kts)` y `implementation(project(":x"))` con Edit (`references/librerias.md`), con las dependencias entre ellas (`restlog` y `synchronizer` necesitan `:dal`).
 
-### 6. Firma (certificado de subida)
+### 6. Firma (una sola clave para todo)
+**Modelo por defecto**: una clave por app que firma el debug y el release, y que en Play es a la vez la clave de subida y la **clave de firma de la app** (Play App Signing con clave propia, subida con PEPK en el primer lanzamiento). Es el modelo de las apps del usuario. Explicar en una línea que esa clave es la identidad permanente de la app (`references/firma.md`). Solo con `--no-sign-debug` el debug usa la clave de depuración de Android.
 1. `appinit.py wire <repo> --app-dir <carpeta>` → plan → `--yes`: `gradle/signing.gradle` (sirve igual para Groovy y Kotlin DSL), `setup-signing.ps1`, `SIGNING.md`, los nombres en `gradle.properties` (`appDataDir` = la referencia a la carpeta de la app), `.gitignore`, `CLAUDE.md` si falta y `.claude/settings.json`.
 2. **Primera vez: guiar paso a paso con `references/firma.md`** (Bitwarden primero, luego `appinit.py keystore <repo>` abre una ventana aparte donde el usuario escribe la contraseña oculta; luego el respaldo). Nunca pedir ni mostrar una contraseña en el chat.
 3. Clave existente (otra PC, restaurada de Bitwarden): `appinit.py keystore <repo> --register`.
@@ -80,6 +81,7 @@ Nuevo: ya incluidas por `scaffold`. Existente: agregar los `include` en `setting
 - La clave (`*.jks`) vive solo en `D:\Documents\Apps\<App>\KeyStore\`, en Bitwarden y en una copia sin conexión. `setup-signing.ps1 -Create` nunca sobrescribe una clave.
 - Un `*.jks` o `keystore.properties` versionado en git: avisar y proponer cómo sacarlo (y si la contraseña estuvo expuesta, tratar la clave como comprometida: `references/firma.md`).
 - Paquete: definitivo después del primer AAB subido. Preguntar dos veces si hay duda.
+- Firma: una sola clave por app (debug, release y firma de la app en Play). En el primer lanzamiento se elige en Play **usar la clave propia** (PEPK); nunca dejar que Google genere otra clave de firma sin preguntar.
 - Commit y push solo si el usuario lo pide. En los repos de las librerías, nunca sin permiso.
 - El skill no conoce ningún proyecto concreto: todo sale de `detect`, de `app.json` y de las plantillas.
 

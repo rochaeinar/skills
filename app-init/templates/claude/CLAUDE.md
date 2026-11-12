@@ -14,7 +14,7 @@ Everything that is not code lives in `{{APP_DIR}}/` (`appDataDir` in `gradle.pro
 
 | Folder | Content | Used by |
 |---|---|---|
-| `KeyStore/` | upload key, `keystore-info.json` (public fingerprints) | `gradle/signing.gradle`, `android-release` |
+| `KeyStore/` | the app's single signing key, `keystore-info.json` (public fingerprints), PEPK output | `gradle/signing.gradle`, `android-release` |
 | `Images/` | icon, screenshots, feature graphic, promo videos | `play-feature-graphic`, `app-promo-video`, `cloudflare-site` |
 | `play/` | Play Store listing, changelogs, `play.json` (developer profile) | `play-console`, `android-release` |
 | `Docs/` | evidence, licenses, plans that are not code | humans |
@@ -76,7 +76,7 @@ Every bug fix includes a regression test that fails on the old code and passes w
 
 - `adb` is not on PATH: `~/AppData/Local/Android/Sdk/platform-tools/adb.exe`.
 - In Git Bash, prefix device commands with `export MSYS_NO_PATHCONV=1;` (otherwise `/sdcard/...` becomes `C:/Program Files/Git/...`).
-- With `signing.signDebug=true` the debug build is signed like release: FILL whether it installs over the Play version (it does when the debug has no `applicationIdSuffix`).
+- One signing key for everything (`signing.signDebug=true`): debug, release and Play's app signing key are the same. FILL: a debug build without `applicationIdSuffix` installs over the Play version keeping its data; with a suffix it installs next to it.
 - Back up app data and preferences to the scratchpad before changing them on the device, and undo test-only changes afterwards. Never wipe the user's data.
 - Find tap targets with `adb shell uiautomator dump`; crashes with `adb logcat -d -b crash`.
 

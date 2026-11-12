@@ -8,8 +8,8 @@
 //   alias     <PREFIX>_KEY_ALIAS, or the user name of the credential
 //   passwords <PREFIX>_STORE_PASSWORD / <PREFIX>_KEY_PASSWORD (CI, manual builds), or the Windows
 //             Credential Manager entries signing.credential and signing.credential + "-key"
-// With credentials, release (and debug when signing.signDebug=true, so Google sign-in and the
-// Play-installed app accept a debug install) are signed with the upload key. Without them,
+// With credentials, release (and debug when signing.signDebug=true) are signed with the app's single
+// key, the same one Play signs with (own app signing key): one SHA-1 everywhere. Without them,
 // release stays unsigned (the build warns) and debug uses the default Android debug key.
 
 def prop = { String key, String fallback = null ->

@@ -68,9 +68,10 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 La API no crea apps. Orden:
 
 1. **A mano en Play Console** (cuenta del perfil): *Crear app* (nombre, idioma por defecto, app/juego, gratis/pago, declaraciones). Completar **Configura tu app**: acceso a la app, anuncios, clasificación de contenido, público objetivo, política de privacidad (URL), seguridad de los datos (la URL de privacidad, el sitio web y las respuestas están en `<carpeta de la app>/play/app-content.md`, que escribe `cloudflare-site` con la web de la app), apps gubernamentales, servicios financieros, salud.
-2. **A mano:** la **primera subida del AAB** (según las herramientas de publicación, la API solo funciona después de que exista una primera versión): *Prueba interna → Crear versión* con el AAB firmado (`./gradlew bundleRelease`).
-3. `register` + `pull` (crea la estructura con lo que haya) → completar `listing/`, `images/` → `diff` → `push-listing --yes`.
-4. Siguientes versiones: `changelogs/<lang>/<versionCode>.txt` → `release <aab> --track internal --yes` → probar → `promote --from internal --to production --rollout 0.1 --yes`.
+2. **A mano, antes del primer AAB: la clave de firma.** Modelo de las apps del usuario: **una sola clave** (la de `KeyStore/` de la carpeta de la app) es la clave de subida y la de firma de la app. En *Integridad de la app → Firma de apps* elegir **clave propia** y subirla cifrada con PEPK (pasos en `app-init/references/firma.md`, paso 5; la contraseña la escribe el usuario en una ventana aparte). No aceptar la clave generada por Google sin preguntar.
+3. **A mano:** la **primera subida del AAB** (según las herramientas de publicación, la API solo funciona después de que exista una primera versión): *Prueba interna → Crear versión* con el AAB firmado (`./gradlew bundleRelease`).
+4. `register` + `pull` (crea la estructura con lo que haya) → completar `listing/`, `images/` → `diff` → `push-listing --yes`.
+5. Siguientes versiones: `changelogs/<lang>/<versionCode>.txt` → `release <aab> --track internal --yes` → probar → `promote --from internal --to production --rollout 0.1 --yes`.
 
 ## Errores frecuentes
 
