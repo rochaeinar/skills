@@ -1,0 +1,28 @@
+Content Ratings
+Disclaimer:  Policy summaries and Key Considerations are overviews only; always refer to the full policy for compliance. The full policy takes precedence in case of conflict.
+Policy Summary
+All apps must have a content rating from the  IARC  to be on Google Play. You must accurately complete the Play Console questionnaire for every app, and keep it updated if content in the app changes. Please review the full policy to ensure compliance.
+Full Policy
+Content ratings on Google Play are provided by the  International Age Rating Coalition (IARC)  and are designed to help developers communicate locally relevant content ratings to users. Regional IARC authorities maintain guidelines which are used to determine the maturity level of the content in an app. We don’t allow apps without a content rating on Google Play. Note that any ads that appear in the app must not be significantly more mature in content than the primary content within the app itself. Refer to  Inappropriate Ads  policy for more information.
+How content ratings are used
+Content ratings are used to inform consumers, especially parents, of potentially objectionable content that exists within an app. They also help filter or block your content in certain territories or to specific users where required by law, and determine your app’s eligibility for special developer programs.
+How content ratings are assigned
+To receive a content rating, you must fill out a  rating questionnaire on the Play Console  that asks about the nature of your apps’ content. Your app will be assigned a content rating from multiple rating authorities based on your questionnaire responses. Misrepresentation of your app’s content may result in removal or suspension, so it is important to provide accurate responses to the content rating questionnaire.
+You must complete the content rating questionnaire for each new app submitted to the Play Console, as well as for all existing apps that are active on Google Play. Apps without a content rating will be removed from the Play Store.
+If you make changes to your app content or features that affect the responses to the rating questionnaire, you must submit a new content rating questionnaire in the Play Console.
+The content rating assigned to your app is specific to the content within your app. It does not include other features and practices, such as consumer agreements or ads. You are responsible for informing your users of any additional age-based considerations, such as age-specific privacy practices.
+For more information on the questionnaire, visit the  Help Center  to learn about the different  rating authorities  across regions and how to complete the content rating questionnaire.
+Rating appeals
+If you do not agree with the rating assigned to your app, you can appeal directly to the IARC rating authority using the link provided in your certificate email.
+Key Considerations
+Do
+Don't
+Be honest and accurate when filling out the questionnaire.
+Don't misrepresent your app's content on the rating questionnaire.
+Submit a new questionnaire whenever your app's content changes.
+Don't allow ads that are significantly more mature than your app's content.
+Don't forget to retake the questionnaire if you change the content in your app.
+Was this helpful?
+How can we improve it?
+Yes  No
+Submit

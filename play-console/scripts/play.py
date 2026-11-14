@@ -12,6 +12,11 @@ developer accounts. Uses the Google Play Android Developer API v3 with a service
     python play.py release  <app.aab> [--app ...] [--track internal] [--rollout 0.1] [--yes]
     python play.py promote  --from internal --to production [--rollout 0.1] [--app ...] [--yes]
     python play.py retire   --track alpha [--app ...] [--yes]   halt a testing track's releases (never production)
+    python play.py details  [--email ..] [--website ..] [--phone ..] [--language es-419] [--yes]   contact details
+    python play.py data-safety <form.csv> [--yes]       the Data safety form (CSV exported from Play Console)
+    python play.py testers  [--track alpha] [--groups a@googlegroups.com,..] [--yes]
+    python play.py release-status [--track internal,alpha,beta,production] [--json]   review state of each release
+    python play.py reviews  [--json] | --reply <reviewId> --text "..." --yes
 
 Nothing is published without --yes: every change is built in an "edit" (a draft), validated by
 Google and shown; without --yes the edit is deleted. Production also needs --yes.
@@ -720,6 +725,141 @@ def cmd_retire(args):
         api.discard()
 
 
+# --- app details, data safety, testers, review status, reviews ---------------------------------------
+# Used by the play-launch skill. Every write is built in an edit and validated; nothing changes in Play
+# without --yes (data safety has no edit: without --yes it only shows what would be sent).
+
+DETAIL_FIELDS = {"email": "contactEmail", "website": "contactWebsite", "phone": "contactPhone",
+                 "language": "defaultLanguage"}
+
+
+def cmd_details(args):
+    """Contact details of the store listing (e-mail, website, phone) and the default language."""
+    cfg = find_app(args.app)
+    api = Api(cfg["profile"], cfg["package"])
+    api.open()
+    try:
+        current = api.call("GET", api.e("/details"))
+        wanted = {DETAIL_FIELDS[k]: v for k, v in vars(args).items() if k in DETAIL_FIELDS and v is not None}
+        changes = {k: v for k, v in wanted.items() if current.get(k) != v}
+        for field in DETAIL_FIELDS.values():
+            mark = f"  -> {changes[field]}" if field in changes else ""
+            print(f"  {field}: {current.get(field, '')}{mark}")
+        if not changes:
+            print("No changes." if wanted else "")
+            return
+        api.call("PATCH", api.e("/details"), changes)
+        api.call("POST", api.e(":validate"))
+        if not args.yes:
+            print("Validated by Google, NOT saved (dry run). Run again with --yes.")
+            return
+        api.commit()
+        print("OK: details saved.")
+    finally:
+        api.discard()
+
+
+def cmd_data_safety(args):
+    """Writes the Data safety form from the CSV that Play Console exports (Policy > App content > Data
+    safety > Export to CSV): the file must keep Play's question ids. Google validates it on upload."""
+    cfg = find_app(args.app)
+    csv = Path(args.csv).read_text(encoding="utf-8")
+    import csv as csvlib
+    rows = [r for r in csvlib.reader(csv.splitlines()) if any(c.strip() for c in r)]
+    answered = [r for r in rows[1:] if len(r) > 2 and r[2].strip()]
+    print(f"  {args.csv}: {len(rows) - 1} rows, {len(answered)} with a response value")
+    if not args.yes:
+        print("NOT sent (dry run). Run again with --yes to write the Data safety form.")
+        return
+    Api(cfg["profile"], cfg["package"]).call("POST", "/dataSafety", {"safetyLabels": csv})
+    print("OK: Data safety form written. Check it in Play Console > App content > Data safety.")
+
+
+def cmd_testers(args):
+    """The Google Groups (and e-mails) that may join a testing track."""
+    cfg = find_app(args.app)
+    api = Api(cfg["profile"], cfg["package"])
+    api.open()
+    try:
+        current = api.call("GET", api.e(f"/testers/{args.track}"))
+        print(f"  {args.track}: groups {current.get('googleGroups', [])}")
+        if args.groups is None:
+            return
+        groups = [g.strip() for g in args.groups.split(",") if g.strip()]
+        if sorted(groups) == sorted(current.get("googleGroups", [])):
+            print("No changes.")
+            return
+        api.call("PUT", api.e(f"/testers/{args.track}"), {"googleGroups": groups})
+        api.call("POST", api.e(":validate"))
+        print(f"  -> groups {groups}")
+        if not args.yes:
+            print("Validated by Google, NOT saved (dry run). Run again with --yes.")
+            return
+        api.commit()
+        print("OK: testers saved.")
+    finally:
+        api.discard()
+
+
+REVIEW_STATES = {
+    "RELEASE_LIFECYCLE_STATE_DRAFT": "draft",
+    "RELEASE_LIFECYCLE_STATE_NOT_SENT_FOR_REVIEW": "not-sent-for-review",
+    "RELEASE_LIFECYCLE_STATE_IN_REVIEW": "in-review",
+    "RELEASE_LIFECYCLE_STATE_APPROVED_NOT_PUBLISHED": "approved-not-published",
+    "RELEASE_LIFECYCLE_STATE_NOT_APPROVED": "not-approved",
+    "RELEASE_LIFECYCLE_STATE_PUBLISHED": "published",
+}
+
+
+def release_states(cfg, track):
+    """Review state of the releases of a track (applications.tracks.releases.list)."""
+    data = Api(cfg["profile"], cfg["package"]).call("GET", f"/tracks/{track}/releases")
+    out = []
+    for r in data.get("releases", []):
+        codes = [a.get("versionCode") for a in r.get("activeArtifacts", []) if a.get("versionCode")]
+        out.append({"track": track, "name": r.get("releaseName", ""), "versionCodes": codes,
+                    "state": REVIEW_STATES.get(r.get("releaseLifecycleState"), r.get("releaseLifecycleState", "?"))})
+    return out
+
+
+def cmd_release_status(args):
+    cfg = find_app(args.app)
+    rows = [s for t in args.track.split(",") for s in release_states(cfg, t.strip())]
+    if args.json:
+        print(json.dumps(rows, ensure_ascii=False, indent=1))
+        return
+    for s in rows or [{"track": args.track, "name": "", "versionCodes": [], "state": "no releases"}]:
+        print(f"  {s['track']:<12} {s['state']:<24} {s['versionCodes']} {s['name']}")
+
+
+def cmd_reviews(args):
+    """Recent reviews (the API returns those of the last week with text) and their replies."""
+    cfg = find_app(args.app)
+    api = Api(cfg["profile"], cfg["package"])
+    if args.reply:
+        if not args.yes:
+            print(f"Would reply to {args.reply}: {args.text!r}. Run again with --yes.")
+            return
+        api.call("POST", f"/reviews/{args.reply}:reply", {"replyText": args.text})
+        print("OK: reply posted.")
+        return
+    data = api.call("GET", "/reviews", query=f"?maxResults={args.max}")
+    rows = []
+    for r in data.get("reviews", []):
+        user = next((c["userComment"] for c in r.get("comments", []) if "userComment" in c), {})
+        dev = next((c["developerComment"] for c in r.get("comments", []) if "developerComment" in c), None)
+        rows.append({"id": r.get("reviewId"), "stars": user.get("starRating"), "lang": user.get("reviewerLanguage"),
+                     "version": user.get("appVersionCode"), "text": (user.get("text") or "").strip(),
+                     "replied": bool(dev)})
+    if args.json:
+        print(json.dumps(rows, ensure_ascii=False, indent=1))
+        return
+    for r in rows or []:
+        print(f"  {r['stars']}* [{r['lang']}] v{r['version']} {'(replied) ' if r['replied'] else ''}{r['id']}\n    {r['text']}")
+    if not rows:
+        print("No recent reviews.")
+
+
 def main():
     # Windows consoles default to cp1252: print accents and any Unicode from the API safely.
     for stream in (sys.stdout, sys.stderr):
@@ -747,8 +887,20 @@ def main():
     pr.add_argument("--rollout", type=float, default=None); pr.add_argument("--yes", action="store_true")
     rt = sub.add_parser("retire"); rt.add_argument("--track", required=True); rt.add_argument("--app")
     rt.add_argument("--yes", action="store_true")
+    d = sub.add_parser("details"); d.add_argument("--app"); d.add_argument("--yes", action="store_true")
+    for k in DETAIL_FIELDS:
+        d.add_argument(f"--{k}")
+    ds = sub.add_parser("data-safety"); ds.add_argument("csv"); ds.add_argument("--app"); ds.add_argument("--yes", action="store_true")
+    ts = sub.add_parser("testers"); ts.add_argument("--app"); ts.add_argument("--track", default="alpha")
+    ts.add_argument("--groups", help="comma-separated Google Groups; omit to only show them"); ts.add_argument("--yes", action="store_true")
+    rs = sub.add_parser("release-status"); rs.add_argument("--app")
+    rs.add_argument("--track", default="internal,alpha,beta,production"); rs.add_argument("--json", action="store_true")
+    rv = sub.add_parser("reviews"); rv.add_argument("--app"); rv.add_argument("--max", type=int, default=50)
+    rv.add_argument("--json", action="store_true"); rv.add_argument("--reply"); rv.add_argument("--text")
+    rv.add_argument("--yes", action="store_true")
     args = p.parse_args()
-    {"retire": cmd_retire, "auth": cmd_auth, "register": cmd_register, "status": cmd_status, "versions": cmd_versions,
+    {"details": cmd_details, "data-safety": cmd_data_safety, "testers": cmd_testers,
+     "release-status": cmd_release_status, "reviews": cmd_reviews, "retire": cmd_retire, "auth": cmd_auth, "register": cmd_register, "status": cmd_status, "versions": cmd_versions,
      "pull": cmd_pull, "diff": cmd_diff,
      "push-listing": cmd_push_listing, "release": cmd_release, "publish": cmd_publish,
      "promote": cmd_promote}[args.cmd](args)

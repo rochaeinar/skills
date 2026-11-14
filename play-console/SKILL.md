@@ -53,6 +53,11 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 | `publish <app.aab> [--track production] [--rollout 1] [--version-code N] [--yes]` | `release` + `push-listing` en **una sola edición**: Google revisa la versión, sus notas y la ficha juntas |
 | `promote --from internal --to production [--rollout 0.1] [--yes]` | Pasa la versión de una pista a otra |
 | `retire --track alpha [--yes]` | Detiene (*halt*) la versión actual de una pista de prueba. Nunca producción |
+| `details [--email ..] [--website ..] [--phone ..] [--language ..] [--yes]` | Datos de contacto de la ficha e idioma predeterminado |
+| `data-safety <form.csv> [--yes]` | Formulario de seguridad de los datos desde el CSV exportado de Play Console (con sus ids) |
+| `testers [--track alpha] [--groups a@googlegroups.com,..] [--yes]` | Grupos de Google que pueden unirse a una pista de prueba (sin `--groups` solo los muestra) |
+| `release-status [--track ..] [--json]` | Estado de revisión de cada versión: borrador, sin enviar, en revisión, aprobada sin publicar, rechazada, publicada |
+| `reviews [--json]` / `reviews --reply <id> --text ".." --yes` | Reseñas recientes y respuesta a una |
 
 ## Reglas
 
@@ -64,6 +69,8 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 - Respetar el perfil de cada app: nunca usar `--app` de una cuenta con las claves de otra.
 
 ## Primer lanzamiento de una app nueva
+
+**Para publicar una app nueva usar el skill `play-launch`** (generar → revisar → ejecutar, con las pantallas sin API automatizadas en el navegador dedicado). Lo de abajo es el orden manual, por si no se usa.
 
 La API no crea apps. Orden:
 

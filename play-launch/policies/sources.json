@@ -1,0 +1,82 @@
+[
+ {
+  "id": "developer-program-policy",
+  "url": "https://support.google.com/googleplay/android-developer/answer/17105854",
+  "affects": [
+   "listing",
+   "ads",
+   "sensitive_permissions",
+   "spam"
+  ]
+ },
+ {
+  "id": "prepare-for-review",
+  "url": "https://support.google.com/googleplay/android-developer/answer/9859455",
+  "affects": [
+   "app_access",
+   "ads",
+   "privacy_policy",
+   "news_app",
+   "government_app",
+   "financial_features",
+   "health_apps"
+  ]
+ },
+ {
+  "id": "data-safety",
+  "url": "https://support.google.com/googleplay/android-developer/answer/10787469",
+  "affects": [
+   "data_safety"
+  ]
+ },
+ {
+  "id": "closed-testing-personal",
+  "url": "https://support.google.com/googleplay/android-developer/answer/14151465",
+  "affects": [
+   "closed_test",
+   "production_request"
+  ]
+ },
+ {
+  "id": "policy-announcements",
+  "url": "https://support.google.com/googleplay/android-developer/announcements/13412212",
+  "affects": [
+   "all"
+  ]
+ },
+ {
+  "id": "play-policy-insights",
+  "url": "https://developer.android.com/studio/publish/insights",
+  "affects": [
+   "analyze"
+  ]
+ },
+ {
+  "id": "content-rating",
+  "url": "https://support.google.com/googleplay/android-developer/answer/9898843",
+  "affects": [
+   "content_rating"
+  ]
+ },
+ {
+  "id": "target-audience",
+  "url": "https://support.google.com/googleplay/android-developer/answer/9867159",
+  "affects": [
+   "target_audience"
+  ]
+ },
+ {
+  "id": "foreground-services",
+  "url": "https://support.google.com/googleplay/android-developer/answer/13392821",
+  "affects": [
+   "foreground_services"
+  ]
+ },
+ {
+  "id": "advertising-id",
+  "url": "https://support.google.com/googleplay/android-developer/answer/6048248",
+  "affects": [
+   "advertising_id"
+  ]
+ }
+]

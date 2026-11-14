@@ -1,0 +1,121 @@
+Understanding foreground service and full-screen intent requirements
+In order to enable developers to create apps that deliver a consistent user experience, we’re introducing additional foreground service types along with a new set of related policy restrictions. This article explains upcoming foreground service requirements and how to declare foreground service information in Google Play Console. It also details requirements for using full-screen intent notifications.
+Foreground service requirements for Android 14
+To help you identify which use cases are appropriate for foreground services and clearly define the intent of the background work of your app, Android 14 and above requires you to do the following before you use a foreground service:
+Declare  foreground service type (s) in your manifest. You must do this for each foreground service you intend to use.
+If applicable to the type selected, declare and request the  foreground service permission  that is appropriate for each foreground service type.
+The  Permissions for Foreground Services (FGS)  section of our Device and Network Abuse policy outlines the criteria required for using foreground services in detail. You are required to declare foreground service types when you update to Android 14.
+Declaring your foreground service information in Google Play Console
+When your apps target Android 14 and above, you’ll need to declare any foreground service types that you use in a new declaration on the   App content   page ( Monitor and improve  >  App content ) in Play Console.
+For each foreground service type you declare, you’ll need to do the following:
+Provide a description of the app functionality that is using each foreground service type.
+Describe the user impact if:
+the task is deferred by the system (does not start immediately); and/or
+the task is interrupted by the system (paused and/or restarted).
+Include a link to a video demonstrating each foreground service feature. The video should demonstrate the steps the user needs to take in your app in order to trigger the feature.
+Choose your specific use case for each foreground service type. A pre-set list of use cases will be provided for you to choose from. Select use cases mapped to foreground service types are listed in the chart below. This is a non-exhaustive list; if you do not see your use case listed, you can enter your use case manually.
+For certain use cases, we suggest using alternative APIs. For a list of those use cases and their alternative recommended APIs, visit the  Android Developers site .
+Note:  Below is a non-exhaustive list. To determine if access is FGS appropriate, refer to the  Permissions for Foreground Services (FGS ) policy for use cases that are not mentioned below.
+FGS type
+Use cases
+Descriptions and examples
+Video requirements (What the video must show)
+TYPE_CAMERA
+Background Camera Streaming
+Continue to access the camera from the background. For example, video chat apps that allow for multitasking.
+Show the user initiating a camera capture or starting a video streaming session.
+TYPE_CONNECTED_DEVICE
+Continuous Data Transfer to an External Device
+Interactions with external devices including data transfer that require a Bluetooth, NFC, IR, USB, or network connection. For example, wearable, baby monitor, headset, car.
+Show the user pairing and connecting to an external device directly inside the app. The video must show the in-app setup and subsequent device interaction, not system settings.
+Utilizing mobile device app as a key for a car - specific to automotive manufacturers.
+For example, lock or unlock vehicle remotely
+Demonstrate remote vehicle interaction using the application as an automotive key (for example, locking/unlocking vehicle doors or starting the vehicle remotely).
+Show the user initiate a vehicle interaction using the app (for example, locking/unlocking vehicle doors or starting the vehicle remotely)
+TYPE_DATA_SYNC
+Network transfer : Backup and restore
+Use for specifically user-initiated features. For example, selecting a specific photo to back up to cloud vs daily auto backup of all new photos.
+Show a user action which starts a backup or restore task over the network. The video cannot show fully automatic or background backup or recovery.
+Network transfer : Upload or download
+For example, data fetch, server-side processing.
+Show a user-initiating an upload, download, data sync, or server side processing.
+Local processing : Import or export
+Includes migration of files from SD card.
+Show the user manually triggering an import or export of files locally (for example, as moving files from an SD card).
+Local processing : Other
+Use for specifically user-initiated work and not for regular system or server-initiated tasks. For example, encryption, resizing.
+Show a user initiating a local task like resizing or encrypting a file. The video must show direct user initiated action, not automatic background tasks.
+TYPE_HEALTH
+Health Data Sync
+Syncing of health data for apps in the fitness category, which can be across apps or to gather data collected through on-device tracking. For example, step counter, exercise tracker.
+Show a user initiating a health data sync, such as counting steps or recording an active workout.
+TYPE_LOCATION
+Background Location Updates : User-initiated location sharing
+For example, Find My Friend feature, vehicle activity tracking.
+Show the user triggering the location-sharing feature.
+Background Location Updates : Navigation
+For example, continuing driving navigation in maps, ride tracking for ride share.
+Show the user initiating active navigation or ride tracking.
+Geofencing
+Define parameters, which surround the areas of interest.
+Show the user taking the steps within the app tied to a specific location or perimeter (for example, selecting a pickup zone, terminal, or venue) to activate geofencing.
+TYPE_MEDIA_PLAYBACK
+Media Playback
+Continue audio or video playback from the background, including streaming.
+Show a user starting video or audio playback. Playback must be user-initiated; any automatic soundtracks that play when you open an app do not qualify (for example, background game soundtracks).
+Show Picture in Picture
+When media is minimized format while playing in the background.
+Show the user initiating a media playback and triggering Picture-in-Picture (PiP) mode.
+TYPE_MEDIA_PROJECTION
+Media or Content Projection and streaming or recording with  MediaProjection  API
+Project media to non-primary display or external devices using the  MediaProjection  APIs, including streaming.
+Show the user initiating an app capturing, recording, or streaming of the device screen to an external display.
+FOREGROUND_
+SERVICE_
+MEDIA_PROCESSING
+Media transcoding
+Performing time-consuming operations on media assets, like converting media to different formats.
+Show the user initiating the app converting or transcoding a video or audio file to a different format.
+TYPE_MICROPHONE
+Background Audio Access
+Capture audio input, for example, voice commands for virtual assistant without saving, voice recording.
+Show the user initiate the microphone actively recording audio or receiving voice commands.
+TYPE_PHONE_CALL
+Calling : Cellular/VoiP/Telecom APIs
+Support various calling dialer features.
+Show the user initiating an active voice or video call on screen.
+TYPE_REMOTE_MESSAGING
+Relay text communication to another device
+Assists without continuity of a user's messaging tasks when they switch devices. For example, allow users to send text messages via a web client by scanning a QR code and establishing a connection between the web client and the phone. Not limited to SMS.
+Show the user initiate the syncing or transfer of text messages and transferring between the phone and an external web client or device.
+The declaration will be available by November 2023, and we’ll provide you time to complete the declaration, receive feedback, and make adjustments if needed.
+Full-screen intent requirements for Android 14
+You may want to use  full-screen intent notifications  to share high-priority messages that require the user's immediate attention. To ensure that this permission is limited to the appropriate high-priority use cases, for Android 14, we're introducing  restrictions  to the usage of the  USE_FULL_SCREEN_INTENT  permission. Limiting notifications in this way helps ensure a better experience for users.
+If you use the   USE_FULL_SCREEN_INTENT  permission , you are  required  to complete the Play Console declaration starting May 31, 2024 to indicate if your app has a permitted core functionality and qualifies for automatic granting. Starting January 22, 2025, for apps targeting Android 14+, only apps that have calling or alarm functionalities will have this permission enabled by default. Otherwise, you must get user permission to use the  USE_FULL_SCREEN_INTENT  permission. For apps that did not complete the declaration or have not been approved for default enabling, developers will need to prompt  users  to grant permission on new installs and gracefully degrade the experience if denied.
+Frequently asked questions
+What is changing for foreground services in Android 14?
+We’re introducing several new  foreground service types , and it will be mandatory to declare a foreground service type along with its appropriate foreground service permission. For example, if you’re declaring the "camera" foreground service type, you must also declare the  FOREGROUND_SERVICE_CAMERA  permission. Your foreground usage must also comply with the other requirements outlined in our  Device and Network Abuse  policy.
+How do I know what foreground service type to use?
+Choose the foreground service type that  best matches your intended foreground service usage . For example, an exercise app that tracks a user’s exercise can declare the "health" foreground service type. You may also choose multiple foreground service types if applicable to your app.
+What is a foreground service permission and does it need to be granted by the user before starting a foreground service?
+When apps that target Android 14 use a foreground service, developers must declare the appropriate foreground service permission for that specific foreground service type. For example, if your app uses the "location" foreground service type, you will need to declare the  FOREGROUND_SERVICE_LOCATION  permission. Foreground service permissions that refer to a specific foreground service type are defined as  normal permissions  and are granted by default at install time. Users cannot revoke these permissions.
+Are there any additional requirements in addition to declaring the appropriate foreground service permission?
+Depending on the foreground service type, there may be additional  system requirements . Some of these may be  runtime permissions  and require users to grant permission before they can be used. For example, if using the "location" foreground service type, the user must also grant either the  ACCESS_COARSE_LOCATION  or the  ACCESS_FINE_LOCATION  permission. Please refer to the documentation for the latest information.
+What if my foreground use case doesn’t match any of the defined foreground service types?
+In limited scenarios, if your use case meets the other characteristics required for foreground service usage (as described in the  policy ), you may declare the foreground service  TYPE_SPECIAL_USE  type. All foreground service types are subject to review.
+What does "user perceptible" mean?
+User perceptible means that the user should be aware that a foreground service task is running on their device. Users can be considered aware if they initiate the action themselves; for example, the user might play a song or track a run. Your app can also make users aware of an ongoing foreground service by presenting a clear and accurate notification in the task bar on the device.
+What if I target versions prior to Android 14?
+If you are targeting an Android version  prior to Android 14 , continue to use the  android:foregroundServiceType  attribute within the  <service>  element of your app’s manifest file.
+What is the difference between the dataSync foreground service type and User-Initiated Data Transfer?
+User-initiated data transfer jobs are designed to simplify over-the-network data transfers. They have  constraint tracking and automatically manage wakelocks . The dataSync foreground service type can include transferring data locally or over a network, and may include processing data locally on device. If your use case is for transferring data over a network (such as Wi-Fi, mobile, or Bluetooth) in response to an explicit user request, we recommend using the user-initiated data transfer job instead of the dataSync foreground service type.
+What is changing for full-screen intent in Android 14?
+For Android 14,  USE_FULL_SCREEN_INTENT  will switch from a  normal permission  to a  special apps access permission , and only apps whose core functionality is a high-priority use case of setting an alarm or receiving phone or video calls will be automatically granted the  USE_FULL_SCREEN_INTENT  permission. You can think of core functionality as the main purpose of your app, without which, the app is broken or rendered unusable. Other apps may still use the permission, but only after they have been granted the permission from the user.
+When will these changes for full-screen intent in Android 14 take effect?
+These changes will take effect on May 31, 2024.
+If my app is an alarm clock app or an app that receives phone or video calls, how can I make sure my app is automatically granted the permission?
+When your app targets Android 14 and above, you'll have the option to declare that your app is a core functionality app for full-screen intent on the   App content   page ( Monitor and improve  >  App content ) in Play Console. The declaration will be available starting April 2024, and we'll provide you time to complete the declaration.
+Was this helpful?
+How can we improve it?
+Yes  No
+Submit

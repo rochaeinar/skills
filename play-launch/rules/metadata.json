@@ -1,0 +1,37 @@
+{
+  "_about": "Rules checked in stage 1. Sources: Play metadata policy (policies/sources.json: metadata), target API level (target-api). Review when policies/changes.json lists them.",
+  "min_target_sdk": 36,
+  "max_keyword_share": 0.04,
+  "_banned": "Metadata policy: the app name (and, by this skill's rule, the short description) never carry promotional or performance words; the whole listing never carries rankings, awards or calls to action.",
+  "banned_in_title_short": [
+    "free", "gratis", "grátis", "best", "mejor", "top", "new", "nuevo", "nueva", "hot", "sale", "discount",
+    "descuento", "oferta", "pro", "premium", "no ads", "sin anuncios"
+  ],
+  "banned_everywhere": [
+    "#1", "no. 1", "number one", "número uno", "top 1", "download now", "descarga ya", "descárgala ya",
+    "install now", "instala ya", "million downloads", "millones de descargas", "editor's choice",
+    "app of the year", "best of play", "award-winning", "premiada", "ranked", "ranking"
+  ],
+  "sensitive_permissions": [
+    "android.permission.READ_SMS", "android.permission.SEND_SMS", "android.permission.RECEIVE_SMS",
+    "android.permission.READ_CALL_LOG", "android.permission.WRITE_CALL_LOG", "android.permission.PROCESS_OUTGOING_CALLS",
+    "android.permission.ACCESS_BACKGROUND_LOCATION", "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.MANAGE_EXTERNAL_STORAGE", "android.permission.QUERY_ALL_PACKAGES",
+    "android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.SCHEDULE_EXACT_ALARM",
+    "android.permission.USE_EXACT_ALARM", "android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO",
+    "android.permission.BIND_ACCESSIBILITY_SERVICE", "android.permission.BIND_VPN_SERVICE",
+    "android.permission.USE_FULL_SCREEN_INTENT", "android.permission.READ_CONTACTS", "android.permission.CAMERA",
+    "android.permission.RECORD_AUDIO", "android.permission.BODY_SENSORS", "android.permission.READ_PHONE_STATE",
+    "android.permission.SYSTEM_ALERT_WINDOW", "android.permission.ACCESS_MEDIA_LOCATION"
+  ],
+  "sdk_flags": {
+    "ads": ["play-services-ads", "com.google.android.ads", "com.facebook.android:audience", "applovin", "unity3d.ads",
+            "com.ironsource", "com.vungle", "com.chartboost", "inmobi", "mbridge", "pangle", "bytedance"],
+    "analytics": ["firebase-analytics", "play-services-measurement", "com.google.firebase:firebase-crashlytics",
+                  "io.sentry", "com.amplitude", "com.mixpanel", "com.appsflyer", "com.adjust", "com.segment",
+                  "com.flurry", "com.facebook.android:facebook-core"],
+    "login": ["play-services-auth", "firebase-auth", "credentials", "com.facebook.android:facebook-login"],
+    "billing": ["com.android.billingclient"],
+    "location": ["play-services-location"]
+  }
+}

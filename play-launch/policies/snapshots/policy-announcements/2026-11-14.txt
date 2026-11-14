@@ -1,0 +1,337 @@
+Announcements
+Policy announcement: October 29, 2026
+You'll have at least 30 days from October 29, 2026 to update your app to comply with the new and updated policy changes below. For more details, go to the Policy Deadlines page.
+New policies
+Local Network Permission: This permission is restricted to apps that need it for core functionality when device pickers are insufficient. Apps targeting Android 17 or higher (API 37+) must submit a Play Console declaration to use this permission.
+Manage Contacts Permission: This permission is restricted to apps that need it for core functionality when system pickers are insufficient and apps must submit a …
+Read more
+Policy announcement: July 15, 2026
+Updated policies
+You'll have at least 30 days from July 15, 2026 to update your app to comply with the policy changes below. For more details, go to the Policy Deadlines page.
+To better protect minors, our Age-Restricted Content and Functionality and Child Safety Standards policies have new requirements and restrictions for anonymous chat and random chat apps. Our Families Policy Requirements policy also now prohibits anonymous chat apps from targeting children.
+Our SMS and Call Log Permissions policy will no longer permit account verification via phone call as a use case for the READ_CALL_LOG…
+Read more
+Policy announcement: April 15, 2026
+You'll have at least 30 days from April 15, 2026 to update your app to comply with the new and updated policy changes below. For more details, go to the Policy Deadlines page.
+New policies
+We're introducing the Contacts Permissions policy to govern broad access of users' contacts. Apps that don't need broad access must use the Android Contact Picker, a more secure, easy-to-integrate alternative that minimizes data collection and improves user safety.
+To ensure a safe and trusted ecosystem, we're introducing the Account Transfer policy to require developers to use the official "Transfer ownersh…
+Read more
+Policy announcement: January 28, 2026
+Updated policy
+For personal loan apps in Thailand, we’re updating the Google Play listing requirements to display additional information such as the loan service provider, maximum interest rates, and all fees. This applies immediately to new apps, and existing apps will have until March 4, 2026 to come into compliance. For more details, go to the Policy Deadlines page.
+Clarification
+We’ve added a link to “matchmaking and dating” in our Age-Restricted Content and Functionality policy. Our enforcement standards and practices remain the same.
+Read more
+Policy announcement: December 9, 2025
+As a part of our continued compliance with legal obligations in the U.S., we're rolling out additional changes to provide appropriate user and ecosystem protections:
+Clarifying our Payments policy to link to additional programs
+Expanding our alternative billing programs for all eligible developers serving U.S. users Launching the external content links program for developers looking to link users in the U.S. to external content
+You have until January 28, 2026 to comply with these policy and program requirements if you wish to continue linking users to external content or offering alternative b…
+Read more
+Policy announcement: November 19, 2025
+Starting on January 1, 2026, to help protect users' data, developers may only use data provided by the Age Signals API to provide age-appropriate experiences in the app receiving this data.
+Read more
+Policy announcement: October 30, 2025
+You’ll have at least 30 days from October 30, 2025 to update your app to comply with the new and updated policy changes below. For more details, go to the Policy Deadlines page.
+New policy
+To help protect children, the new Age-Restricted Content and Functionality policy requires apps with features that include matchmaking, dating, or real money gambling / games / contests to use Play Console features to block minors.
+Updated policies
+For personal loan apps in India, we’re updating the country requirements to align with a newly published government list of approved digital lending apps. Apps mu…
+Read more
+Policy announcement: July 10, 2025
+Policy updates
+You’ll have at least 30 days from July 10, 2025 to update your app to comply with the policy changes below. For more details, go to the Policy Deadlines page.
+We’re updating the Personal Loans policy to clarify that only Pakistan has limited exceptions for apps to provide short-term loans (less than 60 days) and in such cases, only in accordance with local laws and regulations.
+We’re updating the Cryptocurrency Exchanges and Software Wallets policy to include a Help Center link that details select country-specific requirements.
+Clarifications
+Additionally, we've added clarificat…
+Read more
+PolicyBytes: Your video guide to Google Play policies: June 24, 2025
+Check out the latest PolicyBytes video on our PolicyBytes Hub.
+While we're committed to providing comprehensive policy documentation, we also understand that sometimes you might prefer to get your information in a different format. That's why we have PolicyBytes – another resource to help you understand key Google Play policies!
+PolicyBytes: your policy updates, explained
+PolicyBytes is a video series that's part of our ongoing commitment to making Google Play policy information as accessible and convenient as possible. Whether you prefer reading detailed documentation or watching informative …
+Read more
+Policy announcement: April 10, 2025
+You’ll have at least 30 days from April 10, 2025 to update your app to comply with the policy changes below. For more details, go to the Policy Deadlines page.
+Updated policies
+We’re updating the News policy to include both news and magazine apps. Additionally, the current self-declaration will be expanded with new questions. All news and magazine apps will need to complete the updated self-declaration in Play Console.
+The Personal Loans policy will be updated to include line of credit apps.
+Clarifications
+Additionally, we've added clarifications to some of our existing policies. Because these…
+Read more
+Policy announcement: March 5, 2025
+Starting today, March 5, 2025, we’re updating our Health Connect policy to strengthen safeguards regarding the handling of sensitive health record data. Health records may include medical history, diagnoses, treatments, medications, lab results, and other clinical data, obtained from healthcare providers or institutions, or through supported third-party health platforms. This data is highly sensitive and requires careful handling to protect user privacy. These updates include:
+Clear eligibility criteria: Only apps with justified use cases for accessing health records will be considered. Guidan…
+Read more
+Helpful tips for white label developers: February 10, 2025
+If you’re a white-label app developer looking to optimize your publishing process on Google Play, make sure to read the Best Practices for White Label Developers article in Play Console Help Center. This article will help you navigate key aspects of creating and launching successful template-based apps for your customers.
+This guide focuses on four critical areas:
+Account Management: Learn about the recommended decentralized account management approach and its benefits, including isolating risks and enabling independent branding. This article will help you understand the pros and cons between …
+Read more
+Required actions to comply with our Photo & Video Permissions policy by January 22, 2025
+This reminder is for developers with apps that carry READ_MEDIA_IMAGES and READ_MEDIA_VIDEO permissions.
+In October 2023, we announced the Photo and Video Permissions policy to enhance user privacy by limiting the number of apps with access to broad photo and video permissions (READ_MEDIA_IMAGES and READ_MEDIA_VIDEO). Starting January 22, 2025, your app must comply with this policy. [ACTION REQUIRED] To ensure your app remains available on Google Play, you must take one of the following actions before January 22, 2025:
+Declare your app's need for broad access: If your app's core functionality …
+Read more
+Need help? Visit the Google Play Developer Help Community: December 19, 2024
+The Google Play Developer Help Community is here for you whenever you need help or expert advice on app publishing and Play Console issues. In this online forum, you can:
+Ask questions and get support from Google Product Experts and experienced developers.
+Find answers to common questions about app publishing and technical issues.
+Get helpful guidance for navigating common policy issues.
+Learn best practices and tips directly from the Google Play team.
+Connect with a global network of developers.
+Stay ahead of the curve with policy updates and important news.
+Visit the Google Play Developer He…
+Read more
+Policy announcement: October 30, 2024
+You’ll have at least 30 days from October 30, 2024 to update your app to comply with the policy changes below. For more details, go to the Policy Deadlines page.
+Updated policy
+We’re increasing the scope of the Medical functionalities policy and updating the policy language to incorporate the latest medical guidance and disclaimer requirements for health and medical apps. We’re also consolidating health-related policies under the Health Content and Services page.
+Additionally, we've added clarifications to some of our existing policies. Because these changes aren't new or updated, our enforcem…
+Read more
+Helpful tips to get your app published on Google Play: August 28, 2024
+We're committed to making your Google Play app publishing journey a success. We've compiled these top tips to make your experience as seamless as possible, regardless of your experience level. Whether you're a seasoned developer or new to the process, this guide will help you navigate common publishing pitfalls.
+Visit our Help Center to learn more: Helpful tips to get your app published on Google Play.
+Read more
+Policy announcement: July 17, 2024
+You’ll have at least 30 days from July 17, 2024 to update your app to comply with the policy changes below. For more details, go to the Policy Deadlines page.
+New and updated policies
+We’re requiring developers providing the following services to register as an Organization: financial products and services, health, VPN, and government. This is to promote transparency and continuity for critical and sensitive services. This update will roll out to new developer accounts first. Existing developers will receive more information later this year.
+We’re updating the Spam and Minimum Functionality po…
+Read more
+Policy announcement: April 3, 2024
+You’ll have at least 30 days from April 3, 2024 to update your app to comply with the policy changes below. For more details, go to the Policy Deadlines page.
+New and updated policies
+We’re introducing a Child Safety Standards policy requiring Social and Dating apps to follow specific standards and self-certify compliance on Play Console before publishing.
+To enhance the visibility and management of health-related apps on Google Play, we’re introducing a Health Apps console declaration. Apps with health or medical-related features or functionality must attest to this on Play Console. Learn mor…
+Read more
+Policy announcement: March 6, 2024
+To comply with the Digital Markets Act (DMA) regulation, beginning March 6, 2024, we’re updating our Payments policy to allow developers to direct European Economic Area (EEA) users outside their app, including to promote offers for in-app digital features and services, subject to program requirements. Additionally, we’re expanding our alternative billing programs for EEA users to include more eligible device types and app categories. Learn more
+In addition to these policy updates, we're publishing our general conditions of access for Google Play in the EEA for developers offering apps to user…
+Read more
+Policy announcement: October 25, 2023
+You’ll have at least 30 days from October 25, 2023 to comply with the following policy changes, unless noted otherwise below. For deadlines and resources, go to the Policy Deadlines page.
+New and updated policies
+To help ensure generative AI apps are safe for users, we’re reminding developers that all genAI apps must comply with our policies. We’re also requiring that certain genAI apps have user reporting or flagging features.
+For a more privacy preserving experience for users, we’re introducing the Photo and Video Permissions policy to reduce the number of apps permitted to request broad pho…
+Read more
+Policy announcement: July 12, 2023
+New policies
+To give developers more control over where their apps appear, we’re updating our Device and Network Abuse policy to state that all apps running On-device Android Containers, which simulate all or portions of the Android OS, must respect the new REQUIRE_SECURE_ENV flag. Apps can add this flag to their manifest to indicate they don't want to be run in an On-device Android Container.
+We’re introducing the Blockchain-based content policy that states developers must complete a declaration for apps that enable users to transact blockchain-based digital content. Additional requirements a…
+Read more
+Keeping Google Play safe for users and developers: June 29, 2023
+We’re committed to making Google Play a safe and trusted experience for everyone. With over 2 million apps available on Google Play, we’re continually working on improvements to our app review process, policies, and programs to keep users safe and help developers navigate our policies with ease. This includes:
+Machine learning detection: We use machine learning to scan apps for policy violations to help us find harmful apps at scale, so we can keep Google Play trustworthy for everyone.
+Human review: We have teams of human reviewers who manually review apps for policy violations to make sure th…
+Read more
+Policy announcement: April 5, 2023
+New policies
+To give users more control over their data, we're introducing a new account deletion requirement under our User Data policy. If your app allows users to create an account, then it must also allow users to request for their account to be deleted in the app and through a web resource. All developers must also update their Data safety form in Play Console, where some information may be displayed on your app’s Data safety section on Google Play. Learn more in our Help Center and blog.
+We’re adding new guidelines to our Device and Network Abuse policy:
+For apps targeting Android 14 and…
+Read more
+Policy announcement: February 22, 2023
+We’re updating Google Play’s Payments policy to respond to the recent regulatory developments in India. Developers can offer an alternative billing system alongside Google Play’s billing system to users in India making in-app purchases within Play-distributed apps on mobile phones and tablets.
+Read more
+Policy announcement: December 14, 2022
+New clarification
+We've added clarifications to our Target API Level policy. Because this is a clarification, our enforcement standards and practices for this policy remain the same.
+We’re noting exceptions to the Target API Level policy, which can be found in our updated Help Center article. These exceptions include permanently private apps and apps that target automotive or wearables form factors and are bundled within the same package.
+Read more
+Policy announcement: November 16, 2022
+Policy updates
+We’re introducing additional requirements for personal loan apps targeting users in Nigeria and Kenya. Personal loan apps in these two countries must complete declaration forms and submit documentation for our review in order to remain or publish new personal loan apps on Google Play.
+We’re updating our Deceptive Ads policy to state that ads must not simulate or impersonate the user interface of any app features.
+We’re updating our Families Self-Certified Ads SDK policy to require developers with apps in the Families Program to only use self-certified versions of SDKs when servi…
+Read more
+Policy announcement: November 2, 2022
+↵
+Policy clarification
+We’ve moved details about Other Real-Money Game Pilots from our Real-Money Gambling, Games, and Contests Policy to our Help Center.
+Read more
+Policy announcement: September 7, 2022
+Policy update
+We’re conducting a limited-time pilot enabling distribution of Daily Fantasy Sports (DFS) and Rummy apps to users in India by developers incorporated in India.
+Read more
+Policy announcement: July 27, 2022
+Upcoming new policies
+We’re adding new guidelines to our Ads policy to improve the in-app user experience and to prohibit unexpected interstitial ads, inspired by the Better Ads Standards - Mobile Apps Experiences guidelines.
+We’re introducing new requirements for the FLAG_SECURE declaration under our Device and Network Abuse policy stating that all apps must respect the FLAG_SECURE declaration and must not facilitate or create workarounds to bypass the FLAG_SECURE settings in other apps.
+We’re introducing new requirements under our Permissions policy to state that all apps must have acceptabl…
+Read more
+Policy announcement: May 11, 2022
+Upcoming new policy
+We’re introducing the Health Connect by Android Permissions policy to help Android users securely store health and fitness data on their phone, and give them a simple way to connect and share this data with their favorite apps. Learn more
+Policy update
+We’re updating the User Data policy to include Health Connect data as a type of personal and sensitive user data.
+Read more
+Policy announcement: April 6, 2022
+Upcoming new policies
+We’re updating our Families policy to explain that if an app contains content that is not globally appropriate, we may make the app available only to users in regions where content within that app is deemed appropriate.
+We're introducing a limited-time pilot for Online Crane Games to be distributed on the Google Play store to users in Japan only. Learn more.
+We’re introducing the Request Install Packages Permission policy to explain which permitted functionalities and actions are allowed for the permission.
+To provide users with a safe and secure experience, we are expand…
+Read more
+Policy announcement: December 15, 2021
+Policy update
+We’re clarifying our Subscriptions policy to state that subscriptions must provide sustained or recurring value to users throughout the life of the subscription, and may not be used to offer what are effectively one-time benefits to users.
+Read more
+Policy announcement: November 18, 2021
+Policy update
+We’re updating Google Play’s Payments policy to respond to the new regulations in South Korea. Developers can now accept payments for in-app purchases from mobile and tablet users in South Korea with an alternative in-app billing system in addition to Google Play’s billing system.
+Read more
+Policy announcement: October 27, 2021
+Policy updates
+We’re updating the Inappropriate Content policy to prohibit apps published by or related to dangerous organizations and movements that are connected to violence against civilians.
+We’re updating our Enforcement Process to include the ability to limit the regions in which your app is available to users through Google Play.
+We’re updating our Sexual Content policy to explain that we may make an app available only to users in regions where the sexual content within that app is deemed appropriate.
+Upcoming new policies
+We're adding a hostile downloader section to our Mobile Unwanted…
+Read more
+Policy announcement: July 28, 2021
+Upcoming new policies
+We're offering a developer preview of app set ID for essential use cases such as analytics or fraud prevention. App set ID cannot be used for ads personalization or ads measurement.
+We’re adding new restrictions in our Families Policy Requirements on identifiers used in apps that target children. Developers need to comply by September 1, 2021 except for Ad ID changes. For Ad ID, developers have until April 1, 2022 to comply.
+We’re adding a new section in our Enforcement policy to close inactive or abandoned developer accounts after 1 year of dormancy and additional factor…
+Read more
+Policy announcement: March 31, 2021
+Policy updates and clarifications
+We're updating the All Files Access Permission policy for apps that target Android 11+ and need to access external storage so that users have more access control over their device storage.
+We're adding regional updates for Real-Money Gambling countries, and are adding clarifications to the Gamified Loyalty program policy requirements.
+We’re updating the Sexual Content and Profanity policy with additional examples of prohibited apps.
+Additionally, we’ve added new clarifications and examples to some of our policies. Please note that these aren’t new policies and…
+Read more
+Policy announcement: November 11, 2020
+We’re adding information regarding the acceptable use of SMS and Call log data for business CRM apps and default handlers. If you want to make changes to your apps in accordance with these revised guidelines, you can do so starting today. [Current policy | Upcoming policy - effective December 16, 2020]
+We’re updating our Policy Coverage section with additional clarity on apps that may pose a high risk of abuse. [Current policy | Upcoming policy - effective December 16, 2020]
+We're updating our User Data policy to align with changes to the Google Play Developer Distribution Agreement to reflect…
+Read more
+Policy announcement: September 28, 2020
+We’re updating our Payments policy policy to clarify when Google Play’s billing system should be used for in-app purchases. This clarification is important to increase user protections across Play-distributed apps and makes the policy easier to understand.
+Any existing app that is currently using an alternative billing system will need to remove it to comply with this update. For those apps, we are offering an extended grace period until September 30, 2021 to make any required changes. New apps submitted after January 20, 2021 will need to be in compliance. To view additional information about…
+Read more
+Policy announcement: September 16, 2020
+We’re updating our Misrepresentation policy to clarify that developers and apps taking part in coordinated activity that misrepresents or conceals the origin of an app or content are a violation of Google Play policy.
+We’re updating our Gambling Apps policy to allow a government-published real money gambling app in Brazil.
+In addition, we’re correcting a typo in our Stalkerware policy. All apps will have until October 1, 2020 to comply with this correction.
+Read more
+Policy announcement: July 8, 2020
+We’ve introduced new policies and policy updates that need your attention. All new and existing apps will receive a grace period of at least 30 days from the issuance of this notification (unless otherwise stated) to comply with these changes. Here’s a summary of all the changes:
+We've introduced new requirements for apps requesting broad access to device storage, including an appropriate access and declaration review process for R-targeted apps.
+We’ve launched a News policy to highlight requirements for News Apps published on Google Play. Visit the Help Center for more detailed information on…
+Read more
+Policy announcement: April 16, 2020
+Various updates as outlined below:
+We've updated our Deceptive Behavior policies to emphasize functionally deceptive apps and our requirement to provide accurate disclosures and metadata.
+We've updated our Malicious Behavior policies to introduce a user notification requirement prior to apps beginning large resource file downloads.
+We've introduced a Manipulated Media policy for apps that spread or created altered media.
+We've updated our Malware policy. Visit the Google Play Protect site for additional information about enforcement and reporting malware.
+We've updated our Subscriptions policy…
+Read more
+Policy announcement: January 28, 2020
+We’re updating our Real-Money Gambling, Games, and Contests policy so more developers around the world can build sustainable businesses, and in a way that helps keep consumers safe. Here's a summary of all the changes:
+We’re expanding the number of countries in which developers can publish licensed real money gambling apps to include: Australia, Belgium, Canada, Colombia, Denmark, Finland, Germany, Japan, Mexico, New Zealand, Norway, Romania, Spain, Sweden, and the United States (in addition to the existing permitted countries: Brazil, Ireland, France, and the United Kingdom).
+We’re introducin…
+Read more
+Policy announcement: November 2019
+We've clarified our Misleading Claims policy to highlight the prohibition of any disinformation or deception around medical, health-related and government services apps.
+We've updated our Metadata policy to ensure developers create better descriptions and titles that accurately represent their app.
+We've updated our Ad Network Certification policy to provide further clarification on ad SDK requirements.
+We've updated our Monetization and Ads policy on in-app virtual currencies.
+We've updated our Spam and Minimum Functionality policies to set higher quality standards for applications on Google …
+Read more
+Policy announcement: August 2019
+We've updated our Device and Network Abuse policy with an additional example addressing apps that facilitate proxy services to third parties.
+We've expanded our Financial Services policy to protect users from deceptive and exploitative personal loan terms.
+We've clarified our Misleading Claims policy with an additional example regarding demonstrably deceptive content that may interfere with voting processes.
+Read more
+Policy announcement: May 2019
+We've introduced a new Families policy and updated our Designed for Families program policy.
+We've introduced a new Ad Network Certification policy for apps that serve ads to children.
+We've updated our Inappropriate Content policies to clarify our existing Sexual Content and Hate Speech policies and introduce new policies on Marijuana, Tobacco and Alcohol.
+We've updated our Payments policy to introduce a requirement to disclose odds for lootboxes.
+We have updated our Gambling policy with additional examples.
+We've clarified our User Generated Content policy to explicitly prohibit monetization…
+Read more
+Policy announcement: January 2019
+We've introduced a new policy that prohibits the promotion and sale of Unapproved Substances.
+We've added examples to better clarify our Sensitive Events and Bullying and Harassment policies.
+Read more
+Policy announcement: October 2018
+We've clarified our Malicious Behavior policy prohibiting surveillance and commercial spyware apps.
+We've clarified our Design for Families program requirements and Primarily Child-Directed Declaration guidelines to prohibit misrepresentation of the participating apps and their target age group.
+We've updated our User Data and Permissions policies for more clarity and coverage; including to restrict Call Log and SMS permission usage.
+We are also removing user information available on the Contacts Provider; to learn more click here.
+We've updated our Enforcement section to explain the extent of…
+Read more
+Policy announcement: July 2018
+We've clarified our Child Endangerment policy to emphasize the prohibition of adult themes in apps that appeal to children.
+We’ve introduced a new policy that prohibits any sale of Dangerous Products, including firearms, explosives, etc. Our Violence policy has also been updated accordingly.
+We've introduced a new policy on Cryptocurrency mining in our Financial Instruments section.
+We've clarified our Spam policies to explicitly prohibit repetitive content on our platform. We also don’t allow apps whose primary purpose is to serve ads.
+We've introduced a new policy on misrepresentation in our…
+Read more
+Policy announcement: April 2018
+We've clarified a few of our Restricted Content policies (Child Endangerment, Hate Speech, Violence, User Generated Content) to help ensure a safe user experience.
+We've introduced a new policy on Binary Options.
+We've shared new requirements for Daily Fantasy Sports apps.
+We've introduced new guidelines on Dishonest Behavior in our Deceptive Behavior policy section.
+We've clarified our standards on Malicious Behavior with some new examples.
+We've clarified our high-level policy on App Metadata.
+We've updated our eligibility criteria and common violations for Designed for Families program to c…
+Read more
+Policy announcement: November 2017
+We’ve updated our guidance for apps that seek to monetize the lockscreen.
+We’ve updated our content rating guidelines for unrated apps.
+We’ve clarified the program requirements for Designed for Families.
+Read more
+Policy announcement: October 2017
+↵
+We’ve more clearly defined the geographical restrictions for our gambling policy.
+We’ve provided clarity on baseline functionality that must be present for apps on Google Play.
+We’ve identified certain guide app behavior that will preclude publication on Google Play.
+We’ve taken additional steps to protect users by limiting how and when developers can make permission requests.
+Read more
+Policy announcement: August 2017
+We’ve introduced new policies on gambling apps, which are currently permitted only in the UK, Ireland, and France.
+We’ve clarified our User Data policy to provide detailed guidance on prominent disclosure.
+We’re now hosting ;Android Instant Apps policies in a new category dedicated to other Android programs.
+We’re now hosting content rating guidelines under our Store Listing and Promotion category.
+Read more
+Policy announcement: June 2017
+We have introduced new guidelines on data protection as required by the EU-U.S. Privacy Shield.
+Read more
+Policy announcement: May 2017
+We’ve revised our Malicious Behavior policy to clarify our position on downloading executable code.
+We've updated our Ratings, Reviews, and Installs policy to further clarify our position on incentivized installs.
+We’ve published additional policy requirements for the distribution of Android Instant Apps via Google Play.
+We are sharing 10 tips to help you stay on the right side of Google Play policy. Enjoy the video!
+Read more
+Policy announcement: April 2017
+We’ve clarified the program requirements for Designed for Families and added eligibility criteria for Augmented Reality and Virtual Reality apps.
+We’ve introduced a Child-Directed Declaration policy that requires developers to declare whether their app is primarily child-directed in the Play Console.
+Read more
+Policy announcement: October 2016
+Updated the example section in the Metadata policy for clarity.
+Read more
+Policy announcement: July 2016
+Addition of a Google Play Families Program policy tile to the Policy Center.
+We’ve clarified our Privacy and Security policies to help developers better determine when privacy disclosure is required, and where such disclosure should be available to users.
+We've updated our Restricted Content policies to further clarify our stance on sexually explicit services.
+We’ve updated our gambling ad policies to share the requirements a developer must adhere to when displaying gambling ads in Play.
+We’re introducing a User Generated Content policy that outlines minimum safety feature requirements.
+We’ve …
+Read more
+Policy announcement: May 2016
+Updated the Payments section with information about Android Pay.
+Read more
+Policy announcement: March 2016
+We've updated the requirements under the Ads policy to prohibit inappropriate ads.
+We've introduced requirements under the Device and Network Abuse policy regarding Doze and App Standby.
+We've introduced requirements under the Ads policy regarding ads that interfere with system functionality.
+We've clarified the existing requirements under the User Data policy.
+We've launched a new Developer Policy Center.
+Read more
