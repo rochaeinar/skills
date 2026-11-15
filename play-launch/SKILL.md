@@ -14,6 +14,10 @@ Scripts (con `python`, **sin `-I`**: usan Playwright y `cryptography` del sitio 
 
 Cada app guarda su estado en `D:/Documents/Apps/<App>/play/launch/`: `expediente.json` (todo lo que se enviará), `facts.json` (lo que dice el build), `check.json`, `approval.json`, `state.json`, `texts/`, `evidence/<fecha>/`, `console-log.txt`.
 
+## Etapa 3 es autónoma (no preguntar)
+
+Con la aprobación válida y la sesión iniciada, Claude **ejecuta todo de corrido sin pedir confirmaciones**: crear la app, firma, primer AAB, declaraciones, ficha, prueba cerrada y envío a revisión. Lo aprobado ya es la autorización. Solo se detiene si (a) falta algo que solo el usuario puede dar (contraseña, archivo personal), (b) una pantalla pide algo que no está en lo aprobado o contradice la evidencia, o (c) una acción afectaría a otras apps o a la cuenta (p. ej. políticas de Google Cloud). Si un camino falla (p. ej. la API sin permiso), usa otro (la consola) sin preguntar. Al final, un solo informe con lo hecho, la evidencia y lo pendiente. Producción sigue necesitando confirmación o preaprobación (día 14).
+
 ## Guiar al usuario (Claude lleva el proceso, no el usuario)
 
 - **Claude corre todos los comandos** (abrir el navegador dedicado, `whoami`, `next`, pantallas, API). Al usuario solo se le piden acciones físicas o personales: iniciar sesión, escribir una contraseña, subir un archivo a su Drive, aprobar. Una a la vez, con el paso exacto (qué abrir, qué botón, qué pegar dónde) y qué decir al terminar.
