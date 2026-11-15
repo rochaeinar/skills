@@ -30,6 +30,15 @@ Con la cuenta de Google **dueña de la cuenta de desarrollador** (o con permisos
    - El mensaje final de `play.py auth` (paso 4) lo muestra: `OK: profile '<perfil>' = <correo>`.
    El orden de los pasos 3 y 4 da igual: se puede guardar la clave primero e invitar después.
 
+### Hallazgos (cuenta Era Soft Labs, 2026-11-15)
+
+- **"La creación de claves de la cuenta de servicio está inhabilitada"** (`iam.disableServiceAccountKeyCreation`): Google la activa por defecto en las organizaciones nuevas de Google Cloud y alcanza a los proyectos de esa organización. Solución con el menor alcance: **excepción solo en el proyecto del publicador** → IAM y administración → Políticas de la organización → esa política (`?project=<id>`) → *Administrar política* → *Anular política del elemento superior* → *Agregar una regla* → Aplicación: **Desactivado** → *Listo* → *Configurar política*. Tarda ~1 minuto en propagarse. El resto de la organización sigue protegido.
+- **Proyecto nuevo pide cuenta de facturación** (aunque la API de Play es gratis): reutilizar un proyecto existente **sin organización** y renombrarlo (Configuración de IAM → Nombre del proyecto), p. ej. "Erasoft Play Publisher". El ID no cambia.
+- Una clave recién creada puede devolver **HTTP 400** al primer intento de token: esperar 1-2 minutos y reintentar (`play.py auth` guarda la clave antes de comprobarla).
+- **No hace falta respaldar el JSON de la clave**: si se pierde, se crea otra en Google Cloud y se borra la vieja. Copias = más riesgo de filtración.
+- Para todas las apps de la cuenta: invitar con **Permisos de la cuenta** (no por app): Ver información de la app, Ver información de calidad, Lanzar a producción…, Lanzar apps a los segmentos de pruebas, Administrar segmentos de pruebas y listas de verificadores, Administrar la presencia en Play Store, Responder a opiniones, Administrar declaraciones de políticas. Nunca *Administrador* ni datos financieros. Con la app ya creada, la API funcionó en el acto.
+- El skill `play-launch` hace todo esto con el navegador dedicado (`console.py`); el usuario solo decide la excepción de la política.
+
 ## 3. Darle acceso en Play Console
 
 Sin esto, todo comando da **HTTP 403 "The caller does not have permission"**.

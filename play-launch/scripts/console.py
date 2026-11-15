@@ -206,6 +206,15 @@ def settle(page, timeout=30000):
         except Exception:
             pass
     page.wait_for_timeout(1500)
+    dismiss_survey(page)
+
+
+def dismiss_survey(page):
+    """Play Console's "Help us improve" survey sits over the buttons and swallows clicks: remove it."""
+    try:
+        page.evaluate("document.getElementById('google-hats-survey')?.remove()")
+    except Exception:
+        pass
 
 
 def snapshot(page, folder, name):
@@ -297,6 +306,7 @@ def run_steps(s, steps, ctx, dry, log):
                 run_steps(s, step["steps"], {**ctx, "item": item}, dry, log)
             continue
         s.pause()
+        dismiss_survey(page)
         if kind == "goto":
             url = CONSOLE + resolve(step["path"], ctx)
             try:
