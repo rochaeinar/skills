@@ -14,6 +14,18 @@ Scripts (con `python`, **sin `-I`**: usan Playwright y `cryptography` del sitio 
 
 Cada app guarda su estado en `D:/Documents/Apps/<App>/play/launch/`: `expediente.json` (todo lo que se enviará), `facts.json` (lo que dice el build), `check.json`, `approval.json`, `state.json`, `texts/`, `evidence/<fecha>/`, `console-log.txt`.
 
+## Informar al usuario (siempre, al terminar cualquier paso)
+
+El usuario no sabe en qué etapa está ni dónde mirar si no se lo dicen. **Cada respuesta que cierra un paso termina con `launch.py next`** (o su contenido) en palabras simples:
+
+1. **En qué etapa está cada app** (1 generar · 2 tu revisión · 3 ejecución · 4 prueba y producción).
+2. **Dónde revisar**: el enlace de la página de revisión (`state.json` → `review_url`), las rutas exactas de los archivos que tiene que mirar o subir.
+3. **Qué tiene que hacer él**, en pasos numerados y concretos (qué botón, qué decirle a Claude al terminar).
+4. **Qué falta y quién lo resuelve** (Claude o él), incluidos los pendientes que bloquean la aprobación.
+5. Las decisiones que se le piden, una por una.
+
+Nunca terminar con "falta la etapa 2" sin el enlace y los pasos. La revisión puede empezar con hasta 3 pendientes (`MAX_PENDING_FOR_REVIEW`): la página los muestra en rojo y no deja aprobar hasta resolverlos.
+
 ## Reglas que no cambian
 
 - **Las etapas no se mezclan.** Nada llega a Play Console antes de la aprobación; en la etapa 3 no se genera ni se reescribe nada. Si falta algo, se vuelve a la etapa 1 para eso y a la 2 para revisarlo.
@@ -40,9 +52,9 @@ Cada app guarda su estado en `D:/Documents/Apps/<App>/play/launch/`: `expediente
 
 ## Etapa 2: revisión del usuario
 
-1. `launch.py review-export --app <carpeta> [--app ...] --out <scratchpad>/review`: datos de la página (un documento por texto, imagen, video, declaración y la configuración) y las imágenes.
-2. Publicar `templates/review.html` con la herramienta Artifact (copiarlo a la carpeta de salida; la primera vez con `icon: "checklist"`), `files` = el mapa de `files.json`, `capabilities: {db: {}, user: {}}`. Después, cargar los datos con `ArtifactData` `batch` por cada lista de `batches.json` (escrituras con `file_path`). Una sola página sirve para todas las apps del lote: actualizarla con el mismo archivo.
-3. Darle el enlace al usuario. En la página ve **los textos primero**, editables, con su conteo y el idioma base al lado; marca cada texto como revisado, deja notas y aprueba por app o todas.
+1. `launch.py review-export --app <carpeta> [--app ...] --out <scratchpad>/review`: datos de la página (un documento por texto, imagen, video, declaración y la configuración), las imágenes y los pendientes de `check.json` (hasta 3; se ven en rojo y bloquean la aprobación).
+2. Copiar `templates/review.html` a esa carpeta y publicarlo con la herramienta Artifact (la primera vez con `icon: "checklist"`), `files` = el mapa de `files.json`, `capabilities: {db: {}, user: {}}`. Después, cargar los datos con `ArtifactData` `batch` por cada lista de `batches.json` (escrituras `set` con `file_path`, rutas con `/`), y una lectura `list` de `apps` para comprobar. Una sola página sirve para todas las apps del lote: actualizarla publicando el mismo archivo.
+3. `launch.py review-published <url> --app <carpeta> [--app ...]`: guarda el enlace en cada app e imprime el mensaje para el usuario. Dárselo tal cual (ver "Informar al usuario"). En la página ve **los textos primero**, editables, con su conteo y el idioma base al lado; marca cada texto como revisado, deja notas y aprueba por app o todas.
 4. `ArtifactData list` de `items`, `apps` y `approvals` con `out_dir=<scratchpad>/review-in`, y `launch.py review-import --from <scratchpad>/review-in`: aplica los textos editados a sus archivos, guarda las notas en `review-notes.md` y registra la aprobación con el hash de todos los archivos. **Con notas no se registra la aprobación**: Claude las aplica, vuelve a correr `check` y `review-export`, y el usuario aprueba de nuevo.
 5. `launch.py approval`: la aprobación vale mientras ningún archivo cambie. Cualquier cambio posterior la anula.
 
@@ -60,7 +72,7 @@ Cada app guarda su estado en `D:/Documents/Apps/<App>/play/launch/`: `expediente
 - `launch.py tick` (diario, Programador de tareas; ver SETUP.md): consulta el estado de revisión por API, cuenta los días de la prueba cerrada y avisa lo que necesita al usuario. Nunca toca pantallas.
 - Día 14: Claude lee el conteo de inscritos (`closed_test_count`), redacta las respuestas de la solicitud de producción a partir de la prueba real (comentarios de los testers, versiones subidas) en `launch/texts/production-answers.txt`, y con la aprobación (o la preaprobación con criterios) corre `production_request`.
 - Aprobada: `play.py promote --from alpha --to production --rollout <production_rollout> --yes`, luego subir al 100 % (`android-release`).
-- `launch.py status`: todas las apps y lo que espera cada una.
+- `launch.py status`: todas las apps y su estado. `launch.py next`: lo mismo en palabras para el usuario (dónde revisar, qué hacer, qué falta).
 
 ## Políticas
 

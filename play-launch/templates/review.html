@@ -43,6 +43,7 @@ button.toggle[aria-pressed="true"] { background: var(--ok-bg); color: var(--ok);
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font: 500 12px var(--body); padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 .chip.ok { background: var(--ok-bg); color: var(--ok); } .chip.warn { background: var(--warn-bg); color: var(--warn); } .chip.bad { background: var(--bad-bg); color: var(--bad); }
+.notice.bad { border-left-color: var(--bad); background: var(--bad-bg); }
 .notice { border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--fg); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; }
 section.group { display: grid; gap: 12px; }
 .item { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
@@ -138,7 +139,9 @@ function readiness(appId) {
   const over = texts.filter(i => i.limit && (state.drafts.get(i.id) ?? i.value ?? "").trim().length > i.limit).length;
   const open = items.filter(i => i.kind === "declaration" && !["derived", "answered"].includes(i.status)).length;
   const notes = items.filter(i => i.note).length;
-  return { texts: texts.length, reviewed, over, open, notes, ready: texts.length > 0 && reviewed === texts.length && !over && !open };
+  const pending = ((state.apps.get(appId) || {}).pending || []).length;
+  return { texts: texts.length, reviewed, over, open, notes, pending,
+    ready: texts.length > 0 && reviewed === texts.length && !over && !open && !pending };
 }
 
 function textItem(i) {
@@ -212,6 +215,7 @@ function renderApp(app) {
   if (r.reviewed < r.texts) reasons.push(`faltan ${r.texts - r.reviewed} textos por marcar revisados`);
   if (r.over) reasons.push(`${r.over} textos pasan su límite`);
   if (r.open) reasons.push(`${r.open} declaraciones sin respuesta`);
+  if (r.pending) reasons.push(`${r.pending} pendientes de Claude (arriba, en rojo)`);
   const approveBtn = h("button", { class: approved ? "" : "primary", id: `approve-${app.id}`, disabled: !state.canWrite || (!approved && !r.ready),
     onclick: () => setApproval(app.id, !approved), text: approved ? "Quitar aprobación" : "Aprobar esta app" });
   return h("article", { class: "app", id: `app-${app.id}` },
@@ -221,6 +225,7 @@ function renderApp(app) {
         h("span", { class: "chip " + (r.reviewed === r.texts ? "ok" : ""), text: `Textos ${r.reviewed}/${r.texts}` }),
         r.notes ? h("span", { class: "chip warn", text: `${r.notes} notas` }) : null,
         h("span", { class: "chip " + (approved ? "ok" : "warn"), text: approved ? "Aprobada" : "Sin aprobar" }))),
+    (app.pending || []).length ? h("div", { class: "notice bad" }, h("strong", { text: "Pendiente antes de aprobar (lo resuelve Claude, a veces con tu ayuda): " }), app.pending.join(" · ")) : null,
     (app.warnings || []).length ? h("div", { class: "notice" }, h("strong", { text: "Avisos de los controles: " }), app.warnings.join(" · ")) : null,
     groups,
     h("div", { class: "approve-box" },

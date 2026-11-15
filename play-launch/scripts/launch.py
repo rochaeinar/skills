@@ -10,6 +10,8 @@ exactly what was approved (after the user signs in). Fail-closed: anything witho
     python launch.py approval [--app F]                    is the approval still valid (files unchanged)?
     python launch.py set-state <state> [--app F] [--note ..]  move an app along the pipeline (after a verified step)
     python launch.py status                                every app in the pipeline and what it waits for
+    python launch.py next     [--app F]                    what comes next, in words for the user (where to review, what to do)
+    python launch.py review-published <url> [--app F ...]  remember the review page link and print the message for the user
     python launch.py tick                                  daily: review states by API, closed-test days, reminders
     python launch.py policies fetch|diff                   dated copies of Google's policy pages; what changed
 
@@ -48,6 +50,7 @@ NEEDS_USER = {"generated": "review the generated texts, images and declarations 
               "stopped": "read the reason and decide"}
 TEXT_FILES = {"title": 30, "short": 80, "full": 4000}
 MIN_SCREENSHOTS, MAX_SCREENSHOTS = 2, 8
+MAX_PENDING_FOR_REVIEW = 3   # the review can start with a few items still pending (shown in red, they block approval)
 
 
 def fail(message):
@@ -555,15 +558,16 @@ def cmd_review_export(args):
     all_items, apps = [], []
     for app in pick(args):
         exp = app.expediente()
-        check = read_json(app.launch / "check.json", {})
-        if check.get("errors"):
-            fail(f"{app.slug}: stage 1 is not complete ({len(check['errors'])} errors in check.json): fix and run check")
+        check = read_json(app.launch / "check.json") or fail(f"{app.slug}: run check first")
+        pending = check.get("errors", [])
+        if len(pending) > MAX_PENDING_FOR_REVIEW:
+            fail(f"{app.slug}: stage 1 is far from complete ({len(pending)} errors in check.json): finish it first")
         all_items += review_items(app, exp, out)
         apps.append({"id": app.slug, "name": exp["name"], "package": exp["package"],
                      "languages": exp["languages"], "hash": approval_hash(app, exp),
-                     "warnings": check.get("warnings", []), "exported": now()})
-        if app.state()["state"] == "generated":
-            app.set_state("in-review", "review page exported")
+                     "warnings": check.get("warnings", []), "pending": pending, "exported": now()})
+        if app.state()["state"] in ("new", "generated"):
+            app.set_state("in-review", "review page exported" + (f" ({len(pending)} items still pending)" if pending else ""))
     # One file per document, and the ArtifactData batches (≤ 50 writes each) that load them into the page.
     writes = []
     for coll, docs in (("apps", apps), ("items", all_items)):
@@ -612,6 +616,10 @@ def cmd_review_import(args):
                                                        encoding="utf-8")
             print(f"  {app.slug}: {len(notes)} notes -> {app.launch / 'review-notes.md'}")
         approval = approvals.get(app.slug)
+        pending = (read_json(app.launch / "check.json") or {}).get("errors", [])
+        if approval and approval.get("approved") and pending:
+            print(f"  {app.slug}: approval ignored, stage 1 still has pending items: {pending}")
+            continue
         if not approval or not approval.get("approved"):
             print(f"  {app.slug}: not approved yet ({changed} texts edited)")
             continue
@@ -630,6 +638,16 @@ def cmd_review_import(args):
         write_json(app.launch / "approval.json", {"approved_at": approval.get("at"), "recorded": now(),
                                                   "hash": approval_hash(app, exp), "texts_edited_on_page": changed})
         app.set_state("approved", "approved on the review page")
+
+
+def cmd_review_published(args):
+    """Records the review page's link in each app of the lot (state.json) and prints what to tell the user."""
+    for app in pick(args):
+        st = app.state()
+        st["review_url"] = args.url
+        write_json(app.state_path, st)
+    print(f"Recorded. Tell the user (review page: {args.url}):")
+    print("\n".join(next_steps_lines(pick(args))))
 
 
 def approval_valid(app):
@@ -656,6 +674,46 @@ def cmd_set_state(args):
             if not ok:
                 fail(f"{app.slug}: cannot move to '{args.state}': approval {why}")
         app.set_state(args.state, args.note or "")
+
+
+# --- what comes next, in words for the user ----------------------------------------------------------
+
+STAGE = {"new": 1, "generated": 2, "in-review": 2, "approved": 3, "waiting-sign-in": 3, "app-created": 3,
+         "signing-and-first-aab": 3, "content-declared": 3, "listing-uploaded": 3, "closed-test": 4,
+         "production-requested": 4, "in-review-by-google": 4, "published": 5, "rollout-100": 5, "stopped": 0}
+
+
+def next_steps_lines(apps):
+    lines = []
+    for app in apps:
+        st = app.state()
+        s, url = st["state"], st.get("review_url")
+        pending = (read_json(app.launch / "check.json") or {}).get("errors", [])
+        head = f"{app.meta.get('name', app.slug)} - stage {STAGE.get(s, '?')}/4 ({s})"
+        if s == "new":
+            todo = [f"Claude: finish stage 1 ({len(pending)} pending)"] + [f"  - {p}" for p in pending]
+        elif s in ("generated", "in-review"):
+            todo = [f"YOU: open the review page {url or '(not published yet: Claude publishes it)'}",
+                    "  read every text (they are editable), mark each one 'Revisado', leave notes for Claude if needed",
+                    "  when everything is reviewed, press 'Aprobar esta app' and tell Claude"]
+            todo += [f"  BLOCKING until done: {p}" for p in pending]
+        elif s in ("approved", "waiting-sign-in"):
+            profile = app.meta.get("profiles", {}).get("play", "<profile>")
+            todo = [f"YOU: python {SKILL / 'scripts' / 'console.py'} open --profile {profile}",
+                    "  sign in by hand to Play Console in that window, then tell Claude 'listo'"]
+        elif s == "closed-test":
+            todo = [f"Closed test day {closed_test_day(app)}/14: the testers use the app; nothing for you unless asked"]
+        elif s == "stopped":
+            todo = [f"YOU: read why it stopped: {app.state_path}"]
+        else:
+            todo = [NEEDS_USER.get(s, "Claude continues; nothing for you now")]
+        lines.append(head)
+        lines += [f"  {t}" for t in todo]
+    return lines
+
+
+def cmd_next(args):
+    print("\n".join(next_steps_lines(pick(args))))
 
 
 # --- status and the daily tick --------------------------------------------------------------------------
@@ -783,12 +841,15 @@ def main():
             s.add_argument("--notify", action="store_true", help="show a Windows message when something needs you")
     e = sub.add_parser("review-export"); e.add_argument("--app", action="append"); e.add_argument("--out", required=True)
     m = sub.add_parser("review-import"); m.add_argument("--app", action="append"); m.add_argument("--from", dest="source", required=True)
+    nx = sub.add_parser("next"); nx.add_argument("--app", action="append")
+    rp = sub.add_parser("review-published"); rp.add_argument("url"); rp.add_argument("--app", action="append")
     st = sub.add_parser("set-state"); st.add_argument("state"); st.add_argument("--app", action="append"); st.add_argument("--note")
     po = sub.add_parser("policies"); po.add_argument("action", choices=["fetch", "diff"])
     args = p.parse_args()
     {"init": cmd_init, "analyze": cmd_analyze, "check": cmd_check, "review-export": cmd_review_export,
      "review-import": cmd_review_import, "approval": cmd_approval, "set-state": cmd_set_state,
-     "status": cmd_status, "tick": cmd_tick, "policies": cmd_policies}[args.cmd](args)
+     "status": cmd_status, "tick": cmd_tick, "policies": cmd_policies,
+     "next": cmd_next, "review-published": cmd_review_published}[args.cmd](args)
 
 
 if __name__ == "__main__":
