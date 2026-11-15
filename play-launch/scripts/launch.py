@@ -471,6 +471,43 @@ def cmd_check(args):
 
 # --- review: page data out, edits and approvals in ------------------------------------------------------
 
+def user_inputs(app, exp):
+    """Things only the user can provide (a link, an e-mail): one field each on the review page, with the steps
+    to get it. `path` is where review-import writes the value in the expediente; `covers` is the check error the
+    field resolves (it is not repeated as a red pending line)."""
+    out = []
+    video_file = app.dir / "Images" / "play-declarations"
+    for fgs in exp["declarations"].get("foreground_services", {}).get("value") or []:
+        key = f"fgs_{fgs}"
+        if exp.get("videos", {}).get(key):
+            continue
+        local = sorted(video_file.glob("foreground-service-*.mp4")) if video_file.exists() else []
+        out.append({
+            "key": key, "path": f"videos.{key}", "type": "url", "required": True,
+            "label": f"Enlace del video del servicio en primer plano ({fgs.lower().replace('_', ' ')})",
+            "help": [
+                f"Sube a Google Drive el video: {local[0] if local else '(Claude todavía no lo grabó)'}",
+                "En Drive: clic derecho > Compartir > Acceso general: 'Cualquier persona con el enlace' (Lector)",
+                "Copiar vínculo y pegarlo aquí. Google lo usa para revisar la declaración.",
+            ],
+            "placeholder": "https://drive.google.com/file/d/.../view?usp=sharing",
+            "covers": f"foreground service {fgs}: no video link"})
+    if not exp.get("contact", {}).get("email"):
+        out.append({"key": "contact_email", "path": "contact.email", "type": "email", "required": True,
+                    "label": "Correo público de contacto (se ve en la ficha de Play)",
+                    "help": ["Un correo que revises: Google y los usuarios escriben ahí."],
+                    "placeholder": "support@tu-dominio.app", "covers": "missing the public contact e-mail"})
+    return out
+
+
+def set_path(data, path, value):
+    cur = data
+    parts = path.split(".")
+    for part in parts[:-1]:
+        cur = cur.setdefault(part, {})
+    cur[parts[-1]] = value
+
+
 def review_items(app, exp, img_root):
     """One document per reviewable thing, texts first. Images are copied under img_root."""
     items, order = [], 0
@@ -521,6 +558,9 @@ def review_items(app, exp, img_root):
                 published.append(rel)
             add(id=f"{app.slug}--img-{lang}-{kind}", kind="images", section="Images", label=kind, lang=lang,
                 files=published)
+    for field in user_inputs(app, exp):
+        add(id=f"{app.slug}--input-{field['key']}", kind="input", section="From you", value="", **{
+            k: v for k, v in field.items() if k != "key"})
     for key, url in exp.get("videos", {}).items():
         add(id=f"{app.slug}--video-{key}", kind="link", section="Videos", label=key, url=url)
     for key, item in exp["declarations"].items():
@@ -559,7 +599,8 @@ def cmd_review_export(args):
     for app in pick(args):
         exp = app.expediente()
         check = read_json(app.launch / "check.json") or fail(f"{app.slug}: run check first")
-        pending = check.get("errors", [])
+        covered = [f["covers"] for f in user_inputs(app, exp)]
+        pending = [e for e in check.get("errors", []) if not any(c in e for c in covered)]
         if len(pending) > MAX_PENDING_FOR_REVIEW:
             fail(f"{app.slug}: stage 1 is far from complete ({len(pending)} errors in check.json): finish it first")
         all_items += review_items(app, exp, out)
@@ -609,6 +650,15 @@ def cmd_review_import(args):
                 Path(i["file"]).write_text(i["value"].strip() + "\n", encoding="utf-8")
                 changed += 1
                 print(f"  {app.slug}: edited {i['label']} [{i.get('lang') or '-'}]")
+            if i.get("kind") == "input" and (i.get("value") or "").strip():
+                value = i["value"].strip()
+                if i.get("type") == "url" and not re.match(r"https://\S+$", value):
+                    print(f"  {app.slug}: '{i['label']}' is not a https link: {value!r} (not applied)")
+                else:
+                    set_path(exp, i["path"], value)
+                    app.save_expediente(exp)
+                    changed += 1
+                    print(f"  {app.slug}: {i['label']} = {value}")
             if i.get("note"):
                 notes.append(f"- **{i['label']}** [{i.get('lang') or '-'}]: {i['note']}")
         if notes:
@@ -616,7 +666,10 @@ def cmd_review_import(args):
                                                        encoding="utf-8")
             print(f"  {app.slug}: {len(notes)} notes -> {app.launch / 'review-notes.md'}")
         approval = approvals.get(app.slug)
-        pending = (read_json(app.launch / "check.json") or {}).get("errors", [])
+        r = Report()
+        check_texts(app, exp, r); check_images(app, exp, r); check_declarations(app, exp, r)
+        write_json(app.launch / "check.json", {"at": now(), "errors": r.errors, "warnings": r.warnings})
+        pending = r.errors
         if approval and approval.get("approved") and pending:
             print(f"  {app.slug}: approval ignored, stage 1 still has pending items: {pending}")
             continue

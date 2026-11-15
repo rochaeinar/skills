@@ -43,6 +43,10 @@ button.toggle[aria-pressed="true"] { background: var(--ok-bg); color: var(--ok);
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font: 500 12px var(--body); padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 .chip.ok { background: var(--ok-bg); color: var(--ok); } .chip.warn { background: var(--warn-bg); color: var(--warn); } .chip.bad { background: var(--bad-bg); color: var(--bad); }
+.item.need { border-color: var(--warn); }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.field { width: 100%; box-sizing: border-box; font: 15px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.small { font-size: 12px; }
 .notice.bad { border-left-color: var(--bad); background: var(--bad-bg); }
 .notice { border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--fg); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; }
 section.group { display: grid; gap: 12px; }
@@ -105,8 +109,8 @@ const h = (tag, attrs = {}, ...kids) => {
   for (const kid of kids.flat()) if (kid != null) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
   return el;
 };
-const SECTION_ORDER = ["Store listing", "Release notes", "Declaration texts", "Images", "Videos", "Declarations", "Setup and tracks"];
-const SECTION_ES = {"Store listing": "Ficha de Play Store", "Release notes": "Notas de versión", "Declaration texts": "Textos de las declaraciones",
+const SECTION_ORDER = ["From you", "Store listing", "Release notes", "Declaration texts", "Images", "Videos", "Declarations", "Setup and tracks"];
+const SECTION_ES = {"From you": "Lo que falta de ti", "Store listing": "Ficha de Play Store", "Release notes": "Notas de versión", "Declaration texts": "Textos de las declaraciones",
   "Images": "Imágenes", "Videos": "Videos", "Declarations": "Declaraciones", "Setup and tracks": "Configuración y pistas"};
 const state = { items: new Map(), apps: new Map(), approvals: new Map(), db: null, userId: null, canWrite: true, drafts: new Map() };
 const statusEl = $("#status");
@@ -140,8 +144,39 @@ function readiness(appId) {
   const open = items.filter(i => i.kind === "declaration" && !["derived", "answered"].includes(i.status)).length;
   const notes = items.filter(i => i.note).length;
   const pending = ((state.apps.get(appId) || {}).pending || []).length;
-  return { texts: texts.length, reviewed, over, open, notes, pending,
-    ready: texts.length > 0 && reviewed === texts.length && !over && !open && !pending };
+  const inputs = items.filter(i => i.kind === "input" && i.required);
+  const missing = inputs.filter(i => !inputValid(i, state.drafts.get(i.id) ?? i.value ?? "")).length;
+  return { texts: texts.length, reviewed, over, open, notes, pending, missing,
+    ready: texts.length > 0 && reviewed === texts.length && !over && !open && !pending && !missing };
+}
+
+function inputValid(i, v) {
+  v = (v || "").trim();
+  if (!v) return false;
+  if (i.type === "url") return /^https:\/\/\S+$/.test(v);
+  if (i.type === "email") return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+  return true;
+}
+
+function inputItem(i) {
+  const value = state.drafts.get(i.id) ?? i.value ?? "";
+  const status = h("span", { class: "chip" });
+  const input = h("input", { class: "field", id: `in-${i.id}`, type: i.type === "email" ? "email" : "url", value,
+    placeholder: i.placeholder || "", "aria-label": i.label, readonly: !state.canWrite,
+    oninput: e => { state.drafts.set(i.id, e.target.value); refresh(); updateBar(); },
+    onchange: e => write(i.id, { value: e.target.value.trim() }) });
+  function refresh() {
+    const v = input.value.trim();
+    const ok = inputValid(i, v);
+    status.className = "chip " + (ok ? "ok" : (v ? "bad" : "warn"));
+    status.textContent = ok ? "Listo" : (v ? (i.type === "url" ? "Debe empezar con https://" : "Revisa el formato") : "Falta");
+  }
+  refresh();
+  return h("div", { class: "item need" },
+    h("div", { class: "item-head" }, h("div", { class: "item-title" }, i.label), status),
+    h("ol", { class: "steps" }, (i.help || []).map(t => h("li", { text: t }))),
+    input,
+    h("div", { class: "muted small", text: "Se guarda solo al salir del campo. Claude lo aplica cuando le avises." }));
 }
 
 function textItem(i) {
@@ -207,6 +242,7 @@ function renderApp(app) {
     if (s === "Declarations") body = declarationsTable(list);
     else if (s === "Images") body = list.map(imagesItem);
     else if (s === "Videos") body = list.map(i => h("div", { class: "item" }, h("div", { class: "item-title" }, i.label), h("a", { href: i.url, target: "_blank", rel: "noopener", text: i.url })));
+    else if (s === "From you") body = list.map(inputItem);
     else if (s === "Setup and tracks") body = list.map(i => h("div", { class: "item" }, h("pre", { text: i.value })));
     else body = list.map(textItem);
     return h("section", { class: "group" }, h("h3", { text: SECTION_ES[s] || s }), body);
@@ -215,6 +251,7 @@ function renderApp(app) {
   if (r.reviewed < r.texts) reasons.push(`faltan ${r.texts - r.reviewed} textos por marcar revisados`);
   if (r.over) reasons.push(`${r.over} textos pasan su límite`);
   if (r.open) reasons.push(`${r.open} declaraciones sin respuesta`);
+  if (r.missing) reasons.push(`completa ${r.missing === 1 ? "el campo" : r.missing + " campos"} de "Lo que falta de ti"`);
   if (r.pending) reasons.push(`${r.pending} pendientes de Claude (arriba, en rojo)`);
   const approveBtn = h("button", { class: approved ? "" : "primary", id: `approve-${app.id}`, disabled: !state.canWrite || (!approved && !r.ready),
     onclick: () => setApproval(app.id, !approved), text: approved ? "Quitar aprobación" : "Aprobar esta app" });
