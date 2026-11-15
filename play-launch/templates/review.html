@@ -153,7 +153,12 @@ function readiness(appId) {
 function inputValid(i, v) {
   v = (v || "").trim();
   if (!v) return false;
-  if (i.type === "url") return /^https:\/\/\S+$/.test(v);
+  if (i.type === "url") {
+    if (!/^https:\/\/\S+$/.test(v)) return false;
+    let host = "";
+    try { host = new URL(v).hostname; } catch (_) { return false; }
+    return !i.hosts || i.hosts.some(h => host === h || host.endsWith("." + h));
+  }
   if (i.type === "email") return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
   return true;
 }
@@ -169,7 +174,7 @@ function inputItem(i) {
     const v = input.value.trim();
     const ok = inputValid(i, v);
     status.className = "chip " + (ok ? "ok" : (v ? "bad" : "warn"));
-    status.textContent = ok ? "Listo" : (v ? (i.type === "url" ? "Debe empezar con https://" : "Revisa el formato") : "Falta");
+    status.textContent = ok ? "Listo" : (v ? (i.type === "url" ? (i.hosts ? "Debe ser un enlace de " + i.hosts.join(" o ") : "Debe empezar con https://") : "Revisa el formato") : "Falta");
   }
   refresh();
   return h("div", { class: "item need" },

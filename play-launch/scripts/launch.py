@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -50,7 +51,8 @@ NEEDS_USER = {"generated": "review the generated texts, images and declarations 
               "stopped": "read the reason and decide"}
 TEXT_FILES = {"title": 30, "short": 80, "full": 4000}
 MIN_SCREENSHOTS, MAX_SCREENSHOTS = 2, 8
-MAX_PENDING_FOR_REVIEW = 3   # the review can start with a few items still pending (shown in red, they block approval)
+MAX_PENDING_FOR_REVIEW = 3
+VIDEO_HOSTS = ["drive.google.com", "youtube.com", "youtu.be"]   # where Google's reviewer can watch a declaration video   # the review can start with a few items still pending (shown in red, they block approval)
 
 
 def fail(message):
@@ -491,6 +493,7 @@ def user_inputs(app, exp):
                 "Copiar vínculo y pegarlo aquí. Google lo usa para revisar la declaración.",
             ],
             "placeholder": "https://drive.google.com/file/d/.../view?usp=sharing",
+            "hosts": VIDEO_HOSTS,
             "covers": f"foreground service {fgs}: no video link"})
     if not exp.get("contact", {}).get("email"):
         out.append({"key": "contact_email", "path": "contact.email", "type": "email", "required": True,
@@ -652,8 +655,10 @@ def cmd_review_import(args):
                 print(f"  {app.slug}: edited {i['label']} [{i.get('lang') or '-'}]")
             if i.get("kind") == "input" and (i.get("value") or "").strip():
                 value = i["value"].strip()
-                if i.get("type") == "url" and not re.match(r"https://\S+$", value):
-                    print(f"  {app.slug}: '{i['label']}' is not a https link: {value!r} (not applied)")
+                host = urllib.parse.urlparse(value).hostname or ""
+                if i.get("type") == "url" and (not re.match(r"https://\S+$", value) or
+                                               (i.get("hosts") and not any(host == h or host.endswith("." + h) for h in i["hosts"]))):
+                    print(f"  {app.slug}: '{i['label']}' is not a valid link ({value!r}; allowed: {i.get('hosts')}): not applied")
                 else:
                     set_path(exp, i["path"], value)
                     app.save_expediente(exp)
