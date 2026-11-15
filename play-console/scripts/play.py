@@ -10,7 +10,7 @@ developer accounts. Uses the Google Play Android Developer API v3 with a service
     python play.py diff     [--app ...]                 what push-listing would change
     python play.py push-listing [--app ...] [--yes]     texts, video and images (only what changed)
     python play.py release  <app.aab> [--app ...] [--track internal] [--rollout 0.1] [--yes]
-    python play.py promote  --from internal --to production [--rollout 0.1] [--app ...] [--yes]
+    python play.py promote  --from internal --to production [--rollout 0.1] [--draft] [--app ...] [--yes]
     python play.py retire   --track alpha [--app ...] [--yes]   halt a testing track's releases (never production)
     python play.py details  [--email ..] [--website ..] [--phone ..] [--language es-419] [--yes]   contact details
     python play.py data-safety <form.csv> [--yes]       the Data safety form (CSV exported from Play Console)
@@ -675,6 +675,11 @@ def cmd_promote(args):
             fail(f"No release on {args.source} to promote")
         r = releases[0]
         new = track_release(r["versionCodes"], r.get("releaseNotes", []), args.rollout, r.get("name"))
+        if args.draft:
+            # An app that was never reviewed only accepts draft releases on its tracks: Play Console then
+            # rolls them out when the user (or play-launch) sends the changes for review.
+            new.pop("userFraction", None)
+            new["status"] = "draft"
         api.call("PUT", api.e(f"/tracks/{args.target}"), {"track": args.target, "releases": [new]})
         api.call("POST", api.e(":validate"))
         print(f"versions {r['versionCodes']} {args.source} -> {args.target} ({new.get('userFraction', 1) * 100:g}%)")
@@ -885,6 +890,7 @@ def main():
     pr = sub.add_parser("promote"); pr.add_argument("--app")
     pr.add_argument("--from", dest="source", required=True); pr.add_argument("--to", dest="target", required=True)
     pr.add_argument("--rollout", type=float, default=None); pr.add_argument("--yes", action="store_true")
+    pr.add_argument("--draft", action="store_true", help="create the release as a draft (required while the app was never reviewed)")
     rt = sub.add_parser("retire"); rt.add_argument("--track", required=True); rt.add_argument("--app")
     rt.add_argument("--yes", action="store_true")
     d = sub.add_parser("details"); d.add_argument("--app"); d.add_argument("--yes", action="store_true")
