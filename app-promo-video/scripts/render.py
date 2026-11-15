@@ -1,7 +1,7 @@
 """Renders a promo video with Remotion from video.json.
 
 Usage:
-    python render.py <video.json> [--locale es-419] [--format vertical] [--variant A] [--final] [--still SECONDS]
+    python render.py <video.json> [--locale es-419] [--format vertical] [--variant A] [--final] [--voz] [--still SECONDS]
 
 Builds the composition props from:
   - video.json: locales.<locale>.<format>.scenes (texts, clip names and the in/out seconds chosen
@@ -16,8 +16,8 @@ Writes output/promo-<locale>-<format>[-<variant>].mp4 with --final, or ...-previ
 preview (never the final's name), with music, loudness normalized to
 -14 LUFS (TikTok / YouTube), and the props next to it. While the video is being tuned only that
 version is rendered, as a quick 540p preview (--scale, faster encoding: the recordings, audio
-and layout are the same, only fewer pixels are drawn); --final renders in full 1080p and also -voz.mp4 (voice only, to
-pick a song in TikTok's own library), and refuses while the hook still has a placeholder or a
+and layout are the same, only fewer pixels are drawn); --final renders in full 1080p (with --voz it also renders -voz.mp4,
+voice only, to pick a song in TikTok's own library: only when explicitly asked), and refuses while the hook still has a placeholder or a
 draft AI scene. --still renders one frame (PNG) at that second instead, to check a layout quickly.
 """
 import argparse
@@ -288,7 +288,9 @@ def main():
     parser.add_argument("--locale", default=None)
     parser.add_argument("--format", default="vertical", choices=list(FORMATS))
     parser.add_argument("--final", action="store_true",
-                        help="The approved video: also the voice-only version; the AI scenes must be final")
+                        help="The approved video in 1080p; the AI scenes must be final")
+    parser.add_argument("--voz", action="store_true",
+                        help="With --final, also render the voice-only -voz.mp4 (only when explicitly asked)")
     parser.add_argument("--variant", default=None, help="Hook variant (locales.<locale>.hook_variants)")
     parser.add_argument("--still", type=float, default=None)
     args = parser.parse_args()
@@ -311,7 +313,9 @@ def main():
             fail(f"The hook's AI scene is still a {unfinished[0]}: generate it with broll.py --stage final first.")
     # A preview never takes the final's name: it would overwrite the approved 1080p video.
     variants = [(base if args.final else base + "-preview", props)]
-    if args.final and props.get("voice"):
+    if args.voz and not args.final:
+        fail("--voz only goes with --final.")
+    if args.final and args.voz and props.get("voice"):
         variants.append((base + "-voz", {**props, "music": None}))
     for name, p in variants:
         raw = remotion(config, p, name, out_dir, final=args.final)

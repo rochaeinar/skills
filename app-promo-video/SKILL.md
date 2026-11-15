@@ -32,7 +32,7 @@ Ejemplo real (Bible Versions): `D:/Documents/BibleVersions/Images/promo-video/vi
 | Gancho: final | `broll.py ... --stage final` | ~$0,80 c/u |
 | Revisar un cuadro | `render.py video.json --still 6 [--format] [--variant]` | segundos |
 | Vista previa | `render.py video.json [--format] [--variant]` → `...-preview.mp4` | ~2 s por segundo de video, 540p, solo con música |
-| Final | `render.py video.json --final [--format] [--variant]` | 1080p + versión `-voz` |
+| Final | `render.py video.json --final [--format] [--variant] [--voz]` | 1080p con música; `--voz` agrega la versión sin música `-voz.mp4` **solo si se pide explícitamente** |
 
 **Velocidad:** `process_clips.py` deja de cada grabación una copia liviana (`<escena>.proxy.mp4`, 540 px, decodificación rápida); `--still` y las vistas previas la usan y solo `--final` lee las originales (~2× más rápido). Las vistas previas se llaman `-preview.mp4` para no pisar nunca un final aprobado. Un final de 79 s tarda ~20 min: lanzarlo en segundo plano.
 
@@ -96,7 +96,7 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 
 ## Publicar (decirlo siempre al entregar)
 
-- **TikTok:** etiqueta "Contenido generado por IA" (escenas con personas). `-voz.mp4` si se elige canción de la biblioteca comercial de TikTok.
+- **TikTok:** etiqueta "Contenido generado por IA" (escenas con personas). La versión sin música (`-voz.mp4`) no se genera por defecto: solo con `--voz` cuando el usuario la pida explícitamente (p. ej. para elegir canción de la biblioteca comercial de TikTok).
 - **YouTube / Google Play:** horizontal con música; público u oculto, **sin monetización**, inserción permitida, "contenido alterado o sintético: sí"; pegar en Play Console el enlace sin parámetros. Play abre YouTube y se ve completo.
 
 ## Claves
