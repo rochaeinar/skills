@@ -13,6 +13,7 @@ exactly what was approved (after the user signs in). Fail-closed: anything witho
     python launch.py next     [--app F]                    what comes next, in words for the user (where to review, what to do)
     python launch.py review-published <url> [--app F ...]  remember the review page link and print the message for the user
     python launch.py tick                                  daily: review states by API, closed-test days, reminders
+    python launch.py verify-signing --version-code N [--app F]   Play's signing certificate == the app's own key?
     python launch.py policies fetch|diff                   dated copies of Google's policy pages; what changed
 
 App data folder: D:/Documents/Apps/<App>/ (app.json from app-init, play/ from play-console). The pipeline
@@ -774,6 +775,35 @@ def cmd_next(args):
     print("\n".join(next_steps_lines(pick(args))))
 
 
+# --- signing: the certificate Play delivers must be the app's own key -------------------------------
+
+def norm_fp(value):
+    return re.sub(r"[^0-9a-f]", "", (value or "").lower())
+
+
+def cmd_verify_signing(args):
+    """Compares the certificate of the APKs Google Play generates for a versionCode (API generatedapks) with the
+    app's own key (app.json signing.sha256). Run it after the first AAB is processed. A mismatch means Play signs
+    with a Google-generated key (the default for new apps): fix it on the Play app signing page before the app
+    reaches open testing or production, where the key can no longer be changed."""
+    play = play_module()
+    bad = 0
+    for app in pick(args):
+        own = norm_fp(app.meta.get("signing", {}).get("sha256")) or fail(f"{app.slug}: app.json has no signing.sha256")
+        cfg = play.find_app(str(app.play))
+        data = play.Api(cfg["profile"], cfg["package"]).call("GET", f"/generatedApks/{args.version_code}")
+        certs = sorted({norm_fp(g.get("certificateSha256Hash")) for g in data.get("generatedApks", [])} - {""})
+        if not certs:
+            print(f"{app.slug}: Play has not generated APKs for versionCode {args.version_code} yet (try again later)")
+            bad = 1
+            continue
+        for c in certs:
+            ok = c == own
+            bad |= not ok
+            print(f"{app.slug}: Play signs v{args.version_code} with {c[:16]}... {'= the app key (OK)' if ok else '!= the app key ' + own[:16] + '... (WRONG)'}")
+    sys.exit(1 if bad else 0)
+
+
 # --- status and the daily tick --------------------------------------------------------------------------
 
 def play_module():
@@ -899,6 +929,8 @@ def main():
             s.add_argument("--notify", action="store_true", help="show a Windows message when something needs you")
     e = sub.add_parser("review-export"); e.add_argument("--app", action="append"); e.add_argument("--out", required=True)
     m = sub.add_parser("review-import"); m.add_argument("--app", action="append"); m.add_argument("--from", dest="source", required=True)
+    vs = sub.add_parser("verify-signing"); vs.add_argument("--app", action="append")
+    vs.add_argument("--version-code", type=int, required=True)
     nx = sub.add_parser("next"); nx.add_argument("--app", action="append")
     rp = sub.add_parser("review-published"); rp.add_argument("url"); rp.add_argument("--app", action="append")
     st = sub.add_parser("set-state"); st.add_argument("state"); st.add_argument("--app", action="append"); st.add_argument("--note")
@@ -907,7 +939,7 @@ def main():
     {"init": cmd_init, "analyze": cmd_analyze, "check": cmd_check, "review-export": cmd_review_export,
      "review-import": cmd_review_import, "approval": cmd_approval, "set-state": cmd_set_state,
      "status": cmd_status, "tick": cmd_tick, "policies": cmd_policies,
-     "next": cmd_next, "review-published": cmd_review_published}[args.cmd](args)
+     "next": cmd_next, "verify-signing": cmd_verify_signing, "review-published": cmd_review_published}[args.cmd](args)
 
 
 if __name__ == "__main__":

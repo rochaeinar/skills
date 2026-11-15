@@ -115,6 +115,18 @@ class Session:
             self.page.goto(CONSOLE, wait_until="domcontentloaded")
             self.page.wait_for_load_state("networkidle", timeout=60000)
         m = re.search(r"/developers/(\d+)", self.page.url)
+        if not m and "/console/developers" in self.page.url:
+            # "Choose a developer account": go to the bound one, or the only one listed.
+            bound = self.cfg.get("developer_id")
+            if bound:
+                self.page.goto(f"{CONSOLE}/u/0/developers/{bound}/home", wait_until="domcontentloaded")
+            else:
+                options = self.page.get_by_role("option")
+                if options.count() != 1:
+                    return None
+                options.first.click()
+            self.page.wait_for_load_state("networkidle", timeout=60000)
+            m = re.search(r"/developers/(\d+)", self.page.url)
         return m.group(1) if m else None
 
     def pause(self, lo=0.7, hi=2.0):
@@ -167,7 +179,19 @@ def evidence_dir(app=None, out=None):
     return d
 
 
+def settle(page, timeout=30000):
+    """Play Console is a single-page app: wait until its loading screen is gone and the page stops changing."""
+    page.wait_for_load_state("networkidle", timeout=60000)
+    for text in ("Loading Google Play Console", "Cargando Google Play Console"):
+        try:
+            page.get_by_text(text).first.wait_for(state="hidden", timeout=timeout)
+        except Exception:
+            pass
+    page.wait_for_timeout(1500)
+
+
 def snapshot(page, folder, name):
+    settle(page)
     stamp = dt.datetime.now().strftime("%H%M%S")
     png = folder / f"{stamp}-{name}.png"
     page.screenshot(path=str(png), full_page=True)
@@ -184,6 +208,26 @@ def cmd_snapshot(args):
     try:
         png, tree = snapshot(s.page, evidence_dir(out=args.out), args.name or "page")
         print(f"{s.page.url}\n  {png}\n  {tree}")
+    finally:
+        s.close()
+
+
+def cmd_goto(args):
+    """Recording helper: open a console path (or the Play Console app page) and save its snapshot."""
+    s = Session(args.profile)
+    try:
+        dev = s.developer_id() or fail("Not signed in")
+        path = args.path.replace("{developer}", dev)
+        # A console path ("u/0/developers/{developer}/...", with or without the leading slash: Git Bash
+        # rewrites "/u/..." to "u:/...") or a full https URL.
+        path = re.sub(r"^[a-z]:/", lambda m: m.group(0)[0] + "/", path)
+        url = path if path.startswith("http") else f"{CONSOLE}/{path.lstrip('/')}"
+        s.page.goto(url, wait_until="domcontentloaded")
+        s.page.wait_for_load_state("networkidle", timeout=60000)
+        png, tree = snapshot(s.page, evidence_dir(out=args.out), args.name or "page")
+        print(s.page.url)
+        print(f"  {png}")
+        print(f"  {tree}")
     finally:
         s.close()
 
@@ -236,8 +280,18 @@ def run_steps(s, steps, ctx, dry, log):
             continue
         s.pause()
         if kind == "goto":
-            page.goto(CONSOLE + resolve(step["path"], ctx), wait_until="domcontentloaded")
+            url = CONSOLE + resolve(step["path"], ctx)
+            try:
+                page.goto(url, wait_until="domcontentloaded")
+            except Exception:   # a dropped connection: one retry after a pause
+                page.wait_for_timeout(5000)
+                page.goto(url, wait_until="domcontentloaded")
             page.wait_for_load_state("networkidle", timeout=60000)
+        elif kind == "expect_url":
+            if dry:
+                log.append(f"DRY: would wait for the page {step['pattern']}")
+                continue
+            page.wait_for_url(re.compile(step["pattern"]), timeout=step.get("timeout", 60000))
         elif kind == "expect":
             locator(page, step, ctx).first.wait_for(state="visible", timeout=step.get("timeout", 20000))
         elif kind == "click":
@@ -294,6 +348,8 @@ def cmd_run(args):
     bound = profile_cfg(profile).get("developer_id") or fail(f"Bind the profile first: console.py bind --profile {profile}")
     ctx = {**app.expediente(), "developer": bound, "app_id": app.state().get("console_app_id"),
            "facts": launch.read_json(app.launch / "facts.json", {})}
+    title = app.play / "listing" / ctx["default_language"] / "title.txt"
+    ctx["listing_title"] = title.read_text(encoding="utf-8").strip() if title.exists() else None
     s = Session(profile)
     log, folder = [], evidence_dir(app)
     try:
@@ -331,10 +387,12 @@ def main():
         w = sub.add_parser(name); w.add_argument("--profile", required=True)
     b = sub.add_parser("bind-app"); b.add_argument("--app", required=True)
     sn = sub.add_parser("snapshot"); sn.add_argument("--profile", required=True); sn.add_argument("--out"); sn.add_argument("--name")
+    g = sub.add_parser("goto"); g.add_argument("path"); g.add_argument("--profile", required=True)
+    g.add_argument("--out"); g.add_argument("--name")
     r = sub.add_parser("run"); r.add_argument("screen"); r.add_argument("--app", required=True)
     r.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
-    {"open": cmd_open, "whoami": cmd_whoami, "bind": cmd_bind, "bind-app": cmd_bind_app, "snapshot": cmd_snapshot,
+    {"open": cmd_open, "whoami": cmd_whoami, "bind": cmd_bind, "bind-app": cmd_bind_app, "snapshot": cmd_snapshot, "goto": cmd_goto,
      "run": cmd_run}[args.cmd](args)
 
 

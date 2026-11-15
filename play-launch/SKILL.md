@@ -14,6 +14,13 @@ Scripts (con `python`, **sin `-I`**: usan Playwright y `cryptography` del sitio 
 
 Cada app guarda su estado en `D:/Documents/Apps/<App>/play/launch/`: `expediente.json` (todo lo que se enviará), `facts.json` (lo que dice el build), `check.json`, `approval.json`, `state.json`, `texts/`, `evidence/<fecha>/`, `console-log.txt`.
 
+## Guiar al usuario (Claude lleva el proceso, no el usuario)
+
+- **Claude corre todos los comandos** (abrir el navegador dedicado, `whoami`, `next`, pantallas, API). Al usuario solo se le piden acciones físicas o personales: iniciar sesión, escribir una contraseña, subir un archivo a su Drive, aprobar. Una a la vez, con el paso exacto (qué abrir, qué botón, qué pegar dónde) y qué decir al terminar.
+- **Antes de cada acción importante o sin vuelta atrás** (crear la app, la clave de firma, enviar a revisión, pedir producción) explicar en 2-3 líneas qué va a pasar y qué queda fijo (p. ej. "el paquete queda registrado para siempre; el certificado se fija en el paso siguiente, no aquí"), sobre todo si la pantalla muestra algo nuevo (recuadros, avisos, opciones por defecto). Nunca pasar por encima de un recuadro o aviso de la consola sin leerlo y contarlo.
+- Cada decisión pendiente va con la opción recomendada y su porqué; si el usuario no contesta, seguir con lo que no depende de ella.
+- El usuario nunca debería tener que preguntar "¿y ahora qué?" o "¿dónde?": si lo pregunta, la respuesta anterior estuvo incompleta.
+
 ## Informar al usuario (siempre, al terminar cualquier paso)
 
 El usuario no sabe en qué etapa está ni dónde mirar si no se lo dicen. **Cada respuesta que cierra un paso termina con `launch.py next`** (o su contenido) en palabras simples:
@@ -64,10 +71,11 @@ Nunca terminar con "falta la etapa 2" sin el enlace y los pasos. La revisión pu
 
 1. El usuario: `console.py open --profile <perfil>` e inicia sesión a mano (la primera vez además `console.py bind --profile <perfil>`). Avisa a Claude.
 2. Claude: `launch.py approval` y `console.py whoami --profile <perfil>`. Si la cuenta no es la vinculada, se detiene.
-3. Pantallas sin API, en este orden, cada una con `console.py run <pantalla> --app <carpeta>` (ver `screens/README.md`; una pantalla en `draft` se graba y se prueba con `--dry-run` primero): `create_app` → `bind-app` → `app_signing` (PEPK con la clave de `app-init`) → `first_aab` → `privacy_policy`, `app_access`, `ads`, `advertising_id`, `content_rating`, `target_audience`, `foreground_services`, `other_declarations`, `category`, `countries`.
-4. Por API: `play.py details --email … --website … --yes`, `play.py data-safety <csv> --yes`, `play.py push-listing --yes`, `play.py testers --track alpha --groups <grupo> --yes`, `play.py release <aab> --track alpha --yes`.
-5. `send_for_review` (pantalla) y `launch.py set-state closed-test`. Mensaje a los testers: `launch/texts/tester-message.txt` con el enlace de inscripción (el usuario lo envía).
-6. Verificación: cada pantalla relee lo guardado (`readback`) y deja captura en `evidence/<fecha>/`. Al final, informe al usuario con las capturas y lo que quedó pendiente.
+3. **Firma (antes de todo lo demás después de crear la app): leer `references/firma-en-play.md`.** Play inscribe las apps nuevas en firma híbrida con claves de Google; hay que cambiarla a la clave propia (PEPK) antes del primer AAB, comprobar que las huellas de la página coinciden con `app.json` y, con el primer AAB procesado, correr `launch.py verify-signing --version-code N`. El recuadro de "protección automática" de *Crear app* no cambia el certificado. Antes de crear la app, explicarle al usuario en dos líneas qué certificado quedará y dónde se fija.
+4. Pantallas sin API, en este orden, cada una con `console.py run <pantalla> --app <carpeta>` (ver `screens/README.md`; una pantalla en `draft` se graba y se prueba con `--dry-run` primero): `create_app` → `bind-app` → `app_signing` (PEPK con la clave de `app-init`) → `first_aab` → `privacy_policy`, `app_access`, `ads`, `advertising_id`, `content_rating`, `target_audience`, `foreground_services`, `other_declarations`, `category`, `countries`.
+5. Por API: `play.py details --email … --website … --yes`, `play.py data-safety <csv> --yes`, `play.py push-listing --yes`, `play.py testers --track alpha --groups <grupo> --yes`, `play.py release <aab> --track alpha --yes`.
+6. `send_for_review` (pantalla) y `launch.py set-state closed-test`. Mensaje a los testers: `launch/texts/tester-message.txt` con el enlace de inscripción (el usuario lo envía).
+7. Verificación: cada pantalla relee lo guardado (`readback`) y deja captura en `evidence/<fecha>/`. Al final, informe al usuario con las capturas y lo que quedó pendiente.
 
 ## Después: prueba cerrada, producción, revisión
 

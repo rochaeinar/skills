@@ -6,7 +6,7 @@ Cada pantalla es un archivo `<pantalla>.json` con pasos declarativos que `consol
 
 1. `console.py whoami --profile <perfil>` (cuenta correcta).
 2. Navegar a la pantalla y `console.py snapshot --profile <perfil> --name <pantalla>`: captura + árbol de accesibilidad (`.aria.yaml`, con roles y nombres exactos).
-3. Escribir los pasos con los **roles y nombres del árbol** (nunca clases CSS ni posiciones). Consola en **inglés**.
+3. Escribir los pasos con los **roles y nombres del árbol** (nunca clases CSS ni posiciones). Consola en el idioma fijo de esa cuenta (`console_language` de la pantalla; Era Soft Labs: es-419).
 4. `console.py run <pantalla> --app <carpeta> --dry-run`: llena sin guardar y deja la captura. Revisarla con Read.
 5. Corrida real, con `readback` de cada campo. Si pasa: `"status": "verified"`, `"verified_at": "<fecha>"`.
 6. Si Google cambia la pantalla, la corrida se detiene con captura y árbol: repetir 2-5 solo en esa pantalla.
@@ -16,7 +16,7 @@ Cada pantalla es un archivo `<pantalla>.json` con pasos declarativos que `consol
 | Archivo | Pantalla de Play Console | Usa del expediente | Irreversible |
 |---|---|---|---|
 | `create_app.json` | Home > Create app (nombre, idioma, app/juego, gratis, declaraciones) | `name`, `default_language`, `type`, `free` | Sí (gratis no vuelve a pago) |
-| `app_signing.json` | Test and release > App integrity > App signing: clave propia (PEPK) | archivo `output.zip` de PEPK | Sí |
+| `app_signing.json` | Protected with Play > Play Store protection > Manage Play app signing > Change key: clave propia (PEPK). **Justo después de crear la app y antes del primer AAB** (`references/firma-en-play.md`) | archivo `output.zip` de PEPK; huellas de `app.json` | Sí |
 | `first_aab.json` | Testing > Internal testing > Create release: primer AAB | `aab` | No |
 | `privacy_policy.json` | App content > Privacy policy | `privacy_url` | No |
 | `app_access.json` | App content > App access | `declarations.app_access`, `texts.app_access_instructions` | No |

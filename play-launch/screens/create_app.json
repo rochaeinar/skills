@@ -1,0 +1,96 @@
+{
+  "id": "create_app",
+  "title": "Home > Crear app (consola en español)",
+  "console_language": "es-419",
+  "status": "verified",
+  "verified_at": "2026-11-14 (dry run)",
+  "steps": [
+    {
+      "do": "goto",
+      "path": "/u/0/developers/${developer}/create-new-app"
+    },
+    {
+      "do": "expect",
+      "role": "heading",
+      "name": "Crear app"
+    },
+    {
+      "do": "fill",
+      "role": "textbox",
+      "name": "Nombre de la app",
+      "value": "${listing_title}"
+    },
+    {
+      "do": "fill",
+      "role": "textbox",
+      "name": "App package name",
+      "value": "${package}"
+    },
+    {
+      "do": "click",
+      "role": "button",
+      "name": "Comprobar disponibilidad"
+    },
+    {
+      "do": "click",
+      "role": "button",
+      "name": "Idioma predeterminado",
+      "exact": false
+    },
+    {
+      "do": "click",
+      "role": "option",
+      "name": ", ${default_language}",
+      "exact": false
+    },
+    {
+      "do": "expect",
+      "role": "button",
+      "name": "${default_language}",
+      "exact": false
+    },
+    {
+      "do": "check",
+      "role": "radio",
+      "name": "Aplicación"
+    },
+    {
+      "do": "check",
+      "role": "radio",
+      "name": "Gratis"
+    },
+    {
+      "do": "check",
+      "role": "checkbox",
+      "name": "Confirma si la app cumple con las Políticas del programa para desarrolladores",
+      "exact": false
+    },
+    {
+      "do": "check",
+      "role": "checkbox",
+      "name": "Acepta las leyes de exportación de EE.UU.",
+      "exact": false
+    },
+    {
+      "do": "readback",
+      "role": "radio",
+      "name": "Aplicación",
+      "checked": true
+    },
+    {
+      "do": "readback",
+      "role": "radio",
+      "name": "Gratis",
+      "checked": true
+    },
+    {
+      "do": "save",
+      "role": "button",
+      "name": "Crear app"
+    },
+    {
+      "do": "expect_url",
+      "pattern": "/developers/\\d+/app/\\d+/"
+    }
+  ]
+}
