@@ -72,15 +72,29 @@ Nunca terminar con "falta la etapa 2" sin el enlace y los pasos. La revisión pu
 4. `ArtifactData list` de `items`, `apps` y `approvals` con `out_dir=<scratchpad>/review-in`, y `launch.py review-import --from <scratchpad>/review-in`: aplica los textos editados a sus archivos, guarda las notas en `review-notes.md` y registra la aprobación con el hash de todos los archivos. **Con notas no se registra la aprobación**: Claude las aplica, vuelve a correr `check` y `review-export`, y el usuario aprueba de nuevo.
 5. `launch.py approval`: la aprobación vale mientras ningún archivo cambie. Cualquier cambio posterior la anula.
 
-## Etapa 3: ejecución (después de que el usuario inicia sesión)
+## Etapa 3: ejecución (después de que el usuario inicia sesión) — sin cortes
 
-1. El usuario: `console.py open --profile <perfil>` e inicia sesión a mano (la primera vez además `console.py bind --profile <perfil>`). Avisa a Claude.
-2. Claude: `launch.py approval` y `console.py whoami --profile <perfil>`. Si la cuenta no es la vinculada, se detiene.
-3. **Firma (antes de todo lo demás después de crear la app): leer `references/firma-en-play.md`.** Play inscribe las apps nuevas en firma híbrida con claves de Google; hay que cambiarla a la clave propia (PEPK) antes del primer AAB, comprobar que las huellas de la página coinciden con `app.json` y, con el primer AAB procesado, correr `launch.py verify-signing --version-code N`. El recuadro de "protección automática" de *Crear app* no cambia el certificado. Antes de crear la app, explicarle al usuario en dos líneas qué certificado quedará y dónde se fija.
-4. Pantallas sin API, en este orden, cada una con `console.py run <pantalla> --app <carpeta>` (ver `screens/README.md`; una pantalla en `draft` se graba y se prueba con `--dry-run` primero): `create_app` → `bind-app` → `app_signing` (PEPK con la clave de `app-init`) → `first_aab` → `privacy_policy`, `app_access`, `ads`, `advertising_id`, `content_rating`, `target_audience`, `foreground_services`, `other_declarations`, `category`, `countries`.
-5. Por API: `play.py details --email … --website … --yes`, `play.py data-safety <csv> --yes`, `play.py push-listing --yes`, `play.py testers --track alpha --groups <grupo> --yes`, `play.py release <aab> --track alpha --yes`.
-6. `send_for_review` (pantalla) y `launch.py set-state closed-test`. Mensaje a los testers: `launch/texts/tester-message.txt` con el enlace de inscripción (el usuario lo envía).
-7. Verificación: cada pantalla relee lo guardado (`readback`) y deja captura en `evidence/<fecha>/`. Al final, informe al usuario con las capturas y lo que quedó pendiente.
+**Garantía:** después de la firma no hay ninguna pregunta. Todo lo que la consola pide sale del expediente aprobado; lo que la consola pregunte y no esté en el expediente es un hueco de la etapa 1 (agregarlo a `templates/expediente.json`, a los controles de `launch.py` y a `console_flows.py`), nunca una pregunta en vivo. Preguntas que aparecen solo en la consola y ya están en el expediente: correo del certificado IARC (`iarc_email`), lista de testers (`testers_list`), declaración de recursos de IA de la ficha (`declarations.ai_assets`), opción de cada servicio en primer plano. La **única** parada es la contraseña de la clave (PEPK), que escribe el usuario.
+
+Orden exacto (Claude corre todo; `--app D:/Documents/Apps/<App>`):
+
+1. `console.py whoami --profile <perfil>` (abre el navegador con `console.py open` si no está; si la cuenta no está vinculada, `console.py bind`). `launch.py approval` debe dar OK.
+2. **Una vez por cuenta**, si `play.py status` dice "No key": cuenta de servicio (ver `play-console/SETUP.md`, *Hallazgos*: proyecto sin organización y sin facturación, excepción de la política de claves solo en ese proyecto, permisos de la cuenta para todas las apps). Lo hace Claude en el navegador dedicado.
+3. `console.py run create_app` → `console.py bind-app`.
+4. **Firma** (`references/firma-en-play.md`): Protegido con Play → Firma de apps → Cambiar clave → "Exportar y subir una clave desde un almacén de claves Java" → Claude baja PEPK y la clave pública → abre una ventana de PowerShell con el comando listo → **el usuario escribe la contraseña** → Claude sube `output.zip`, guarda y compara las huellas.
+5. Si la web tiene cambios aprobados (p. ej. documentos legales), `web.py legal` → `deploy --prod --yes` antes de declarar la URL de privacidad.
+6. Primer AAB: `play.py release <aab> --track internal --yes` → `launch.py verify-signing --version-code <N>` (debe dar OK) → `play.py data-safety <csv> --yes` → `play.py promote --from internal --to alpha --draft --yes`.
+7. `console_flows.py all`: declaraciones del contenido de la app, configuración de la tienda (categoría y contacto), ficha predeterminada en cada idioma (textos, ícono, gráfico, capturas **una por una**), etiquetas de IA, prueba cerrada (lista de testers, todos los países), notas de la versión en cada idioma, y **envío a revisión**. Cada paso deja captura en `evidence/<fecha>/`. Si un paso falla, se corrige el flujo (se graba con `console.py goto`/`snapshot`), se respalda el skill y se sigue: no se le pregunta nada al usuario.
+8. `launch.py set-state in-review-by-google` (lo hace `send-review`) y el mensaje para los testers con el enlace `https://play.google.com/apps/testing/<paquete>` en `launch/texts/tester-message-ready.txt`.
+9. Un solo informe final al usuario.
+
+Reglas de la consola aprendidas (no repetir los errores):
+- La API **no** edita la ficha hasta que existe la ficha predeterminada creada en la consola (404/403 engañosos): `console_flows.py listing` la crea.
+- Una app nunca revisada solo acepta versiones en **borrador** en la prueba cerrada (`--draft`).
+- `play.json` debe tener todos los idiomas antes del primer AAB (lo hace `init`), o la versión sube con notas en un solo idioma.
+- Capturas: la resolución del teléfono, sin barras, hasta 2:1 (regla del usuario; la consola dice "16:9 o 9:16" pero acepta 2:1).
+- La encuesta de Play Console tapa botones: `console.py` la quita sola. Las conexiones se cortan a veces: todo reintenta.
+- Formularios: guardar después de cada idioma ("Guardar como borrador"), porque *Descartar* borra lo subido sin guardar. Los ensayos nunca dejan formularios llenos.
 
 ## Después: prueba cerrada, producción, revisión
 
@@ -107,5 +121,5 @@ Nunca terminar con "falta la etapa 2" sin el enlace y los pasos. La revisión pu
 
 ## Archivos
 
-- `scripts/launch.py`, `scripts/console.py`, `templates/expediente.json`, `templates/review.html`, `rules/metadata.json`, `policies/sources.json`, `policies/snapshots/`, `screens/` (pantallas grabadas y `README.md`), `SETUP.md`. `accounts.json` (perfil → cuenta y puerto) y `last-tick.json` son por PC.
+- `scripts/launch.py`, `scripts/console.py`, `scripts/console_flows.py` (flujos de la consola sin API, grabados en es-419), `templates/expediente.json`, `templates/review.html`, `rules/metadata.json`, `policies/sources.json`, `policies/snapshots/`, `screens/` (pantallas grabadas y `README.md`), `SETUP.md`. `accounts.json` (perfil → cuenta y puerto) y `last-tick.json` son por PC.
 - Respaldo central de todos los skills: `D:/Projects/skills/` (con historial git). Después de cambiar el skill, copiarlo ahí; no hacer copias en otros lugares.

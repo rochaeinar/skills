@@ -53,6 +53,10 @@ NEEDS_USER = {"generated": "review the generated texts, images and declarations 
 TEXT_FILES = {"title": 30, "short": 80, "full": 4000}
 MIN_SCREENSHOTS, MAX_SCREENSHOTS = 2, 8
 MAX_PENDING_FOR_REVIEW = 3
+# What console_flows.py knows how to fill without stopping (keep in sync with its tables).
+CONSOLE_CATEGORIES = {"TOOLS", "PRODUCTIVITY", "COMMUNICATION", "EDUCATION", "ENTERTAINMENT", "LIFESTYLE",
+                      "BOOKS_AND_REFERENCE", "MUSIC_AND_AUDIO", "PERSONALIZATION", "PHOTOGRAPHY", "BUSINESS"}
+CONSOLE_FGS = {"CONNECTED_DEVICE"}
 VIDEO_HOSTS = ["drive.google.com", "youtube.com", "youtu.be"]   # where Google's reviewer can watch a declaration video   # the review can start with a few items still pending (shown in red, they block approval)
 
 
@@ -163,6 +167,9 @@ def cmd_init(args):
                    "--profile", profile])
         print(out.stdout.strip() or out.stderr.strip())
     play_cfg = read_json(app.play / "play.json", {})
+    if play_cfg and exp.get("languages"):
+        play_cfg["languages"] = exp["languages"]
+        write_json(app.play / "play.json", play_cfg)
     if play_cfg:
         exp["default_language"] = play_cfg.get("default_language", exp["default_language"])
         exp["languages"] = play_cfg.get("languages", exp["languages"])
@@ -428,9 +435,14 @@ def check_declarations(app, exp, r):
     aab = exp.get("aab")
     if not aab or not Path(aab).exists():
         r.err("no signed AAB (aab): ./gradlew :app:bundleRelease")
-    for field in ("privacy_url", "category"):
+    for field in ("privacy_url", "category", "testers_list"):
         if not exp.get(field):
-            r.err(f"missing {field}")
+            r.err(f"missing {field}" + (" (name of the Play Console email list of testers)" if field == "testers_list" else ""))
+    if exp.get("category") and exp["category"] not in CONSOLE_CATEGORIES:
+        r.err(f"category {exp['category']} has no console label in console_flows.py (add it there)")
+    for fgs in exp["declarations"].get("foreground_services", {}).get("value") or []:
+        if fgs not in CONSOLE_FGS:
+            r.err(f"foreground service {fgs} has no console option in console_flows.py: record it before stage 3")
     if not exp.get("contact", {}).get("email"):
         r.err("missing the public contact e-mail (contact.email)")
 

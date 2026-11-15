@@ -3,12 +3,18 @@
   "package": "",
   "name": "",
   "default_language": "en-US",
-  "languages": ["en-US"],
+  "languages": [
+    "en-US"
+  ],
   "type": "app",
   "free": true,
   "category": "",
   "tags": [],
-  "contact": {"email": "", "website": "", "phone": ""},
+  "contact": {
+    "email": "",
+    "website": "",
+    "phone": ""
+  },
   "privacy_url": "",
   "countries": "all",
   "aab": "",
@@ -23,24 +29,126 @@
     "preapproved": false
   },
   "texts": {
-    "tester_message": {"label": "Message to the testers (with the opt-in link)", "file": "launch/texts/tester-message.txt", "limit": 1500},
-    "app_access_instructions": {"label": "Instructions for Google's reviewer (only if part of the app needs access)", "file": "launch/texts/app-access.txt", "limit": 500, "optional": true}
+    "tester_message": {
+      "label": "Message to the testers (with the opt-in link)",
+      "file": "launch/texts/tester-message.txt",
+      "limit": 1500
+    },
+    "app_access_instructions": {
+      "label": "Instructions for Google's reviewer (only if part of the app needs access)",
+      "file": "launch/texts/app-access.txt",
+      "limit": 500,
+      "optional": true
+    }
   },
   "videos": {},
   "declarations": {
-    "privacy_policy": {"question": "Privacy policy URL (Policy > App content > Privacy policy)", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "app_access": {"question": "App access: is all functionality available without special access (login, membership, location, code)?", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "ads": {"question": "Ads: does the app contain ads (including from SDKs and house ads)?", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "advertising_id": {"question": "Advertising ID: does the app use the advertising ID (AD_ID permission)?", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/6048248", "status": "ask"},
-    "content_rating": {"question": "Content rating (IARC questionnaire): category and every answer (violence, sexuality, language, controlled substances, user interaction / chat, shares location, digital purchases, unrestricted internet, gambling, user-generated content)", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9898843", "status": "ask"},
-    "target_audience": {"question": "Target audience: age groups, and whether the app could unintentionally appeal to children", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9867159", "status": "ask"},
-    "data_safety": {"question": "Data safety: does the app collect or share any of the required user data types? (false = none; otherwise the CSV says which)", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/10787469", "status": "ask"},
-    "foreground_services": {"question": "Foreground service types to declare (each with a description and a video of its use)", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/13392821", "status": "ask"},
-    "sensitive_permissions": {"question": "Sensitive permissions that need a declaration form", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "news_app": {"question": "Is it a news app?", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "government_app": {"question": "Is it a government app (made by or for a government)?", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "financial_features": {"question": "Financial features (loans, banking, crypto, payments...)", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "health_apps": {"question": "Health features", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"},
-    "category": {"question": "App category and tags", "value": null, "evidence": null, "rule": "https://support.google.com/googleplay/android-developer/answer/9859455", "status": "ask"}
-  }
+    "privacy_policy": {
+      "question": "Privacy policy URL (Policy > App content > Privacy policy)",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "app_access": {
+      "question": "App access: is all functionality available without special access (login, membership, location, code)?",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "ads": {
+      "question": "Ads: does the app contain ads (including from SDKs and house ads)?",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "advertising_id": {
+      "question": "Advertising ID: does the app use the advertising ID (AD_ID permission)?",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/6048248",
+      "status": "ask"
+    },
+    "content_rating": {
+      "question": "Content rating (IARC questionnaire): category and every answer (violence, sexuality, language, controlled substances, user interaction / chat, shares location, digital purchases, unrestricted internet, gambling, user-generated content). Console: category 'El resto de los tipos de app' for a utility; questions on downloaded content, user interaction, online content, age-restricted products, location, digital purchases, monetary rewards/NFT, browser/search, news/education",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9898843",
+      "status": "ask"
+    },
+    "target_audience": {
+      "question": "Target audience: age groups, and whether the app could unintentionally appeal to children",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9867159",
+      "status": "ask"
+    },
+    "data_safety": {
+      "question": "Data safety: does the app collect or share any of the required user data types? (false = none; otherwise the CSV says which)",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/10787469",
+      "status": "ask"
+    },
+    "foreground_services": {
+      "question": "Foreground service types to declare (each with a description and a video of its use). Console option for connectedDevice (HID/Bluetooth): 'Transferencia de datos continua a un dispositivo externo' + video link only",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/13392821",
+      "status": "ask"
+    },
+    "sensitive_permissions": {
+      "question": "Sensitive permissions that need a declaration form",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "news_app": {
+      "question": "Is it a news app?",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "government_app": {
+      "question": "Is it a government app (made by or for a government)?",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "financial_features": {
+      "question": "Financial features (loans, banking, crypto, payments...)",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "health_apps": {
+      "question": "Health features",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "category": {
+      "question": "App category and tags",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/9859455",
+      "status": "ask"
+    },
+    "ai_assets": {
+      "question": "AI asset label on the listing: which images were created or edited with AI (icon, featureGraphic, phoneScreenshots). Texts cannot be labelled. Example: icon designed with Claude = true; real screenshots = false",
+      "value": null,
+      "evidence": null,
+      "rule": "https://support.google.com/googleplay/android-developer/answer/17262077",
+      "status": "ask"
+    }
+  },
+  "testers_list": "",
+  "iarc_email": ""
 }
