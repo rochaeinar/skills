@@ -585,8 +585,8 @@ def review_items(app, exp, img_root):
         add(id=f"{app.slug}--decl-{key}", kind="declaration", section="Declarations", label=item.get("question", key),
             value=json.dumps(item.get("value"), ensure_ascii=False), evidence=item.get("evidence"),
             rule=item.get("rule"), status=item.get("status"))
-    plan = {k: exp.get(k) for k in ("category", "tags", "contact", "privacy_url", "countries", "testers_groups",
-                                    "production_criteria")}
+    plan = {k: exp.get(k) for k in ("category", "tags", "contact", "privacy_url", "iarc_email", "countries",
+                                    "testers_list", "testers_groups", "production_criteria")}
     add(id=f"{app.slug}--plan", kind="plan", section="Setup and tracks", label="Setup and tracks",
         value=json.dumps(plan, ensure_ascii=False, indent=1))
     return items
