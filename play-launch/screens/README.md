@@ -55,3 +55,23 @@ Lo demás va por API (`play.py`): ficha, imágenes, contacto (`details`), seguri
 ```
 
 Pasos: `goto`, `expect`, `click` (con `"commits": true` no se pulsa en ensayo), `check`, `fill` (escribe a ritmo humano), `select`, `upload` (selector de archivos), `save` (no se pulsa en ensayo), `readback` (falla si lo guardado difiere de lo aprobado), `when` y `each` (`${item}`). `${…}` sale del expediente; si falta un valor, la corrida se detiene antes de tocar nada.
+
+## Contenido de la app: lo que se vio en la consola (es-419, 2026-11-15, Keyboard & Mouse)
+
+Página `app/<id>/app-content/overview`. Cada tarjeta tiene el botón **"Comenzar la declaración de <nombre>"** (o "Editar declaración" si quedó en borrador). Al guardar aparece "¿Ir a Descripción general de la publicación?" → *Ahora no*. Nada se envía a revisión hasta *Publishing overview*.
+
+| Declaración | Ruta | Controles (texto exacto) |
+|---|---|---|
+| Política de Privacidad | `app-content/privacy-policy` | textbox "URL de la política de privacidad" → Guardar |
+| Anuncios | `app-content/ads-declaration` | radio "No, mi app no contiene anuncios" → Guardar |
+| Detalles de acceso (antes "Acceso a la app") | `app-content/testing-credentials` | "¿Alguna parte de tu app está restringida?" radio "Sí"/"No". "Acciones en otro dispositivo" del Sí se refiere a accesos bloqueados, no a usar la app con otro equipo |
+| ID de publicidad | `app-content/ad-id-declaration` | "¿Tu app usa un ID de publicidad?" radio "No"/"Sí" |
+| Apps gubernamentales | `app-content/government-apps` | radio "Sí"/"No" |
+| Funciones financieras | `app-content/finance` | checkbox "Mi app no ofrece ninguna función financiera" → Siguiente → (Documentación: nada que enviar) → **Guardar** (si no, queda en borrador) |
+| Apps de salud | `app-content/health` | checkbox "Ninguna función de salud" → Siguiente → Guardar |
+| Clasificación del contenido | `app-content/content-rating-overview` → "Responder el cuestionario" | Paso 1: correo (textbox sin nombre), radio "El resto de los tipos de app", checkbox "Acepto las Condiciones de Uso… IARC" → Siguiente. Paso 2: secciones que se abren solas al responder (9 preguntas Sí/No para una utilidad: contenido descargado, interacción entre usuarios, contenido en línea, productos con restricción de edad, ubicación, compras digitales, recompensas monetarias/NFT, navegador/buscador, noticias/educación) → Guardar → Siguiente. Paso 3: resumen con clasificaciones (utilidad sin nada: "Todas las edades"/ESRB "Todos") → Guardar |
+| Público objetivo y contenido | `app-content/target-audience-content` | checkboxes "Menores de 5 años"…"Mayores de 18 años"; con solo 18+ salta al resumen → Guardar |
+| Permisos de servicios en primer plano | `app-content/foreground-services` | `connectedDevice` (HID) = checkbox "Transferencia de datos continua a un dispositivo externo" → textbox "Vínculo de video" (Drive/YouTube) → Guardar. No pide descripción |
+| Seguridad de los datos | — | por API (`play.py data-safety`); desaparece de la lista |
+
+La encuesta "Ayúdanos a mejorar Play Console" (iframe `google-hats-survey`) tapa los botones: `console.py` la quita sola.
