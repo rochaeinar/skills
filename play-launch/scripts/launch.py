@@ -384,9 +384,10 @@ def check_images(app, exp, r):
                 r.err(f"{lang}/{kind}: {len(shots)} screenshots, at most {MAX_SCREENSHOTS}")
             for s in shots:
                 info = image_size(s)
-                ratio = max(info[0]) / min(info[0]) if info else 0
-                if info and not (320 <= min(info[0]) and max(info[0]) <= 3840 and abs(ratio - 16 / 9) < 0.01):
-                    r.err(f"{lang}/{kind}/{s.name}: {info[0]} - Play needs 16:9 or 9:16, each side 320-3840 px")
+                # The user's rule: screenshots keep the phone's own resolution, only without the status and
+                # navigation bars. Play Console writes "16:9 or 9:16" but accepts up to 2:1 (tested 2026-11-15).
+                if info and not (320 <= min(info[0]) and max(info[0]) <= 3840 and max(info[0]) <= 2 * min(info[0])):
+                    r.err(f"{lang}/{kind}/{s.name}: {info[0]} outside Play's limits (320-3840 px, ratio up to 2:1)")
             if kind != "phoneScreenshots" and not shots:
                 r.warn(f"{lang}: no {kind} (needed to appear as a tablet app)")
 
