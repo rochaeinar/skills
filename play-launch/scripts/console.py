@@ -196,7 +196,10 @@ def evidence_dir(app=None, out=None):
 
 def settle(page, timeout=30000):
     """Play Console is a single-page app: wait until its loading screen is gone and the page stops changing."""
-    page.wait_for_load_state("networkidle", timeout=60000)
+    try:   # the console keeps polling in the background: network idle may never come
+        page.wait_for_load_state("networkidle", timeout=15000)
+    except Exception:
+        page.wait_for_load_state("domcontentloaded")
     for text in ("Loading Google Play Console", "Cargando Google Play Console"):
         try:
             page.get_by_text(text).first.wait_for(state="hidden", timeout=timeout)
