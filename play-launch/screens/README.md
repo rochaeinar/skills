@@ -75,3 +75,15 @@ Página `app/<id>/app-content/overview`. Cada tarjeta tiene el botón **"Comenza
 | Seguridad de los datos | — | por API (`play.py data-safety`); desaparece de la lista |
 
 La encuesta "Ayúdanos a mejorar Play Console" (iframe `google-hats-survey`) tapa los botones: `console.py` la quita sola.
+
+## Ficha, prueba cerrada y envío (2026-11-15, Keyboard & Mouse)
+
+- **La API no puede editar la ficha hasta que exista la "ficha de Play Store predeterminada"**: responde 404 en `listings/<lang>` y 403 en `:validate`, aunque la cuenta de servicio tenga "Administrar la presencia en Play Store". Primero en la consola: *Aumenta la cantidad de usuarios* → *Fichas de Play Store* (`app/<id>/store-listings`) → **Crear ficha de Play Store predeterminada**.
+- Ficha en la consola (`store-listings/default/edit`): textbox "Nombre de la app", "Descripción breve", "Descripción completa"; cada espacio de imagen ("Ícono de la app", "Gráfico de funciones", "Capturas de pantalla de teléfono") tiene "Agregar recursos" → panel de biblioteca → **Subir** (selector de archivo). Las imágenes subidas sin guardar se pierden con *Descartar*: **Guardar como borrador** después de cada idioma.
+- **Orden de las capturas**: si se suben varias juntas quedan en el orden en que termina cada subida. Subirlas **una por una** esperando que el contador "n/8" suba.
+- Idiomas: botón "Predeterminado: Inglés…" → menú **Administrar idiomas** → marcar "Español (Latinoamérica), es-419" (texto, no checkbox con rol).
+- Paso 2 de la ficha: **Declaración de recursos de IA**: "No etiquetar recursos" / "Etiquetar los recursos como creados o editados con IA" → "Etiqueta los recursos generados por IA" → checkboxes por imagen (ícono, gráfico, capturas; los textos no se etiquetan) → "Etiquetar recursos y enviar" → **Guardar**. Preguntar al usuario si no está en el expediente (es pregunta nueva de Play).
+- Prueba cerrada: `closed-testing` → "Administrar segmento Prueba cerrada - Alpha" → pestaña **Verificadores** (checkbox con el nombre de la lista de correos, Guardar) → pestaña **Países/regiones** → "Agregar países o regiones" → "Seleccionar todas las filas" → Guardar.
+- La versión: `play.py promote --from internal --to alpha --draft --yes` (app nunca revisada = solo borradores). Luego en la consola *Editar versión* → completar las notas de cada idioma en el textarea (`<en-US>…</en-US><es-419>…</es-419>`) → Siguiente → leer "Errores, advertencias y mensajes" → Guardar.
+- Envío: *Descripción general de la publicación* (`app/<id>/publishing`) → "Enviar N cambios a revisión" → diálogo "¿Confirmas…?" → botón **"Envía cambios a revisión"** (así, en imperativo). Corre "verificaciones rápidas" (hasta 14 min) antes.
+- Mensaje para testers: el enlace de inscripción es `https://play.google.com/apps/testing/<paquete>` y funciona cuando Google aprueba la revisión.
