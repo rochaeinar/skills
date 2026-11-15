@@ -10,6 +10,14 @@ El modelo de las apps del usuario (skill `app-init`): **una sola clave por app**
 - **Después ya no se cambia**, solo se puede pedir una *actualización de clave* (una vez al año, para Android 17+), que cambia el certificado.
 - La firma híbrida usa un bloque de firma 3.2 que verifican los dispositivos con **Android 17 (API 37)+**; en ese caso Play registra tres claves (clásica nueva, PQC y la clásica para dispositivos viejos). Si la pantalla de *Change key* no deja usar la clave propia como **única** clave clásica (es decir, si ofrece mantener la híbrida con una clásica nueva generada por Google), **detenerse y preguntar al usuario**: en Android 17+ el certificado ya no sería el mismo que el del debug y del release local, y un release local no podría instalarse encima del de Play en esos teléfonos.
 
+## Lo que se ve en la consola (Era Soft Labs, es-419, 2026-11-15)
+
+1. Recién creada, la app ya tiene **clave de firma generada por Google** ("Disponible para criptografía cuántica (beta)"), con huella distinta de la propia. Es lo esperado.
+2. Camino: **Protegido con Play** → sección **Protección de Play Store** → *Mostrar detalles* → **Administrar la firma de apps de Play** (`/app/<id>/keymanagement`, página "Firma de apps") → **Cambiar clave**.
+3. Aviso: cambiarla deja sin actualizaciones a los testers internos/cerrados que ya la instalaron y obliga a volver a subir las versiones. **Sin versiones ni testers todavía no afecta**: por eso se hace antes del primer AAB.
+4. "Preferencias de firma de apps", cuatro opciones: *Permite que Google administre… (recomendado) – criptografía cuántica* (por defecto) · *Usar la misma clave que otra app de esta cuenta* · **Exportar y subir una clave desde un almacén de claves Java** · *Exportar y subir una clave (sin almacén Java)*. La tercera es la del modelo de una sola clave: **no** es híbrida (no dice criptografía cuántica), así que el certificado es el propio en todos los teléfonos.
+5. Con esa opción: *Descargar clave pública de encriptación* y *Descargar herramienta PEPK* (Claude los baja a `KeyStore/pepk/` con Playwright), comando `java -jar pepk.jar --keystore=upload.jks --alias="<alias>" --output=output.zip --include-cert --rsa-aes-encryption --encryption-key-path=encryption_public_key.pem` (Claude abre una ventana de PowerShell aparte con el comando listo; el usuario solo escribe la contraseña dos veces), *Subir archivo ZIP generado*, y **Guardar**. La "nueva clave de carga" opcional **no** se crea (modelo de una sola clave).
+
 ## Protección automática (el recuadro de "Crear app")
 
 - "Obtendrás protección automática: se agregará una verificación del instalador al código de tu app" = **automatic protection / installer check**. Play **modifica el código** de las APK que entrega (verifica al abrir que la app vino de Google Play; si no, invita a bajarla de Play) y las **vuelve a firmar con la clave de firma de la app**.

@@ -78,7 +78,7 @@ def cmd_open(args):
     # Remote debugging only works outside the default profile (Chrome/Edge 136+): this is a profile of its own.
     subprocess.Popen([exe, f"--user-data-dir={data}", f"--remote-debugging-port={cfg['port']}",
                       "--remote-debugging-address=127.0.0.1", "--lang=en-US", "--no-first-run",
-                      "--no-default-browser-check", CONSOLE], close_fds=True,
+                      "--no-default-browser-check", "--start-maximized", CONSOLE], close_fds=True,
                      creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
     print(f"Opened {cfg['browser']} (profile '{args.profile}', {data}). Sign in BY HAND with the developer "
           f"account's Google user, open Play Console, and set its language to English (Settings > Preferences).")
@@ -100,9 +100,24 @@ class Session:
             fail(f"The dedicated browser is not running: python console.py open --profile {profile}")
         ctx = self.browser.contexts[0]
         # The Play Console tab if there is one; else a web tab (never the browser's own edge:// or chrome:// pages).
+        self._maximize(ctx)
         console = [p for p in ctx.pages if "play.google.com/console" in p.url]
         web = [p for p in ctx.pages if p.url.startswith("http")]
         self.page = (console or web or [ctx.new_page()])[0]
+
+    def _maximize(self, ctx):
+        """A wide window shows the whole console page in one capture (faster to read and record)."""
+        try:
+            page = ctx.pages[0] if ctx.pages else None
+            if not page:
+                return
+            cdp = ctx.new_cdp_session(page)
+            win = cdp.send("Browser.getWindowForTarget")
+            if win.get("bounds", {}).get("windowState") != "maximized":
+                cdp.send("Browser.setWindowBounds", {"windowId": win["windowId"], "bounds": {"windowState": "maximized"}})
+            cdp.detach()
+        except Exception:
+            pass
 
     def close(self):
         # Detach only: the user's browser stays open.
@@ -359,6 +374,10 @@ def cmd_run(args):
         run_steps(s, screen["steps"], ctx, args.dry_run, log)
         png, _ = snapshot(s.page, folder, f"{args.screen}{'-dry' if args.dry_run else ''}")
         log.append(f"evidence: {png}")
+        if args.dry_run:
+            # Never leave a filled form behind: someone could press its button by hand.
+            s.page.goto(f"{CONSOLE}/u/0/developers/{bound}/home", wait_until="domcontentloaded")
+            log.append("dry run: form discarded (back to the console home)")
         print(f"OK: {args.screen} {'(dry run, nothing saved)' if args.dry_run else 'saved and read back'}")
     except SystemExit:
         png, tree = snapshot(s.page, folder, f"{args.screen}-FAILED")
