@@ -107,6 +107,7 @@ Editar → `build` → `qa` → `deploy` (vista previa) → `--prod --yes`. Un d
 | Build: "placeholder text (TODO)" | Quedan textos de la plantilla en `src/i18n`, o un documento legal sin copiar (`web.py legal`) |
 | `legal`: "template leftovers" | Un `assets/legal/*.md` de la app todavía tiene `{{…}}`, comentarios `<!--` o `TODO` de la plantilla |
 | `legal`: "nothing opens the … document" | Falta el Acerca de con sus documentos (paso 5b) |
+| `qa --pages /` no captura la página de inicio (Git Bash) | Git Bash convierte `/` en `C:/Program Files/Git/`: usar `MSYS_NO_PATHCONV=1` y la ruta de `web.py` en formato Windows (`C:/Users/...`), o correrlo desde PowerShell |
 | `licenses`: componentes sin licencia | El POM no la declara: buscarla en el repositorio del proyecto (archivo LICENSE) antes de escribir el documento |
 
 ## Archivos
