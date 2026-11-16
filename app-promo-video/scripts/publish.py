@@ -276,7 +276,11 @@ def check(profile=None):
     print(f"YouTube profile: {profile or '(default)'}, stored channel: {channel}")
     me, _ = http_json("GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet,status&mine=true",
                       headers={"Authorization": f"Bearer {access_token(profile)}"})
-    for item in me.get("items", []):
+    items = me.get("items", [])
+    if not items:
+        fail("The token works, but this Google account has no YouTube channel yet: create it at"
+             " youtube.com/create_channel (by hand, SETUP.md 6.1), then run check again (no new auth needed).")
+    for item in items:
         print(f"OK: channel '{item['snippet']['title']}' ({item['id']}),"
               f" long uploads {item.get('status', {}).get('longUploadsStatus')}")
 
