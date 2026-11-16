@@ -102,6 +102,7 @@ Editar → `build` → `qa` → `deploy` (vista previa) → `--prod --yes`. Un d
 | La vista previa no abre los primeros minutos (error de TLS/SSL) | Cloudflare está emitiendo el certificado de `*.pages.dev` del proyecto nuevo: esperar unos minutos |
 | "No zone for <host>" | El dominio no está en esa cuenta de Cloudflare, o el token no tiene Zone Read sobre él |
 | "already has other DNS records" | El subdominio ya apunta a otra cosa: decidir con el usuario y cambiarlo a mano |
+| Dominio principal (apex, p. ej. `era-soft.app`) con MX/TXT del correo | No es error: `domain` agrega el CNAME aplanado en el apex y conserva MX, TXT, CAA… (Email Routing sigue funcionando). Solo frena con A/AAAA u otro CNAME |
 | `<project>.pages.dev` con un sufijo raro | El nombre ya estaba tomado en Cloudflare: es normal; `domain` usa el subdominio real del proyecto |
 | Build: "placeholder text (TODO)" | Quedan textos de la plantilla en `src/i18n`, o un documento legal sin copiar (`web.py legal`) |
 | `legal`: "template leftovers" | Un `assets/legal/*.md` de la app todavía tiene `{{…}}`, comentarios `<!--` o `TODO` de la plantilla |

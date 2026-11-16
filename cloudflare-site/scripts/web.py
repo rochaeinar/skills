@@ -908,6 +908,10 @@ def cmd_deploy(args):
         deploy(root, slug, args.prod, args.yes)
 
 
+# Record types that may share the zone apex with the flattened Pages CNAME.
+APEX_COMPATIBLE = {"MX", "TXT", "CAA", "NS", "SRV", "HTTPS", "SVCB"}
+
+
 def cmd_domain(args):
     root = repo(args.repo)
     cfg = site(root, args.slug)
@@ -922,10 +926,16 @@ def cmd_domain(args):
     if host not in domains:
         plan.append(f"add {host} as a custom domain of the Pages project {cfg['project']}")
     cname = [r for r in records if r["type"] == "CNAME"]
+    # At the zone apex Cloudflare flattens the CNAME, so it lives next to the zone's mail and verification
+    # records (MX, TXT...: e.g. Email Routing for support@<domain>), which are left untouched.
+    apex = host == zone["name"]
+    blocking = [r for r in records if r["type"] != "CNAME" and not (apex and r["type"] in APEX_COMPATIBLE)]
     if not cname:
-        if records:
-            fail(f"{host} already has other DNS records ({', '.join(r['type'] for r in records)}): resolve it by hand")
-        plan.append(f"DNS {zone['name']}: CNAME {host} -> {target} (proxied)")
+        if blocking:
+            fail(f"{host} already has other DNS records ({', '.join(r['type'] for r in blocking)}): resolve it by hand")
+        kept = sorted({r["type"] for r in records})
+        plan.append(f"DNS {zone['name']}: CNAME {host} -> {target} (proxied" + (", flattened at the apex" if apex else "") + ")"
+                    + (f"; keeps its {', '.join(kept)} records" if kept else ""))
     elif cname[0]["content"] != target:
         fail(f"{host} is a CNAME to {cname[0]['content']}, not {target}: change it by hand if that is intended")
     if not plan:
