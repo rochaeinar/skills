@@ -765,15 +765,18 @@ def checks(repo):
         if ks_info.get("sha256") and data["signing"].get("sha256") != ks_info["sha256"]:
             update_app_json(app_dir, signing={"sha256": ks_info["sha256"], "sha1": ks_info.get("sha1")})
             data["signing"]["sha256"] = ks_info["sha256"]
-        add(True if ks_info.get("sha256") else None, "public fingerprints (KeyStore/keystore-info.json)",
-            "setup-signing.ps1 writes them")
+        add(True if ks_info.get("sha256") or data["signing"].get("sha256") else None,
+            "public fingerprints (keystore-info.json or app.json signing.sha256)",
+            "setup-signing.ps1 writes them, or keytool -printcert -jarfile of a signed AAB")
         add(True if data["signing"].get("backup", {}).get("bitwarden") else None,
             "backup in Bitwarden confirmed", "references/firma.md, step 4")
         for k in ["play", "cloudflare", "youtube"]:
             add(True if data.get("profiles", {}).get(k) else None, f"{k} profile chosen")
         play_dir = app_dir / "play" / "play.json"
         add(True if play_dir.exists() else None, "play/play.json (play-console register)")
-    add(info["signing"]["signing_gradle"], "build applies gradle/signing.gradle")
+    # An existing build that already reads Credential Manager may keep its own block (repo-existente.md, step 4).
+    add(True if info["signing"]["signing_gradle"] else (None if info["signing"]["credential_manager"] else False),
+        "build applies gradle/signing.gradle", "kept: own Credential Manager block (optional migration)")
     add(not info["signing"]["plaintext_password"], "no plaintext password in the build")
     add(not info["tracked_secrets"], "no keystore tracked by git", ", ".join(info["tracked_secrets"]))
     add(info["gitignore_keys"], ".gitignore covers keystores")
