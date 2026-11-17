@@ -1,22 +1,33 @@
 """Generates the AI scenes of the hooks (the first seconds of the video) with fal.ai.
 
 Usage:
-    python broll.py <video.json> --stage placeholder|draft|final [--format vertical] [--variant A,B] [--over-budget]
+    python broll.py <video.json> --stage placeholder|draft|final [--format vertical] [--variant A,B]
+                    [--regenerate] [--over-budget]
 
 video.json:
     "broll": {
       "draft_model": "fal-ai/veo3.1/lite",  "draft_resolution": "720p",
-      "final_model": "fal-ai/veo3.1",       "final_resolution": "1080p",
+      "upscale_model": "fal-ai/topaz/upscale/video", "upscale_factor": 1.5,
+      "final_model": "fal-ai/veo3.1",       "final_resolution": "1080p",   (only with --regenerate)
       "seconds": 4, "negative_prompt": "..."
     }
-    "hooks": { "A": {"prompt": "..."}, ... }      the scene of each hook variant (no text in it,
-                                                 so every language reuses it)
+    "hooks": { "A": {"prompt": "...",            the scene of each hook variant (no text in it,
+                     "negative_prompt": "...",   so every language reuses it)
+                     "blur": [{"x": 468, "y": 1308, "rx": 75, "ry": 50}]}, ... }
+        blur: soft ovals over what the model drew although the prompt forbids it (car badges,
+        license plates, logos), in pixels of the final video. Full blur up to 0.6 x the radius,
+        fading out at 1.6 x. Find them on a frame with a grid, check 4-5 frames afterwards.
 
 Three stages, each one only after the previous is approved:
   placeholder  a still image (fal-ai/flux/dev, ~$0.02) of the scene, shown for the whole scene
                with a slow zoom: voice, timing and texts are tuned with the idea of the end result
   draft        the video, cheap (Veo 3.1 Lite 720p), to choose
-  final        the video in full quality (Veo 3.1 1080p), the expensive part
+  final        the APPROVED DRAFT upscaled to 1080p (Topaz, ~$0.01/s): the very same motion.
+               Learned with Tracker (2026-11-15): Veo 3.1 with the same prompt made another scene
+               (no strike, dusk instead of night, a fire-like glow, a readable brand badge) for
+               $0.80, while the upscale kept what was approved for $0.04.
+               --regenerate makes it again with final_model instead (only when no draft is good
+               enough and the full model is worth a new roll of the dice).
 render.py uses the best one there is: final, then draft, then placeholder. Before each call the live price (fal pricing API) gives the cost; the run
 stops if the spent total plus it would pass video.json "budget_usd" (unless --over-budget).
 Everything is cached by model and input in broll-library/video/, listed in library.json, and
@@ -91,6 +102,25 @@ def library_add(config, file, info):
         write_json(path, lib)
 
 
+def data_uri(path):
+    import base64
+    return "data:video/mp4;base64," + base64.b64encode(path.read_bytes()).decode()
+
+
+def blur_regions(src, out, regions):
+    """Blurs soft ovals of the video (badges, plates); the mask is drawn from the video itself."""
+    ffmpeg, _ = ffmpeg_paths()
+    distances = [f"hypot((X-{r['x']})/{r['rx']},(Y-{r['y']})/{r['ry']})" for r in regions]
+    nearest = distances[0]
+    for d in distances[1:]:
+        nearest = f"min({nearest},{d})"
+    graph = (f"[0:v]split=3[base][soft][m];[soft]gblur=sigma=16[blurred];"
+             f"[m]format=gray,geq=lum='255*clip(1.6-{nearest},0,1)'[mask];"
+             f"[blurred][mask]alphamerge[ovals];[base][ovals]overlay=0:0,format=yuv420p")
+    run([ffmpeg, "-v", "error", "-y", "-i", str(src), "-filter_complex", graph,
+         "-c:v", "libx264", "-crf", "14", "-preset", "slow", "-an", str(out)])
+
+
 def sheet(path, out):
     """Three frames of a clip side by side, to look at it with Read."""
     ffmpeg, _ = ffmpeg_paths()
@@ -103,6 +133,8 @@ def main():
     parser.add_argument("--stage", required=True, choices=["placeholder", "draft", "final"])
     parser.add_argument("--format", default="vertical", choices=list(ASPECT))
     parser.add_argument("--variant", default="", help="Comma separated; defaults to all hooks")
+    parser.add_argument("--regenerate", action="store_true",
+                        help="final: make it again with final_model instead of upscaling the approved draft")
     parser.add_argument("--over-budget", action="store_true")
     args = parser.parse_args()
 
@@ -110,8 +142,10 @@ def main():
     hooks = config.get("hooks") or fail("No hooks in video.json")
     wanted = [v.strip() for v in args.variant.split(",") if v.strip()] or list(hooks)
     cfg = config.get("broll", {})
+    upscale = args.stage == "final" and not args.regenerate
     default_model = {"placeholder": "fal-ai/flux/dev", "draft": "fal-ai/veo3.1/lite", "final": "fal-ai/veo3.1"}
-    model = cfg.get(f"{args.stage}_model", default_model[args.stage])
+    model = (cfg.get("upscale_model", "fal-ai/topaz/upscale/video") if upscale
+             else cfg.get(f"{args.stage}_model", default_model[args.stage]))
     resolution = cfg.get(f"{args.stage}_resolution", "720p" if args.stage == "draft" else "1080p")
     still = args.stage == "placeholder"
     seconds = int(cfg.get("seconds", 4))
@@ -123,6 +157,15 @@ def main():
     jobs = []
     for variant in wanted:
         hook = hooks.get(variant) or fail(f"No hook {variant}")
+        if upscale:
+            draft = manifest.get(variant, {}).get("draft") or fail(
+                f"{variant}: no draft to upscale; make and approve it first (or use --regenerate)")
+            factor = float(cfg.get("upscale_factor", 1.5))
+            h = sha("upscale", model, {"source": draft, "factor": factor})
+            rel = f"broll-library/video/{h}.mp4"
+            body = {"video_url": draft, "upscale_factor": factor, "H264_output": True}
+            jobs.append({"variant": variant, "body": body, "rel": rel, "cached": resolve(config, rel).exists()})
+            continue
         if still:
             body = {"prompt": hook["prompt"] + " A single still frame of this scene, photorealistic, no text.",
                     "image_size": IMAGE_SIZE[args.format], "num_images": 1, "enable_safety_checker": True}
@@ -142,7 +185,8 @@ def main():
     pending_saved = json.loads(pending_path.read_text(encoding="utf-8")) if pending_path.exists() else {}
     if todo:
         price = live_price(key, model, "megapixels" if still else "seconds")
-        units = IMAGE_MEGAPIXELS if still else seconds * cfg.get("silent_factor", SILENT_FACTOR).get(model, 1.0)
+        units = (IMAGE_MEGAPIXELS if still else seconds if upscale
+                 else seconds * cfg.get("silent_factor", SILENT_FACTOR).get(model, 1.0))
         new = [j for j in todo if j["rel"] not in pending_saved]
         estimate = price * units * len(new)
         budget = float(config.get("budget_usd", 20))
@@ -157,7 +201,9 @@ def main():
                 j.update(pending_saved[j["rel"]])
                 print(f"  {j['variant']}: resuming {j['status_url'].rsplit('/', 2)[-2]}")
                 continue
-            r = http("POST", f"https://queue.fal.run/{model}", key, j["body"])
+            body = ({**j["body"], "video_url": data_uri(resolve(config, j["body"]["video_url"]))} if upscale
+                    else j["body"])
+            r = http("POST", f"https://queue.fal.run/{model}", key, body, timeout=300)
             j["status_url"], j["response_url"] = r["status_url"], r["response_url"]
             pending_saved[j["rel"]] = {"status_url": r["status_url"], "response_url": r["response_url"], "logged": False}
             write_json(pending_path, pending_saved)
@@ -182,7 +228,9 @@ def main():
                     url = media.get("url") or fail(f"{j['variant']}: no {'image' if still else 'video'} in {result}")
                     download(url, resolve(config, j["rel"]))
                     library_add(config, j["rel"], {"model": model, "stage": args.stage, "format": args.format,
-                                                   "prompt": j["body"]["prompt"], "seconds": 0 if still else seconds,
+                                                   "prompt": hooks[j["variant"]]["prompt"],
+                                                   **({"source": j["body"]["video_url"]} if upscale else {}),
+                                                   "seconds": 0 if still else seconds,
                                                    "usd_max": round(price * units, 3)})
                     del pending_saved[j["rel"]]
                     write_json(pending_path, pending_saved)
@@ -194,6 +242,12 @@ def main():
     review = resolve(config, "review/hooks")
     review.mkdir(parents=True, exist_ok=True)
     for j in jobs:
+        regions = hooks[j["variant"]].get("blur") if args.stage == "final" else None
+        if regions:
+            blurred = f"{j['rel'][:-4]}-blur-{sha('blur', regions)[:8]}.mp4"
+            if not resolve(config, blurred).exists():
+                blur_regions(resolve(config, j["rel"]), resolve(config, blurred), regions)
+            j["rel"] = blurred
         manifest.setdefault(j["variant"], {})[args.stage] = j["rel"]
         if not still:
             sheet(resolve(config, j["rel"]), review / f"{args.format}-{j['variant']}-{args.stage}.jpg")

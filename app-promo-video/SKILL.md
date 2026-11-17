@@ -26,10 +26,11 @@ Ejemplo real (Bible Versions): `D:/Documents/BibleVersions/Images/promo-video/vi
 | Grabar escenas | `capture.py video.json [--scene a,b]` | $0 |
 | Limpiar y hojas de contacto | `process_clips.py video.json [--scene a,b]` | $0 |
 | Elegir tramos | Read de `recordings/<locale>/<escena>.sheet.jpg` → `in`/`out`/`rate` en `video.json` | $0 |
+| Unir tramos de una grabación | `cut_clips.py video.json --locale <l> [--cut a,b]`: `capture.cuts.<locale>.<nombre> = {"from": escena, "ranges": [[ini,fin] o [ini,fin,velocidad]]}` → clip compacto `<nombre>.mp4` con su hoja; la escena usa `"clip": "<nombre>"`, `in` 0 y `out` = duración − 0,05 | $0 |
 | Voz, música, whoosh | `audio.py video.json [--format] [--variant A]` | créditos ElevenLabs |
 | Gancho: imagen temporal | `broll.py video.json --stage placeholder [--format] [--variant]` | ~$0,025 |
 | Gancho: borrador | `broll.py ... --stage draft` | ~$0,12 c/u |
-| Gancho: final | `broll.py ... --stage final` | ~$0,80 c/u |
+| Gancho: final | `broll.py ... --stage final`: el **borrador aprobado escalado a 1080p** (Topaz) y con los óvalos de `blur` | ~$0,04 c/u (`--regenerate`: Veo 3.1, ~$0,80) |
 | Revisar un cuadro | `render.py video.json --still 6 [--format] [--variant]` | segundos |
 | Vista previa | `render.py video.json [--format] [--variant]` → `...-preview.mp4` | ~2 s por segundo de video, 540p, solo con música |
 | Final | `render.py video.json --final [--format] [--variant] [--voz]` | 1080p con música; `--voz` agrega la versión sin música `-voz.mp4` **solo si se pide explícitamente** |
@@ -76,10 +77,24 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 
 **Audio**
 - Voz: muestras para elegir; frases con `previous_text`/`next_text` para que suene continua.
-- Música: compuesta a la **duración exacta** del video con final resuelto; `audio.py` comprueba que no se apague antes de tiempo (hasta 3 intentos). Baja a ~38 % mientras habla la voz. Todo a −14 LUFS.
-- Licencia ElevenLabs Music: desde Starter, uso comercial online sin atribución (verificado 2026-10-18 en elevenlabs.io/music-terms). Generar solo con plan de pago activo.
+- **Cada idioma tiene su propia duración** (Forever Note: es 65 s, en 62 s): calcularla por idioma antes de `--only music`; la música se compone a la duración de cada uno y una diferencia de 1 s ya obliga a otra pista (~3000 créditos).
+- **Antes de componer la música, ajustar la duración** (`render.build_props` + `promo_seconds`): los clips más largos que su frase alargan el video (Tracker dio 116 s). Acelerar con `rate` (una animación de ruta a ×2,8 se ve bien) o acortar `in`/`out`/frases; recién entonces `audio.py --only music`.
+- Si los 3 intentos de música se apagan antes de tiempo, agregar al `prompt` "The groove stays full and driving right to the end, then lands on one big final hit with a short ring-out" (Tracker: OK al primer intento).
+- El gancho por defecto toma la escena de IA de una variante con `"variant_broll": "B3"` en la escena hook.
+- Música: compuesta a la **duración exacta** del video con final resuelto; `audio.py` comprueba que no se apague antes de tiempo (hasta 3 intentos). Todo a −14 LUFS.
+- **Mezcla pareja** (`prepare_mix` en `render.py`, copias en `cache/mix/`; medido con Tracker, 2026-11-17). Música constante y suave en todo el video, que baja apenas cuando habla la voz:
+  - **Música:** la compuesta crece sola de −21 a −11 LUFS (corto plazo) a lo largo del video. Se nivela con `dynaudnorm=f=250:g=15:m=12:p=0.9:r=0.12`, que la deja en −20 ±1 LUFS de principio a fin (con el final intacto), y se lleva a ~−17 LUFS (`MUSIC_LUFS`).
+  - **Voz:** cada frase a −16 LUFS (`VOICE_LUFS`).
+  - **Volúmenes:** música a 1,0 sin voz y a 0,6 mientras se habla (−4,4 dB, unos 5,5 dB bajo la voz), con rampas de 15 cuadros (`DUCK_RAMP`). Después, todo a −14 LUFS.
+  - **No volver a 0,38 ni a 0,22:** con 0,22 (17 dB bajo la voz) la música "no se escucha" en los primeros 40 s, donde la voz habla casi sin pausa. Con la música sin nivelar y 0,38, la música tapaba la voz desde el segundo 40.
+  - **Whoosh:** prompt "gentle low swoosh… warm and muted, no hiss, no click" (el "airy UI swipe" sonaba feo). Pasa por un filtro de 80 Hz a 7 kHz con bordes suaves, queda con pico a −6 dB y suena en volumen 0,3.
+  - **Medir:** con `ebur128=metadata=1` (S = volumen de corto plazo); `volumedetect` engaña con intros de bajos.
 
 **Costos y modelos**
+- **Final = borrador aprobado escalado**, no otra generación (aprendido con Tracker, 2026-11-15): Veo 3.1 con el mismo prompt hizo otra escena ($0,80: sin el golpe, de atardecer, un resplandor como fuego, un logo legible); Topaz sobre el borrador mantuvo lo aprobado por $0,04. `--regenerate` solo si ningún borrador sirve.
+- Para que un borrador salga realista: "genuine phone footage", tiempo real, ángulo de cámara explícito (p. ej. "from a second-floor window, high angle") y un `negative_prompt` propio con "slow motion, CGI, animation, stylized, exaggerated particles, low angle". La acción clave dentro del primer segundo y medio.
+- La IA dibuja logos de marca y placas aunque el prompt los prohíba: revisar la parrilla y la placa en 1080p y taparlos con `"blur": [{x, y, rx, ry}]` en el gancho (óvalos suaves, px del final; ubicar en un cuadro con cuadrícula y comprobar 4-5 cuadros).
+- Escenas de delito (robo de auto, ventana rota) pasan los filtros de flux y Veo Lite si no hay violencia contra personas y la cara queda en sombra.
 - fal.ai cobra los videos sin audio como menos segundos (Veo 3.1 ×0,5, Lite ×0,6) y cada imagen como 1 megapíxel: `SILENT_FACTOR` en `broll.py`. La API de precios solo da el precio con audio.
 - Los endpoints de Veo 3.1 en fal se anunciaron como retirados el 17-11-2026: si un modelo no tiene precio, proponer otro (Kling 3.0 Pro).
 - Todo lo pagado va a `broll-library/` con caché por contenido (nunca por idioma): un idioma nuevo reutiliza escenas de IA y música.
@@ -106,6 +121,6 @@ Administrador de credenciales de Windows (genérica, usuario `api`), con la lín
 
 ## Archivos
 
-- `scripts/`: `common.py`, `capture.py`, `gesture.py`, `process_clips.py`, `audio.py`, `broll.py`, `render.py`, `qa.py`, `publish.py`.
+- `scripts/`: `common.py`, `capture.py`, `gesture.py`, `process_clips.py`, `cut_clips.py`, `audio.py`, `broll.py`, `render.py`, `qa.py`, `publish.py`.
 - `remotion/`: proyecto (Remotion 4.0.529); `src/scenes/` (Hook, Feature, Outro), `src/components/` (Phone, StatusBar, KineticText, Captions, Soundtrack, Background).
 - Respaldo central de todos los skills: `D:/Projects/skills/` (con historial git). Después de cambiar el skill, copiarlo ahí; no hacer copias en otros lugares.

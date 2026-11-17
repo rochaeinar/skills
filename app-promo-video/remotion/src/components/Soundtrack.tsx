@@ -1,7 +1,7 @@
 import { Easing, Html5Audio, Sequence, interpolate, staticFile } from "remotion";
 import type { Music, Sfx, VoiceTrack } from "../types";
 
-const DUCK_RAMP = 8; // frames for the music to go down before the voice and back up after it
+const DUCK_RAMP = 15; // frames for the music to go down before the voice and back up after it
 
 // The music volume at a frame: lower while a voice speaks, with short ramps around it.
 const musicVolume = (frame: number, music: Music, voice: VoiceTrack[], total: number) => {

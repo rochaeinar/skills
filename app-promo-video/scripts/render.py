@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import fail, ffmpeg_paths, load_video_json, resolve, run, write_json  # noqa: E402
+from common import fail, ffmpeg_paths, load_video_json, resolve, run, sha, write_json  # noqa: E402
 
 REMOTION_DIR = Path(__file__).resolve().parent.parent / "remotion"
 FORMATS = {"vertical": (1080, 1920), "horizontal": (1920, 1080)}
@@ -39,6 +39,13 @@ CAPTION_WORDS = 4     # words per caption at most
 FISH_FRAMES = 27      # the green fish swimming into the logo
 FISH_HOLD = 24        # the whole logo, still, before the end
 LOUDNESS = {"I": -14.0, "TP": -1.5, "LRA": 11.0}
+# The music as composed gets louder as it goes (quiet intro, full groove later): leveled to one
+# steady loudness (~1 s windows, up to +21 dB), keeping its final ring-out.
+MUSIC_LEVELER = "dynaudnorm=f=250:g=15:m=12:p=0.9:r=0.12"
+VOICE_LUFS = -16.0    # every voice line at the same loudness
+MUSIC_LUFS = -18.0    # target; the leveled music measures ~-17 LUFS: as loud as the voice, ~5.5 dB under it while ducked
+SFX_PEAK_DB = -6.0    # the transition sound: no hiss above 7 kHz, soft edges, peak at -6 dB
+SFX_FILTER = "highpass=f=80,lowpass=f=7000,afade=t=in:d=0.04,areverse,afade=t=in:d=0.15,areverse"
 
 
 def theme_from(config):
@@ -94,17 +101,20 @@ def script_scenes(config, locale, fmt, variant=None):
     loc = config["locales"].get(locale) or fail(f"No locale {locale} in video.json")
     script = loc.get(fmt) or fail(f"No {fmt} script for {locale} in video.json")
     scenes = [dict(s) for s in script["scenes"]]
-    if variant:
-        texts = (loc.get("hook_variants") or {}).get(variant) or fail(f"No hook variant {variant} for {locale}")
-        broll_path = resolve(config, f"broll/{fmt}.json")
-        broll = json.loads(broll_path.read_text(encoding="utf-8")).get(variant, {}) if broll_path.exists() else {}
-        for s in scenes:
-            if s["type"] == "hook":
-                s.update({"text": texts["text"], "keyword": texts.get("keyword"), "voice": texts.get("voice", texts["text"])})
-                for stage in ("final", "draft", "placeholder"):
-                    if broll.get(stage):
-                        s["broll"], s["brollStage"] = broll[stage], stage
-                        break
+    broll_path = resolve(config, f"broll/{fmt}.json")
+    brolls = json.loads(broll_path.read_text(encoding="utf-8")) if broll_path.exists() else {}
+    for s in scenes:
+        if s["type"] != "hook":
+            continue
+        if variant:
+            texts = (loc.get("hook_variants") or {}).get(variant) or fail(f"No hook variant {variant} for {locale}")
+            s.update({"text": texts["text"], "keyword": texts.get("keyword"), "voice": texts.get("voice", texts["text"])})
+        # "variant_broll": the default hook uses the AI scene of that hook variant (e.g. the approved B3)
+        broll = brolls.get(variant or s.get("variant_broll"), {})
+        for stage in ("final", "draft", "placeholder"):
+            if broll.get(stage):
+                s["broll"], s["brollStage"] = broll[stage], stage
+                break
     return scenes
 
 
@@ -182,14 +192,14 @@ def build_props(config, locale, fmt, manifest=None, variant=None):
             captions += captions_for(voice["words"], begin)
     sfx = []
     if manifest.get("sfx", {}).get("transition"):
-        sfx = [{"src": manifest["sfx"]["transition"], "from": max(0, starts[i] - 3), "volume": 0.35}
+        sfx = [{"src": manifest["sfx"]["transition"], "from": max(0, starts[i] - 3), "volume": 0.3}
                for i in range(1, len(scenes))]
-        sfx += [{"src": manifest["sfx"]["transition"], "from": starts[i] + s["fishFrom"], "volume": 0.22}
+        sfx += [{"src": manifest["sfx"]["transition"], "from": starts[i] + s["fishFrom"], "volume": 0.2}
                 for i, s in enumerate(scenes) if s.get("fishFrom") is not None]
     music = None
     if manifest.get("music"):
         m = config.get("music", {})
-        music = {"src": manifest["music"]["file"], "volume": m.get("volume", 0.85), "ducked": m.get("ducked", 0.38)}
+        music = {"src": manifest["music"]["file"], "volume": m.get("volume", 1.0), "ducked": m.get("ducked", 0.6)}
     return {
         "width": width, "height": height, "fps": FPS,
         "appName": config["app_name"], "logo": config.get("logo", "assets/logo.png"),
@@ -210,6 +220,47 @@ def clip_ratio(config, rec, clip):
         if info.get("width") and info.get("height"):
             return info["width"] / info["height"]
     return None
+
+
+def leveled(config, src, kind, audio_filter):
+    """A cached copy of an audio file with a filter applied (cache/mix/<kind>-<hash>.wav)."""
+    rel = f"cache/mix/{kind}-{sha(src, audio_filter)}.wav"
+    out = resolve(config, rel)
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        ffmpeg, _ = ffmpeg_paths()
+        run([ffmpeg, "-v", "error", "-y", "-i", str(resolve(config, src)), "-af", audio_filter, "-ar", "48000", str(out)])
+    return rel
+
+
+def measure(config, src, what):
+    """Integrated loudness (LUFS) or peak (dB) of an audio file."""
+    ffmpeg, _ = ffmpeg_paths()
+    if what == "peak":
+        log = run([ffmpeg, "-hide_banner", "-i", str(resolve(config, src)), "-af", "volumedetect", "-f", "null", "-"],
+                  check=False).stderr
+        return float(log.split("max_volume:")[1].split("dB")[0])
+    log = run([ffmpeg, "-hide_banner", "-i", str(resolve(config, src)), "-af", "loudnorm=print_format=json",
+               "-f", "null", "-"], check=False).stderr
+    return float(json.loads(log[log.rindex("{"):log.rindex("}") + 1])["input_i"])
+
+
+def prepare_mix(config, props):
+    """Even levels before Remotion mixes: steady music, every voice line equally loud, a soft
+    transition sound. The props then point to the leveled copies."""
+    if props.get("music"):
+        steady = leveled(config, props["music"]["src"], "music-steady", MUSIC_LEVELER)
+        gain = MUSIC_LUFS - measure(config, steady, "lufs")
+        props["music"]["src"] = leveled(config, steady, "music", f"volume={gain:.2f}dB,alimiter=limit=0.89")
+    for v in props["voice"]:
+        gain = VOICE_LUFS - measure(config, v["src"], "lufs")
+        v["src"] = leveled(config, v["src"], "voice", f"volume={gain:.2f}dB,alimiter=limit=0.89")
+    sfx_cache = {}
+    for x in props["sfx"]:
+        if x["src"] not in sfx_cache:
+            soft = leveled(config, x["src"], "sfx-soft", SFX_FILTER)
+            sfx_cache[x["src"]] = leveled(config, soft, "sfx", f"volume={SFX_PEAK_DB - measure(config, soft, 'peak'):.2f}dB")
+        x["src"] = sfx_cache[x["src"]]
 
 
 def promo_frames(props):
@@ -300,6 +351,8 @@ def main():
     props = build_props(config, locale, args.format, variant=args.variant)
     if not args.final:
         use_proxies(config, props)
+    if args.still is None:
+        prepare_mix(config, props)
     out_dir = resolve(config, "output")
     out_dir.mkdir(parents=True, exist_ok=True)
     base = f"promo-{locale}-{args.format}" + (f"-{args.variant}" if args.variant else "")
