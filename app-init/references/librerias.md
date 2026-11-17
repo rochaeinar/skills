@@ -5,7 +5,7 @@ Son la opción por defecto en toda app nueva. Room, Timber, otro sync u otro sis
 | Librería | Módulo | Fuente | Paquete | Incluirla cuando | Repo |
 |---|---|---|---|---|---|
 | data-access (DAL) | `:dal` | `D:/Projects/Android/data-access/DataAccessLayer/dal` | `com.erc.dal` | Siempre que haya datos locales (SQLite) | GitHub, JitPack `com.github.rochaeinar:data-access` |
-| RestLog4Android | `:restlog` | `D:/Projects/Android/RestLog4Android/RestLog` | `com.erc.log` | Siempre (logs); **necesita `:dal`** | GitHub, JitPack `com.github.rochaeinar:RestLog4Android` |
+| RestLog4Android | `:restlog` | `D:/Projects/Android/RestLog4Android/RestLog` | `com.erc.log` | Siempre, sin preguntar; **solo local** con interruptor en Ajustes (ver abajo); **necesita `:dal`** | GitHub, JitPack `com.github.rochaeinar:RestLog4Android` |
 | synchronizer | `:synchronizer` | `D:/Projects/Android/synchronizer/app` | `com.erasoft.synchronizer` | Respaldo o sincronización en Google Drive; **necesita `:dal`** (lo usa como `compileOnly`) | Bitbucket |
 | custom-ads | `:custom-ads` | `D:/Projects/Android/custom-ads` | `com.erc.customads` | Anuncios intersticiales propios (WebView), solos o junto a AdMob | Bitbucket |
 
@@ -46,6 +46,18 @@ Detalles que rompen el build si se olvidan:
 - **custom-ads** está en Java: no cambia la regla de lenguaje de la app.
 - La ruta absoluta solo funciona en esta PC. En CI u otra PC: clonar las librerías en las mismas rutas o pasar a JitPack (última etiqueta: `git tag | sort -V`). Anotarlo en el README del proyecto.
 - Con R8 (release minificado): las entidades de DAL se mapean por reflexión; agregar `-keep` de su paquete en `proguard-rules.pro` si la librería no lo trae en `consumer-rules.pro`.
+
+## RestLog: siempre, solo local, con interruptor en Ajustes
+
+Regla del usuario (2026-11-17), para no preguntarla en cada app:
+- **Nunca remoto**: ningún appender `rest` en ningún `assets/rest-log.json` (ni debug ni release). Solo `logcat`, `file` y `database` locales (y `overlay` en debug).
+- **Interruptor en Ajustes** ("Registro de diagnóstico" / "Diagnostic logs"), guardado en las preferencias de la app y **apagado por defecto en release**. Se aplica al iniciar la app y al cambiarlo:
+  ```kotlin
+  com.erc.log.configuration.LogConfiguration.getInstance(context).setEnabled(prefs.diagnosticLogs)
+  ```
+  (`Log.addLog` no escribe nada si `isEnabled()` es falso). Strings del interruptor en los 30 idiomas.
+- Quitar del manifiesto con `tools:node="remove"` lo que el modo local no usa (`INTERNET` solo si la app no lo necesita por otra cosa, `ConnectivityChangeReceiver`).
+- En un proyecto existente sin `restlog`: agregarlo así es un cambio de código de la app; se anota como pendiente en el resumen y se hace cuando el usuario lo pida.
 
 ## Extender una librería (p. ej. algo nuevo en SQLite)
 

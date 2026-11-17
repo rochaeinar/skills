@@ -363,6 +363,14 @@ def refs(old, repo=None):
 # --------------------------------------------------------------------------------------------
 # app folder (D:/Documents/Apps/<App>/)
 
+# Phones that are only for testing (no personal data): their app data may be cleared, overwritten or
+# restored from a demo backup without asking. Every new app.json starts with them.
+DEFAULT_TEST_DEVICES = [
+    {"name": "Samsung Galaxy A21s", "model": "SM-A217M", "serial": "R58NA0LLLKK", "android": 12},
+    {"name": "Poco C40", "model": "POCO C40"},
+]
+
+
 def cmd_appdir(a):
     app_dir = Path(a.app_dir)
     existing = load_app_json(app_dir) or {}
@@ -381,6 +389,7 @@ def cmd_appdir(a):
         "libs": existing.get("libs", {}),
         "profiles": existing.get("profiles", {}),
         "web": existing.get("web", {}),
+        "test_devices": existing.get("test_devices", DEFAULT_TEST_DEVICES),
         "created": existing.get("created") or datetime.date.today().isoformat(),
     }
     if a.repo:

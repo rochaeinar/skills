@@ -51,12 +51,13 @@ implementation(project(":synchronizer"))     // usa ':dal' como compileOnly: la 
 - API: `Log.e/w/i/d/v(tag, mensaje[, excepción])` de `com.erc.log`, configurado por `assets/rest-log.json` (appenders `logcat`, `file`, `database`, `rest`, `overlay`, `console`; `level`, `filters`, `maxFileSizeMb`, `deleteAfter`).
 - **Una sola fachada en la app** (`AppLogger`, interfaz en el dominio o en `core`, implementada con RestLog), así el código no depende de la librería y en los tests se usa un doble que guarda los mensajes.
 - **Configuración por tipo de build**: `src/debug/assets/rest-log.json` (nivel `debug`, `logcat` + `file` + `overlay`) y `src/release/assets/rest-log.json` (nivel `warn`, solo `file` interno o `logcat`; sin `rest`, sin `overlay`).
+- **Solo local, siempre** (regla del usuario): nunca el appender `rest`. Interruptor "Registro de diagnóstico" en Ajustes (apagado por defecto en release) que llama a `LogConfiguration.getInstance(ctx).setEnabled(valor)` al iniciar y al cambiar. No se pregunta en cada app.
 
 ### Reglas de seguridad de los logs (obligatorias)
 1. **Nada sensible, nunca, en ningún nivel**: contraseñas, tokens, claves, correos, nombres, teléfonos, direcciones MAC o de Bluetooth completas, ubicación, contenido escrito por el usuario (lo tecleado en un teclado remoto, notas, mensajes), cuerpos de solicitudes HTTP. Si hace falta identificar algo, enmascararlo (`AA:BB:**:**:**:FF`, los últimos 4 caracteres, un hash).
 2. Una función `redact()` en la fachada para los casos conocidos, **con unit test**: es lógica que protege algo.
 3. Los mensajes describen eventos y estados ("conexión HID rechazada, estado=3"), no datos.
-4. **Release**: nivel `warn` o mayor, sin `overlay` (la librería ya lo ignora si la app no es depurable, salvo `force`), sin `rest`. Si se quiere un `rest` en producción: solo HTTPS, con consentimiento, declarado en Data safety y en la política de privacidad.
+4. **Release**: nivel `warn` o mayor, sin `overlay` (la librería ya lo ignora si la app no es depurable, salvo `force`), sin `rest` (nunca se usa remoto, en ningún build).
 5. **Almacenamiento**: el appender `file` escribe en `getExternalFilesDir` y la exportación del panel y `MoveLogsJobIntentService` en **Descargas (pública)**. En release, sin exportación a Descargas; los archivos rotan (`deleteAfter`, `maxFileSizeMb`).
 6. **Manifiesto**: la librería agrega `INTERNET`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`, `ACCESS_NETWORK_STATE` y receptores/servicios exportados. Lo que la app no use se quita con `tools:node="remove"` en el manifiesto de la app; si quedan, se justifican en Play.
 7. El QA lo verifica: `adb logcat` durante toda la pasada de Maestro y búsqueda de los patrones sensibles (`references/seguridad.md`).

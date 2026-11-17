@@ -52,7 +52,7 @@ Built from source as Gradle modules (`settings.gradle`); read their `README.md` 
 | Need | Module | Source |
 |---|---|---|
 | SQLite ORM | `:dal` (`com.erc.dal`) | `D:/Projects/Android/data-access/DataAccessLayer/dal` |
-| Logs | `:restlog` (`com.erc.log`, needs `:dal`) | `D:/Projects/Android/RestLog4Android/RestLog` |
+| Logs | `:restlog` (`com.erc.log`, needs `:dal`); **local only** (no `rest` appender), on/off switch in Settings via `LogConfiguration.getInstance(ctx).setEnabled(...)` | `D:/Projects/Android/RestLog4Android/RestLog` |
 | Google Drive sync | `:synchronizer` (`com.erasoft.synchronizer`, needs `:dal`) | `D:/Projects/Android/synchronizer/app` |
 | Own interstitial ads | `:custom-ads` (`com.erc.customads`) | `D:/Projects/Android/custom-ads` |
 
@@ -77,7 +77,8 @@ Every bug fix includes a regression test that fails on the old code and passes w
 - `adb` is not on PATH: `~/AppData/Local/Android/Sdk/platform-tools/adb.exe`.
 - In Git Bash, prefix device commands with `export MSYS_NO_PATHCONV=1;` (otherwise `/sdcard/...` becomes `C:/Program Files/Git/...`).
 - One signing key for everything (`signing.signDebug=true`): debug, release and Play's app signing key are the same. FILL: a debug build without `applicationIdSuffix` installs over the Play version keeping its data; with a suffix it installs next to it.
-- Back up app data and preferences to the scratchpad before changing them on the device, and undo test-only changes afterwards. Never wipe the user's data.
+- **Test phones** (`test_devices` in `app.json`): the Samsung Galaxy A21s (`SM-A217M`) and the Poco C40 have no personal data. Uninstalling, clearing or overwriting the app's data on them is fine — do whatever is fastest for the test. On any other device, back up first and never wipe the user's data.
+- Filling demo data takes long: keep it as backups in English and Spanish in the app data folder (e.g. a DB export) and restore them for tests, screenshots and videos instead of refilling. FILL: where they are and how to restore them.
 - Find tap targets with `adb shell uiautomator dump`; crashes with `adb logcat -d -b crash`.
 
 ## UI tests (Maestro)

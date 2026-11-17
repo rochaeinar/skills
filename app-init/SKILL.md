@@ -31,7 +31,7 @@ Todo pasa por `scripts/appinit.py` (con `python`). Lo que no hace el script lo h
 ### 1. Preguntar solo lo que falta (AskUserQuestion, una sola ronda)
 1. **Nombre** de la app y **marca** → paquete: `com.erasoft.<app>` (web en `era-soft.app`), `com.timeless.<app>` (web en `timelesslabs.app`) o propio. Recomendar la marca que ya usan los perfiles. El paquete **no se cambia nunca** después de publicar: confirmarlo.
 2. **Lenguaje** (solo si es nuevo): Kotlin + Compose por defecto. Un proyecto Java sigue en Java; uno híbrido escribe lo nuevo en Kotlin. No se pregunta si ya está claro.
-3. **Librerías**: `dal` y `restlog` por defecto; `synchronizer` si respalda o sincroniza en Drive; `custom-ads` si muestra anuncios propios (`references/librerias.md`).
+3. **Librerías**: `dal` y `restlog` siempre, **sin preguntar** (`restlog` solo local, con interruptor en Ajustes: `references/librerias.md`); preguntar solo `synchronizer` (si respalda o sincroniza en Drive) y `custom-ads` (si muestra anuncios propios).
 4. **Perfiles** (solo la configuración inicial, nada se publica): Play Console, Cloudflare y YouTube de la lista de `profiles`. Si la cuenta de Play es nueva y no tiene perfil, se anota y se configura con el `SETUP.md` de `play-console`.
 5. **Repo**: crear en Bitbucket (workspace, proyecto, privado) o dejar el remoto que ya tiene.
 6. Si hay una carpeta de datos fuera de `Apps\`: **¿moverla?** (paso 3).
@@ -63,6 +63,8 @@ Nuevo: ya incluidas por `scaffold`. Existente: agregar los `include` en `setting
 - `CLAUDE.md`: el base de `templates/claude/CLAUDE.md` (lo escribe `wire` si falta). Completar las secciones `FILL` con lo que se sabe del proyecto. Si ya existe, **no se reemplaza**: proponer las reglas que le faltan y agregarlas con permiso.
 - `.claude/settings.json`: permisos compartidos (gradle, git de lectura) y `deny` de lectura de `*.jks`. `settings.local.json` queda personal e ignorado por git.
 - Skills del proyecto (`.claude/skills/`): no se crean; si el proyecto tiene, se dejan.
+
+**Teléfonos de prueba** (siempre, sin preguntar): `appdir` escribe `test_devices` en `app.json` con el Samsung Galaxy A21s (`SM-A217M`) y el Poco C40, y el `CLAUDE.md` lo dice en "Device testing". En ellos se pueden borrar, sobrescribir o restaurar los datos de la app, lo que sea más rápido. Conviene un respaldo de datos de demo en inglés y en español en la carpeta de la app (llenarlos lleva mucho tiempo) para pruebas, capturas y videos. En un repo existente, agregar ambas cosas también.
 
 ### 8. Perfiles
 - Play: `python ~/.claude/skills/play-console/scripts/play.py register "<carpeta>/play" --package <id> --profile <perfil>` (solo local: crea `play.json` y registra la app en esta PC; no llama a Google).
