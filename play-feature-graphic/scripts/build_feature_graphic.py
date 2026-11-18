@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from string import Template
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 
 WIDTH, HEIGHT = 1024, 500
 # Rendered at 3x and reduced with Lanczos: the tilted phones (CSS rotate) come out sharp, not blurred.
@@ -108,17 +108,54 @@ def prepare_logo(logo, dst):
     image.save(dst)
 
 
-def render(browser, html_path, png_path):
+def render_once(browser, html_path, png_path, scale):
     url = html_path.resolve().as_uri()
+    if png_path.exists():
+        png_path.unlink()
     command = [
         browser, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-        f"--force-device-scale-factor={SCALE}", f"--window-size={WIDTH},{HEIGHT}",
-        "--virtual-time-budget=6000", "--allow-file-access-from-files",
+        # Without this, a large render (3x) can be captured before every tile is painted: a block
+        # of plain background over the phones (seen on 2026-11-18 in most languages).
+        "--run-all-compositor-stages-before-draw",
+        f"--force-device-scale-factor={scale}", f"--window-size={WIDTH},{HEIGHT}",
+        "--virtual-time-budget=10000", "--allow-file-access-from-files",
         f"--screenshot={png_path}", url,
     ]
-    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    for attempt in range(3):  # a headless browser sometimes hangs: try again
+        try:
+            subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+            break
+        except subprocess.TimeoutExpired:
+            print(f"  (the browser did not answer in 120 s; trying again)")
     if not png_path.exists():
         fail(f"The browser did not write {png_path}")
+    return Image.open(png_path).convert("RGB")
+
+
+def missing_tiles(big, reference, block=32, limit=48):
+    """Blocks where the reduced 3x render differs a lot from a 1x render of the same page: an
+    unpainted tile shows background where the 1x render has a phone. Returns their boxes."""
+    small = big.resize(reference.size, Image.LANCZOS)
+    diff = ImageChops.difference(small, reference).convert("L")
+    bad = []
+    for y in range(0, reference.height, block):
+        for x in range(0, reference.width, block):
+            box = (x, y, min(x + block, reference.width), min(y + block, reference.height))
+            if ImageStat.Stat(diff.crop(box)).mean[0] > limit:
+                bad.append(box)
+    return bad
+
+
+def render(browser, html_path, png_path):
+    """Renders at SCALE (sharp tilted phones) and checks it against a 1x render: up to 3 tries."""
+    reference = render_once(browser, html_path, png_path.with_name("render-1x.png"), 1)
+    for attempt in range(3):
+        big = render_once(browser, html_path, png_path, SCALE)
+        bad = missing_tiles(big, reference)
+        if not bad:
+            return
+        print(f"  (render {attempt + 1}: {len(bad)} unpainted blocks, e.g. {bad[0]}; rendering again)")
+    fail(f"{png_path}: the browser keeps leaving unpainted blocks: {bad[:3]}")
 
 
 def build_locale(config, locale, data, browser, output_dir):

@@ -90,7 +90,7 @@ python -I ~/.claude/skills/play-feature-graphic/scripts/build_feature_graphic.py
 python -I ~/.claude/skills/play-feature-graphic/scripts/build_feature_graphic.py <config.json> --locale es-419
 ```
 
-Se renderiza a 3x y se reduce con Lanczos, así los teléfonos inclinados salen nítidos (a 1x la rotación CSS los deja borrosos).
+Se renderiza a 3x y se reduce con Lanczos, así los teléfonos inclinados salen nítidos (a 1x la rotación CSS los deja borrosos). Con `--run-all-compositor-stages-before-draw` el navegador pinta todo antes de la captura, y el script compara el resultado con un render a 1x: si algún bloque no coincide (un cuadro del color del fondo sobre un teléfono, que pasó el 2026-11-18 en la mayoría de los idiomas) lo vuelve a renderizar, hasta 3 veces.
 
 Salida: `<output_dir>/feature-graphic-<locale>.png` y `work/<locale>/` (capturas recortadas, logo y el `feature.html` renderizado, útil para ajustes finos).
 
