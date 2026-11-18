@@ -4,14 +4,21 @@
   "profile": "",
   "project": "",
   "domain": "",
-  "locales": ["en", "es"],
+  "locales": [
+    "en",
+    "es"
+  ],
   "default_locale": "en",
   "theme_color": "#0f172a",
   "category": "LifestyleApplication",
-  "play": { "package": "" },
+  "play": {
+    "package": ""
+  },
   "youtube": {},
+  "youtube_vertical": false,
   "analytics_token": "",
   "app_project": "",
   "assets_dir": "",
-  "play_dir": ""
+  "play_dir": "",
+  "parent": null
 }

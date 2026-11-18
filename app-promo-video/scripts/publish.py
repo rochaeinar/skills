@@ -4,6 +4,7 @@
     python publish.py auth    [<client_secret.json>] [--no-browser] [--profile name]   once per account
     python publish.py check   [--profile name]   is the stored authorization still valid? (no upload)
     python publish.py upload  <video.json> --locale en-US --format horizontal [--variant A] [--privacy unlisted] [--profile name]
+    python publish.py website <video.json>   the published videos -> the app's website (cloudflare-site web.py video)
 
 prepare writes upload/<name>/ next to video.json, enough to upload by hand in YouTube Studio:
     video.mp4 (hard link to the final render), thumbnail.jpg (1280x720, the hook with its question),
@@ -16,6 +17,7 @@ captions.insert) with: the privacy asked for, embeddable, not made for kids and
 containsSyntheticMedia = true (the AI hook). Projects without the API compliance audit get their
 uploads locked as private: the script reads back the real privacy and says so. The video id and
 link are saved in video.json "publish.<locale>.uploaded.<name>", so a video is never uploaded twice.
+After the upload, the app's cloudflare-site website (if any) gets the video in site.json (web.py video).
 
 Credentials (Windows Credential Manager, never in files or the chat). Several Google accounts: one
 Google Cloud project per account and a profile name for each, whose credentials end in "@<profile>"
@@ -34,6 +36,7 @@ import math
 import os
 import secrets
 import shutil
+import subprocess
 import sys
 import threading
 import urllib.error
@@ -352,6 +355,43 @@ def upload(config, locale, fmt, variant, privacy, profile=None):
         print(f"\nYouTube left the video {real_privacy}: the API project has no compliance audit yet. In YouTube"
               f" Studio try to change it to {privacy}; if it is locked, upload by hand with {folder / 'CHECKLIST.md'}.")
     print(f"Play Console: {url}")
+    update_website(config)
+
+
+# --- the app's website (cloudflare-site) ----------------------------------------------------------
+
+WEB_SKILL = Path(__file__).resolve().parents[2] / "cloudflare-site"
+
+
+def app_website(config):
+    """The cloudflare-site site of this app (site.json play.package == capture.app_id): (repo, slug) or None."""
+    local = WEB_SKILL / "config.json"
+    app_id = config.get("app_id") or config.get("capture", {}).get("app_id")
+    if not local.exists() or not app_id:
+        return None
+    root = Path(json.loads(local.read_text(encoding="utf-8"))["repo"])
+    for site_json in sorted((root / "sites").glob("*/site.json")):
+        data = json.loads(site_json.read_text(encoding="utf-8"))
+        package = data.get("play", {}).get("package")
+        if package and app_id in (package, f"{package}.debug"):  # captures may use the debug build
+            return root, site_json.parent.name
+    return None
+
+
+def update_website(config):
+    """Puts the published videos on the app's website (web.py video): site.json and posters only;
+    building and deploying stay with cloudflare-site (production needs the user's approval)."""
+    found = app_website(config)
+    if not found:
+        print("Website: this app has no cloudflare-site site yet (when it is made, web.py video adds the video).")
+        return
+    root, slug = found
+    print(f"Website: {slug} -> web.py video")
+    result = subprocess.run([sys.executable, str(WEB_SKILL / "scripts" / "web.py"), "--repo", str(root), "video", slug],
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    for line in (result.stdout + result.stderr).strip().splitlines():
+        print(f"  {line}")
+    print(f"  Next (cloudflare-site): web.py build {slug}, qa, deploy {slug} (preview), then --prod --yes with approval")
 
 
 def main():
@@ -371,6 +411,8 @@ def main():
                    help="OAuth client JSON (Desktop app); omit it to reuse the stored client")
     a.add_argument("--no-browser", action="store_true", help="Only print the link (to open it in a chosen browser)")
     a.add_argument("--profile", default=None, help="Account profile these credentials belong to")
+    w = sub.add_parser("website", help="put the published videos on the app's website (cloudflare-site)")
+    w.add_argument("video_json")
     c = sub.add_parser("check")
     c.add_argument("--profile", default=None, help="Account profile to check")
     args = parser.parse_args()
@@ -381,6 +423,9 @@ def main():
         auth(args.client_secret, not args.no_browser, args.profile)
         return
     config = load_video_json(args.video_json)
+    if args.command == "website":
+        update_website(config)
+        return
     if args.command == "prepare":
         prepare(config, args.locale, args.format, args.variant)
     else:

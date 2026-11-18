@@ -15,10 +15,20 @@ Todo pasa por `scripts/web.py` (con `python`). El monorepo (en esta PC: el de `c
 | `project` | Proyecto de Pages (único en esa cuenta; URL `<project>.pages.dev`) |
 | `domain` | Subdominio público, en una zona de esa misma cuenta |
 | `locales`, `default_locale` | Idiomas (`en`, `es`…); el idioma por defecto va sin prefijo, los demás en `/<lang>/` |
-| `play.package`, `youtube.<lang>`, `category`, `theme_color`, `analytics_token` | Datos de la app para la insignia, el video, los datos estructurados y la analítica |
+| `play.package`, `category`, `theme_color`, `analytics_token` | Datos de la app para la insignia, los datos estructurados y la analítica |
+| `youtube.<lang>`, `youtube_vertical` | El video promocional publicado en YouTube por idioma (lo escribe `web.py video`; un idioma sin video muestra el del idioma por defecto) |
+| `parent` | El sitio principal del dominio (p. ej. `era-soft.app` para `forevernote.era-soft.app`): nombre, URL e idiomas; lo escribe `web.py link` |
 | `app_project`, `assets_dir`, `play_dir` | Fuera del repo: el proyecto de la app, la carpeta de imágenes/videos (`D:/Documents/Apps/<App>/Images`) y la de Google Play (`.../<App>/play`, la misma de `play-console`) |
 
-Comandos: `init`, `auth`, `new`, `assets`, `import`, `capture`, `licenses`, `legal`, `build`, `qa`, `preview`, `deploy`, `domain`, `status` (ver la cabecera de `web.py`).
+Comandos: `init`, `auth`, `new`, `assets`, `import`, `capture`, `licenses`, `legal`, `build`, `qa`, `preview`, `deploy`, `domain`, `status`, `link`, `video` (ver la cabecera de `web.py`).
+
+**Sitio principal y sitios de apps se enlazan en los dos sentidos.** Si el monorepo tiene el sitio del dominio principal (un sitio cuyo `domain` es el dominio padre, p. ej. `erasoft` con `era-soft.app`), cada sitio de app de ese dominio:
+- aparece en el sitio principal: una tarjeta en `sites/<principal>/src/apps.json` (`slug`, `name`, `icon` en `public/brand/`, `website`, `play`, `locales`, `description.<lang>`), que su `Home` muestra con el enlace al sitio de la app en el idioma de la página (`siteHref` de `@sites/ui/links`);
+- enlaza de vuelta al sitio principal: `site.json` `parent` + `<ParentLink>` (`@sites/ui/ParentLink.astro`, "Una app de Era Soft Labs") en el pie del `Layout`; el texto sale de `footer.parent` del idioma.
+
+`web.py new` lo deja hecho (y, si el sitio nuevo es el principal, enlaza las apps que ya existen); `web.py link <slug> --yes` lo repara en un sitio viejo. Revisar las descripciones que copia en `apps.json` (salen de `meta.description` de la app) y publicar **los dos sitios**. `build` falla si falta algún enlace (en cualquiera de los dos sentidos).
+
+**Video promocional:** si la app ya tiene un video publicado con `app-promo-video` (`<carpeta de la app>/promo-video/video.json`, `publish.<locale>.uploaded`), el sitio lo muestra. `web.py video <slug>` copia los IDs por idioma a `site.json` (el formato publicado en más idiomas; `--format` para elegir) y hace un póster por idioma en `src/assets/video/poster-<lang>.jpg` (la miniatura del video, o el cuadro del gancho si la miniatura no tiene su forma). El `Home` lo muestra con `promoVideo(site, lang)` de `@sites/ui/links` y `<YouTube … poster vertical>`, en su propia sección (`id="video"`) acorde al diseño. `build` avisa si hay un video publicado que el sitio no tiene, y falla si `site.json` tiene video y la página no lo muestra.
 
 **La web no se entrega sola:** la app enlaza su sitio desde Acerca de y muestra la privacidad, los términos y las licencias que la web publica; Google Play recibe la URL de privacidad. Guía completa: `references/app-integration.md` (pasos 1b, 5b y 7).
 
@@ -40,7 +50,7 @@ Si un paso no se puede completar (sin teléfono, sin token, falla de la API), se
 ## Flujo para una app nueva
 
 ### 0. Crear el sitio
-`web.py new <slug> --profile <cuenta> --domain <sub.dominio> --package <applicationId> --name "<App>" --app-project <carpeta> --assets <carpeta de imágenes>`, luego `npm install` en el monorepo. Las rutas del proyecto de la app y de su carpeta de imágenes salen de `app.json` (app-init); solo si no existe se preguntan en la ronda inicial. Cada app tiene su carpeta en `D:/Documents/Apps/<App>/` (`Images/`, `play/`…), nunca suelta en Documents. `play_dir` sale de `play-console` (si ya registró el paquete) o es `<carpeta de la app>/play`.
+`web.py new <slug> --profile <cuenta> --domain <sub.dominio> --package <applicationId> --name "<App>" --app-project <carpeta> --assets <carpeta de imágenes>`, luego `npm install` en el monorepo. Las rutas del proyecto de la app y de su carpeta de imágenes salen de `app.json` (app-init); solo si no existe se preguntan en la ronda inicial. Cada app tiene su carpeta en `D:/Documents/Apps/<App>/` (`Images/`, `play/`…), nunca suelta en Documents. `play_dir` sale de `play-console` (si ya registró el paquete) o es `<carpeta de la app>/play`. `new` ya enlaza el sitio con el principal del dominio (ver arriba); si la app tiene video promocional publicado, `web.py video <slug>`.
 
 ### 1. Análisis exhaustivo de la app (no superficial)
 Hacerlo directamente (sin subagentes, salvo que el usuario los pida) y escribirlo en `sites/<slug>/content/analysis.md` (plantilla incluida). Recorrer, para una app Android:
@@ -97,11 +107,13 @@ Según `references/app-integration.md` §3, con las plantillas de `templates/and
 
 ## Cambios posteriores
 Editar → `build` → `qa` → `deploy` (vista previa) → `--prod --yes`. Un documento legal cambia **en la app** (`assets/legal/`) → `web.py legal` → `build` → `deploy`, y la app lo lleva en su próxima versión. Varios sitios: `web.py deploy --changed` publica solo los que cambiaron desde su último deploy de producción (compara con el commit guardado en Pages; un cambio en `packages/` cuenta para todos). `web.py status`: cuentas, tokens, proyectos, último deploy y estado del dominio.
+Video nuevo de la app (o en otro idioma) → `web.py video <slug>` (lo corre solo `app-promo-video` al subirlo) → `build` → `deploy`. App nueva del dominio → su sitio con `new` (queda en `apps.json` del principal) → publicar los dos.
 
 ## Reglas
 - **Producción y DNS solo con `--yes`** y después de que el usuario vio la vista previa o el plan.
 - Tokens: nunca en el chat, el repo ni archivos. `web.py auth` abre una ventana aparte donde se escriben ocultos y los guarda en el Administrador de credenciales.
 - Un sitio se publica siempre con la cuenta de su `profile`; el dominio debe ser una zona de esa cuenta.
+- Un sitio de app y el sitio principal de su dominio se enlazan siempre en los dos sentidos (`web.py link`), y el video promocional publicado siempre está en el sitio (`web.py video`).
 - Sitios 100 % estáticos (`output: "static"`): sin funciones de servidor, sin almacenamiento pagado. Los archivos grandes (>25 MiB) no van en Pages.
 - Nada de afirmaciones sin evidencia en el código; capturas reales.
 - Una sola fuente para los textos legales: los Markdown de la app, **solo en inglés, nunca traducidos**. La web los copia (`web.py legal`) y Play enlaza la web.

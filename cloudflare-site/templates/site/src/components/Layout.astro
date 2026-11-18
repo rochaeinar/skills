@@ -6,6 +6,7 @@ import ThemeScript from "@sites/ui/ThemeScript.astro";
 import ThemeToggle from "@sites/ui/ThemeToggle.astro";
 import LangSuggest from "@sites/ui/LangSuggest.astro";
 import LangPicker from "@sites/ui/LangPicker.astro";
+import ParentLink from "@sites/ui/ParentLink.astro";
 import { Image } from "astro:assets";
 import logo from "../assets/logo.svg";
 import { existsSync } from "node:fs";
@@ -59,6 +60,8 @@ const anchor = (id: string) => (home ? `#${id}` : `${localePath(lang)}#${id}`);
     <footer class="foot">
       <div class="wrap bar">
         <span>© {new Date().getFullYear()} {tx.footer.rights}</span>
+        {/* "An app by <main site>" (site.json parent, web.py link): the way back to the domain's main site */}
+        <ParentLink parent={site.parent} lang={lang} label={tx.footer.parent} />
         <nav aria-label="Legal">
           <a href={localePath(lang, "/privacy/")}>{tx.footer.privacy}</a>
           <a href={localePath(lang, "/terms/")}>{tx.footer.terms}</a>
@@ -91,6 +94,7 @@ const anchor = (id: string) => (home ? `#${id}` : `${localePath(lang)}#${id}`);
   .foot .bar { flex-wrap: wrap; padding: 28px 0; }
   .foot nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
   .foot a { color: var(--muted); }
+  .foot :global(.parent-link) { font-weight: 600; color: var(--text); }
   @media (max-width: 1100px) { .links { display: none; } }
   @media (max-width: 420px) { .brand span { display: none; } }
 </style>

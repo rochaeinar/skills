@@ -16,6 +16,8 @@
     python web.py deploy <slug> [--prod --yes] | --changed [--prod --yes]
     python web.py domain <slug> [--yes]                custom domain on the Pages project + CNAME in the zone
     python web.py status                               every site: account, project, last deploy, domain
+    python web.py link <slug> [--yes]                  the main site of the domain lists the app; the app links back
+    python web.py video <slug> [--format vertical]     the app's published promo videos (app-promo-video) -> the site
 
 Without --prod a deploy goes to the "preview" branch (a *.pages.dev URL, not the domain). Production
 and domain changes need --yes. Each site names its account profile in site.json; the token of that
@@ -252,6 +254,17 @@ def cmd_new(args):
     (folder / "site.json").write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     pkg = folder / "package.json"
     pkg.write_text(pkg.read_text(encoding="utf-8").replace("__SLUG__", slug), encoding="utf-8")
+    cfg["_dir"] = folder
+    plan, changes = link_plan(root, cfg)
+    if plan:  # the main site of the domain lists the new app, and the app links back
+        apply_link(root, cfg, plan)
+        print("Linked with the main site:\n" + "\n".join(f"  - {c}" for c in changes))
+    for other in all_sites(root):  # a new main site: it lists the app sites of its domain
+        child = site(root, other)
+        child_plan, child_changes = link_plan(root, child)
+        if child_plan and child_plan[0]["slug"] == slug and child_changes:
+            apply_link(root, child, child_plan)
+            print(f"Linked {other} with this main site:\n" + "\n".join(f"  - {c}" for c in child_changes))
     print(f"OK: sites/{slug}. Next: npm install (in {root}), then the analysis (SKILL.md step 1)")
 
 
@@ -723,6 +736,10 @@ def build(root, slug):
         print(f"  WARNING {w}")
     dist = cfg["_dir"] / "dist"
     problems, files, total, pages = check_dist(dist, cfg)
+    linked, notes = link_problems(root, cfg, dist)
+    problems += linked
+    for w in notes:
+        print(f"  WARNING {w}")
     print(f"  {pages} pages, {files} files, {total / 1048576:.1f} MB")
     for p in sorted(set(problems)):
         print(f"  PROBLEM {p}")
@@ -736,6 +753,257 @@ def cmd_build(args):
     for slug in (all_sites(root) if args.all else [args.slug or fail("build <slug> or --all")]):
         build(root, slug)
     print("OK: built and checked")
+
+
+
+# --- the main site of the domain and the promo video (web.py link / web.py video) --------------------
+
+APPS_FILE = "src/apps.json"  # the main site's list of apps (its Home shows one card per entry)
+PROMO_FORMATS = ("horizontal", "vertical")
+SCRIPT_REGIONS = {"zh-hans": "zh-cn", "zh-hant": "zh-tw"}  # site path (script) -> video locale (region)
+POSTER_WIDTH = 1080
+HOOK_SECOND = 1.8  # the frame publish.py uses for the YouTube thumbnail
+
+
+def write_site_json(cfg):
+    data = {k: v for k, v in cfg.items() if not k.startswith("_")}
+    (cfg["_dir"] / "site.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def parent_site(root, cfg):
+    """The site of the domain's main host: a site whose domain is a suffix of this one's
+    (era-soft.app for forevernote.era-soft.app). None for a main site or when there is none."""
+    best = None
+    for slug in all_sites(root):
+        other = site(root, slug)
+        if slug != cfg["slug"] and cfg["domain"].endswith("." + other["domain"]):
+            if best is None or len(other["domain"]) > len(best["domain"]):
+                best = other
+    return best
+
+
+def parent_entry(parent):
+    return {"slug": parent["slug"], "name": parent["name"], "url": f"https://{parent['domain']}/",
+            "locales": parent["locales"], "default_locale": parent["default_locale"]}
+
+
+def load_apps(parent):
+    path = parent["_dir"] / APPS_FILE
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+
+
+def i18n_text(cfg, lang, *keys):
+    path = cfg["_dir"] / "src/i18n" / f"{lang}.json"
+    if not path.exists():
+        return ""
+    node = json.loads(path.read_text(encoding="utf-8"))
+    for k in keys:
+        node = node.get(k, {}) if isinstance(node, dict) else {}
+    return node if isinstance(node, str) else ""
+
+
+def app_card(cfg, parent, old):
+    """The card of an app on the main site: keeps what is already written (descriptions, icon, play)."""
+    card = dict(old or {})
+    card.update({"slug": cfg["slug"], "website": f"https://{cfg['domain']}/",
+                 "locales": cfg["locales"], "default_locale": cfg["default_locale"]})
+    card.setdefault("name", cfg["name"])
+    card.setdefault("icon", f"/brand/{cfg['slug']}.svg")
+    card.setdefault("tile", False)
+    card.setdefault("play", cfg.get("play", {}).get("package", ""))
+    descriptions = dict(card.get("description") or {})
+    for lang in parent["locales"]:
+        if not descriptions.get(lang):
+            text = i18n_text(cfg, lang, "meta", "description") or i18n_text(cfg, cfg["default_locale"], "meta", "description")
+            if text:
+                descriptions[lang] = text
+    card["description"] = descriptions
+    return card
+
+
+def link_plan(root, cfg):
+    parent = parent_site(root, cfg)
+    if not parent:
+        return None, []
+    apps = load_apps(parent)
+    own = f"https://{cfg['domain']}"
+    old = next((a for a in apps if a.get("slug") == cfg["slug"] or a.get("website", "").rstrip("/") == own), None)
+    card = app_card(cfg, parent, old)
+    changes = []
+    if cfg.get("parent") != parent_entry(parent):
+        changes.append(f"sites/{cfg['slug']}/site.json: parent = {parent['name']} (https://{parent['domain']}/)")
+    if old != card:
+        changes.append(f"sites/{parent['slug']}/{APPS_FILE}: {'update' if old else 'add'} the card of {cfg['name']}")
+    icon = parent["_dir"] / "public" / card["icon"].lstrip("/")
+    logo = cfg["_dir"] / "src/assets/logo.svg"
+    if not icon.exists():
+        changes.append(f"sites/{parent['slug']}/public{card['icon']}: copy of sites/{cfg['slug']}/src/assets/logo.svg"
+                       if logo.exists() else f"sites/{parent['slug']}/public{card['icon']}: MISSING, add the app icon by hand")
+    return (parent, apps, old, card, icon, logo), changes
+
+
+def apply_link(root, cfg, plan):
+    parent, apps, old, card, icon, logo = plan
+    cfg["parent"] = parent_entry(parent)
+    write_site_json(cfg)
+    apps = [card if a is old else a for a in apps] if old else apps + [card]
+    path = parent["_dir"] / APPS_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(apps, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if not icon.exists() and logo.exists():
+        icon.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(logo, icon)
+
+
+def cmd_link(args):
+    """An app's site and the main site of its domain link each other: the main site lists the app
+    (src/apps.json, with its website) and the app's site links back (site.json parent -> ParentLink)."""
+    root = repo(args.repo)
+    cfg = site(root, args.slug)
+    plan, changes = link_plan(root, cfg)
+    if plan is None:
+        print(f"{args.slug}: no main site for {cfg['domain']} in the monorepo (a site whose domain is its parent domain). Nothing to link.")
+        return
+    if not changes:
+        print(f"OK: {args.slug} and {plan[0]['slug']} already link each other")
+        return
+    print("Plan:\n" + "\n".join(f"  - {c}" for c in changes))
+    if not args.yes:
+        print("Nothing written. Run again with --yes.")
+        return
+    apply_link(root, cfg, plan)
+    print(f"OK: linked. Check the descriptions in sites/{plan[0]['slug']}/{APPS_FILE} (natural text per language),"
+          f" then build and deploy both sites: {args.slug} and {plan[0]['slug']}")
+
+
+def promo_project(cfg):
+    """app-promo-video's folder of the app: <app folder>/promo-video or <assets_dir>/promo-video."""
+    assets = cfg.get("assets_dir")
+    if not assets:
+        return None
+    for folder in (Path(assets).parent / "promo-video", Path(assets) / "promo-video"):
+        if (folder / "video.json").exists():
+            return folder
+    return None
+
+
+def published_videos(folder):
+    """{video locale (lowercase): {format: (upload name, id)}} of the public or unlisted uploads."""
+    data = json.loads((folder / "video.json").read_text(encoding="utf-8"))
+    out = {}
+    for locale, pub in (data.get("publish") or {}).items():
+        for name, up in ((pub or {}).get("uploaded") or {}).items():
+            if not isinstance(up, dict) or not up.get("id") or up.get("privacy") == "private":
+                continue
+            fmt = next((f for f in PROMO_FORMATS if f"-{f}" in name), "horizontal")
+            out.setdefault(locale.lower(), {}).setdefault(fmt, (name, up["id"]))
+    return out
+
+
+def video_for(videos, lang):
+    lang = SCRIPT_REGIONS.get(lang, lang).lower()
+    if lang in videos:
+        return videos[lang]
+    base = lang.split("-")[0]
+    return next((v for loc, v in sorted(videos.items()) if loc.split("-")[0] == base), None)
+
+
+def make_poster(folder, name, vertical, target):
+    """The video's own thumbnail when it has the video's shape, else its hook frame."""
+    from PIL import Image
+    up = folder / "upload" / name
+    thumb = up / "thumbnail.jpg"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if thumb.exists():
+        with Image.open(thumb) as im:
+            if (im.height > im.width) == vertical:
+                img = im.convert("RGB")
+                img.thumbnail((POSTER_WIDTH, POSTER_WIDTH * 2), Image.LANCZOS)
+                img.save(target, quality=90)
+                return "thumbnail"
+    video = up / "video.mp4"
+    if not video.exists():
+        return None
+    run([tool("ffmpeg"), "-v", "error", "-y", "-ss", str(HOOK_SECOND), "-i", str(video), "-frames:v", "1",
+         "-vf", f"scale='min({POSTER_WIDTH},iw)':-2", "-q:v", "2", str(target)])
+    return "hook frame"
+
+
+def video_plan(cfg, fmt=None):
+    folder = promo_project(cfg)
+    if not folder:
+        return None, None, {}
+    videos = published_videos(folder)
+    per_lang = {lang: video_for(videos, lang) for lang in cfg["locales"]}
+    if not fmt:  # the format published for the most languages of the site (a tie: horizontal)
+        fmt = max(PROMO_FORMATS, key=lambda f: (sum(1 for v in per_lang.values() if v and f in v), f == "horizontal"))
+    chosen = {lang: v[fmt] for lang, v in per_lang.items() if v and fmt in v}
+    return folder, fmt, chosen
+
+
+def shows_video(cfg):
+    return any("YouTube" in p.read_text(encoding="utf-8", errors="replace") for p in (cfg["_dir"] / "src").rglob("*.astro"))
+
+
+def cmd_video(args):
+    """The app's promo videos (app-promo-video, published on YouTube) -> site.json youtube.<lang> and
+    youtube_vertical, with a poster per language in src/assets/video/poster-<lang>.jpg."""
+    root = repo(args.repo)
+    cfg = site(root, args.slug)
+    folder, fmt, chosen = video_plan(cfg, args.format)
+    if not folder:
+        print(f"{args.slug}: the app has no promo-video/video.json next to {cfg.get('assets_dir') or '(no assets_dir)'}. Nothing to add.")
+        return
+    if not chosen:
+        print(f"{args.slug}: no public or unlisted {fmt} upload in {folder / 'video.json'} for {', '.join(cfg['locales'])}.")
+        return
+    youtube = {lang: vid for lang, (_, vid) in chosen.items()}
+    changed = cfg.get("youtube") != youtube or bool(cfg.get("youtube_vertical")) != (fmt == "vertical")
+    cfg["youtube"], cfg["youtube_vertical"] = youtube, fmt == "vertical"
+    write_site_json(cfg)
+    print(f"{'Updated' if changed else 'Unchanged'}: site.json youtube ({fmt}) = {json.dumps(youtube)}")
+    missing = [l for l in cfg["locales"] if l not in youtube]
+    if missing:
+        print(f"  no video for {', '.join(missing)}: those pages show the {cfg['default_locale']} one")
+    for lang, (name, _) in chosen.items():
+        poster = cfg["_dir"] / "src/assets/video" / f"poster-{lang}.jpg"
+        if poster.exists() and not args.posters:
+            print(f"  poster-{lang}.jpg kept (--posters to make it again)")
+            continue
+        how = make_poster(folder, name, fmt == "vertical", poster)
+        print(f"  poster-{lang}.jpg from the {how}" if how else f"  poster-{lang}.jpg: no thumbnail or video in upload/{name}")
+    if not shows_video(cfg):
+        print("  WARNING: no component shows a YouTube video yet: add the video section to src/components/Home.astro"
+              " (promoVideo(site, lang) from @sites/ui/links.ts, SKILL.md step 5)")
+    print(f"Next: web.py build {args.slug}, qa, deploy")
+
+
+def link_problems(root, cfg, dist):
+    """Problems (the build fails) and warnings about the main site link and the promo video."""
+    problems, warnings = [], []
+    home = dist / "index.html"
+    html = home.read_text(encoding="utf-8", errors="replace") if home.exists() else ""
+    parent = parent_site(root, cfg)
+    if parent:
+        if not cfg.get("parent"):
+            problems.append(f"not linked with its main site {parent['domain']}: web.py link {cfg['slug']} --yes")
+        elif f"https://{parent['domain']}/" not in html:
+            problems.append(f"the home page has no link to https://{parent['domain']}/ (ParentLink in the Layout footer)")
+        if not any(a.get("website", "").rstrip("/") == f"https://{cfg['domain']}" for a in load_apps(parent)):
+            problems.append(f"the main site {parent['slug']} does not list this site: web.py link {cfg['slug']} --yes")
+    if (cfg["_dir"] / APPS_FILE).exists():
+        for slug in all_sites(root):
+            child = site(root, slug)
+            if (child.get("parent") or {}).get("slug") == cfg["slug"] and f"https://{child['domain']}/" not in html:
+                problems.append(f"the home page has no link to the app site https://{child['domain']}/ ({slug})")
+    _, _, chosen = video_plan(cfg)
+    if chosen and not cfg.get("youtube"):
+        warnings.append(f"the app has a published promo video: web.py video {cfg['slug']}")
+    elif chosen and any(cfg["youtube"].get(l) != v for l, (_, v) in chosen.items()):
+        warnings.append(f"site.json youtube differs from the published promo videos: web.py video {cfg['slug']}")
+    if cfg.get("youtube") and "lite-youtube" not in html:
+        problems.append("site.json has a promo video but the home page does not show it (YouTube section in Home.astro)")
+    return problems, warnings
 
 
 BROWSERS = [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -1015,6 +1283,9 @@ def main():
     s.add_argument("--prod", action="store_true"); s.add_argument("--yes", action="store_true")
     s = sub.add_parser("domain"); s.add_argument("slug"); s.add_argument("--yes", action="store_true")
     sub.add_parser("status")
+    s = sub.add_parser("link"); s.add_argument("slug"); s.add_argument("--yes", action="store_true")
+    s = sub.add_parser("video"); s.add_argument("slug"); s.add_argument("--format", choices=PROMO_FORMATS)
+    s.add_argument("--posters", action="store_true", help="make the posters again even if they exist")
     if "--store" in sys.argv:  # the separate auth window: keep it open on any error so it can be read
         try:
             args = ap.parse_args()

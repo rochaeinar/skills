@@ -5,6 +5,7 @@ import { Picture } from "astro:assets";
 import * as icons from "@lucide/astro";
 import PlayBadge from "@sites/ui/PlayBadge.astro";
 import YouTube from "@sites/ui/YouTube.astro";
+import { promoVideo } from "@sites/ui/links";
 import Layout from "./Layout.astro";
 import { t, site } from "../i18n";
 
@@ -15,7 +16,10 @@ const tx = t(lang);
 const all = import.meta.glob<{ default: ImageMetadata }>("../assets/screens/**/*.{png,jpg,webp}", { eager: true });
 const pick = (prefix: string) => Object.entries(all).filter(([p]) => p.startsWith(prefix)).sort(([a], [b]) => a.localeCompare(b)).map(([, m]) => m.default);
 const screens = [pick(`../assets/screens/${lang}/`), pick("../assets/screens/")].find((s) => s.length) ?? [];
-const video = (site.youtube as Record<string, string>)[lang];
+// Promo video (app-promo-video on YouTube -> web.py video): site.json youtube.<lang>, poster per language.
+const video = promoVideo(site, lang);
+const posters = import.meta.glob<{ default: ImageMetadata }>("../assets/video/poster-*.jpg", { eager: true });
+const poster = (posters[`../assets/video/poster-${lang}.jpg`] ?? posters[`../assets/video/poster-${site.default_locale}.jpg`])?.default;
 const Icon = (name: string) => (icons as Record<string, any>)[name] ?? icons.Sparkles;
 ---
 <Layout lang={lang} path="/">
@@ -69,7 +73,7 @@ const Icon = (name: string) => (icons as Record<string, any>)[name] ?? icons.Spa
   {video && (
     <section id="video" class="container section">
       <h2>{tx.video.title}</h2>
-      <div class="video"><YouTube id={video} title={tx.video.title} /></div>
+      <div class:list={["video", { vertical: video.vertical }]}><YouTube id={video.id} title={tx.video.title} poster={poster} vertical={video.vertical} /></div>
     </section>
   )}
 
@@ -108,6 +112,7 @@ const Icon = (name: string) => (icons as Record<string, any>)[name] ?? icons.Spa
   .shots { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 8px max(16px, calc((100vw - var(--max)) / 2)) 24px; }
   .shots :global(img) { flex: 0 0 auto; width: 260px; border-radius: 28px; scroll-snap-align: center; box-shadow: var(--shadow); }
   .video { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .video.vertical { max-width: 340px; margin-inline: auto; }
   .narrow { max-width: 760px; }
   details { border-bottom: 1px solid var(--border); padding: 18px 0; }
   summary { cursor: pointer; font-weight: 600; font-size: 1.05rem; }

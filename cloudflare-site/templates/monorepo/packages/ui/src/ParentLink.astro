@@ -1,0 +1,12 @@
+---
+// "An app by <main site>": the link from an app's site to the main site of its domain (site.json
+// parent, written by web.py link). Renders nothing for a site without a parent.
+import { parentHref } from "./links";
+
+interface Props { parent?: { slug: string; name: string; url: string; locales: string[]; default_locale: string } | null; lang: string; label?: string; class?: string }
+const { parent, lang, label, class: cls } = Astro.props;
+// Pass `label` from the site's i18n (footer.parent, with {name}) for other languages.
+const LABELS: Record<string, string> = { en: "An app by {name}", es: "Una app de {name}", pt: "Um app da {name}", fr: "Une app de {name}" };
+const text = (label ?? LABELS[lang] ?? LABELS.en).replace("{name}", parent?.name ?? "");
+---
+{parent && <a class:list={["parent-link", cls]} href={parentHref(parent, lang)}>{text}</a>}

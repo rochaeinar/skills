@@ -17,7 +17,7 @@ Ejemplo real (Bible Versions): `D:/Documents/BibleVersions/Images/promo-video/vi
 2. **Preguntar solo lo que falta** (AskUserQuestion): formatos, idiomas, duración, número de ganchos, presupuesto (por defecto $20).
 3. **Guion para aprobar** (`brief.md`): gancho(s) con texto y escena de IA, escenas con texto en pantalla y frase de la voz, y **costo estimado**. Toda afirmación (p. ej. "hasta 4 versiones") se verifica **en el código**, no en la ficha.
 4. **Producir** por etapas, con pausas para aprobar (ver abajo).
-5. **Entregar:** rutas, gasto real (`costs.json`), lista para publicar.
+5. **Entregar:** rutas, gasto real (`costs.json`), lista para publicar. Al subirlo a YouTube, el video va también al sitio de la app si existe (ver «Publicar en YouTube»).
 
 ## Etapas de producción
 
@@ -106,6 +106,7 @@ Orden de aprobación: voz (muestras en `review/voces/`) → imágenes temporales
 - `publish.py auth [<client_secret.json>] [--no-browser] [--profile <nombre>]` (una vez por cuenta): OAuth de escritorio con PKCE; guarda `PromoVideo-YouTube-Client[@perfil]` y `PromoVideo-YouTube[@perfil]`. Sin el JSON reutiliza el cliente guardado (para volver a autorizar si el token venció). El usuario usa contenedores de Firefox: siempre `--no-browser` y pasarle el enlace. **Varias cuentas de Google:** un proyecto de Google Cloud y un perfil por cuenta; cada app elige el suyo con `"youtube_profile"` en `video.json` (ver SETUP.md 6.4). ElevenLabs y fal.ai son compartidos.
 - `publish.py check [--profile <nombre>]`: renueva el token y lee el canal, sin subir nada. Correrlo antes de `upload`; con `invalid_grant`, ver SETUP.md 6.2.6 y 6.3.
 - `publish.py upload ... [--privacy unlisted]`: videos.insert + miniatura + subtítulos, con `embeddable`, `selfDeclaredMadeForKids: false` y `containsSyntheticMedia: true`. Lee la privacidad real: los proyectos de API **sin auditoría** quedan forzados a privado (documentación oficial); entonces se cambia en Studio si se puede, o se sube a mano con el CHECKLIST. Guarda el id y el enlace en `video.json` (`publish.<locale>.uploaded`), así nunca sube dos veces.
+- **Sitio web de la app:** después de cada subida, `upload` corre `web.py video` del skill `cloudflare-site` en el sitio cuya `play.package` es la app (`capture.app_id`, también con `.debug`): copia los IDs a `site.json` (`youtube.<lang>`) y hace los pósters. Si el `Home` todavía no tiene sección de video, se agrega con el diseño del sitio (`promoVideo(site, lang)` y `<YouTube … poster vertical>`, ver `cloudflare-site`). Después: `web.py build`, `qa`, `deploy` (vista previa) y producción con aprobación. A mano: `publish.py website video.json`. Si la app aún no tiene sitio, `cloudflare-site` lo agrega al crearlo. Al final, la app tiene ficha, video y sitio con el video.
 - Pantalla de consentimiento en modo **Prueba**: el token de actualización caduca a los 7 días (hay que repetir `auth`). Para que no caduque, llenar el Branding y publicar la app (SETUP.md 6.2.4 y 6.2.6). El aviso "Your app requires verification" se ignora: no enviarla a revisión, la app sin verificar basta para el canal propio (al autorizar aparece "app no verificada" y se acepta).
 - Nunca automatizar YouTube Studio con Playwright o similares: va contra los términos de YouTube.
 

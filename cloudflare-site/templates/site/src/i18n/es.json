@@ -68,6 +68,7 @@
     "privacy": "Privacidad",
     "terms": "Términos",
     "credits": "Créditos",
+    "parent": "Una app de {name}",
     "rights": "TODO Company name"
   },
   "notFound": {

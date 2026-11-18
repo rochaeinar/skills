@@ -9,7 +9,9 @@ interface Props { pkg: string; lang: string; height?: number; utm?: string; clas
 const { pkg, lang, height = 64, utm = "website", class: cls } = Astro.props;
 const badges: Record<string, ImageMetadata> = { en, es };
 const badge = badges[lang.split("-")[0]] ?? en;
-const url = `https://play.google.com/store/apps/details?id=${pkg}&hl=${lang}&utm_source=${utm}&utm_medium=badge`;
+// Play wants a region for Chinese (zh-CN, zh-TW), not the script the site uses in its paths.
+const hl = ({ "zh-hans": "zh-CN", "zh-hant": "zh-TW" } as Record<string, string>)[lang] ?? lang;
+const url = `https://play.google.com/store/apps/details?id=${pkg}&hl=${hl}&utm_source=${utm}&utm_medium=badge`;
 const alt = lang.startsWith("es") ? "Disponible en Google Play" : "Get it on Google Play";
 ---
 <a href={url} class:list={["play-badge", cls]} rel="noopener" aria-label={alt}>
