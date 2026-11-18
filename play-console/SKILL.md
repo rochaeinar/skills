@@ -48,7 +48,7 @@ Todo pasa por `scripts/play.py` (ejecutarlo con `python`, **sin `-I`**: usa el p
 | `versions` | Todo versionCode que Play conoce (versiones de cada pista y todo AAB/APK subido), en JSON. Lo usa el skill `android-release` |
 | `pull [--images]` | **Descarga la ficha publicada** a los archivos. Empezar siempre por aquí con una app existente |
 | `diff` | Qué cambiaría `push-listing`: textos (antes → después) e imágenes (por SHA-256) |
-| `push-listing [--yes]` | Sube solo lo que cambió |
+| `push-listing [--yes] [--only en-US,es-419] [--batch 8] [--parallel 8]` | Sube solo lo que cambió. Muchas imágenes (decenas de idiomas): `--batch 8` hace una edición por cada 8 idiomas y la confirma sola (un corte de red solo pierde su tanda; repetir el comando sigue con lo que falte, porque compara por SHA-256), `--parallel` sube las imágenes de hasta 8 idiomas a la vez (por defecto 8) y `--only` limita a esos idiomas. El registro muestra cada imagen (`[idioma] tipo 3/7 03.png (512 KB) en 4.2 s`) y cada tanda; con salida a un archivo se ve en vivo |
 | `release <app.aab> [--track internal] [--rollout 0.1] [--yes]` | Sube el AAB y lo pone en una pista con las notas de `changelogs/` |
 | `publish <app.aab> [--track production] [--rollout 1] [--version-code N] [--yes]` | `release` + `push-listing` en **una sola edición**: Google revisa la versión, sus notas y la ficha juntas |
 | `promote --from internal --to production [--rollout 0.1] [--yes]` | Pasa la versión de una pista a otra |
@@ -84,6 +84,7 @@ La API no crea apps. Orden:
 
 | Error | Causa |
 |---|---|
+| Muchos `network error ... [Errno 10054]` o `SSL: UNEXPECTED_EOF_WHILE_READING` al subir imágenes | La conexión se corta a mitad de la subida (red, router o proxy). Las imágenes usan la **subida reanudable** de Google (sesión y trozos de 256 KB; tras un corte pregunta cuántos bytes tiene Play y sigue desde ahí, espera 2^n s con azar). Si aun así hay muchos cortes: `--parallel 4` o menos (con la subida del usuario llena, más idiomas a la vez no van más rápido y se cortan más) |
 | HTTP 403 | La cuenta de servicio no está invitada en Play Console o no tiene permiso para esa app (SETUP.md paso 3). Los permisos nuevos pueden tardar en activarse |
 | HTTP 404 al abrir la edición | La app no existe en esa cuenta, o aún no tiene su primera versión subida a mano |
 | "No key for the profile" | Falta `play.py auth` para ese perfil en esta PC |

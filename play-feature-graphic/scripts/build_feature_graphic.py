@@ -19,9 +19,11 @@ import sys
 from pathlib import Path
 from string import Template
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 WIDTH, HEIGHT = 1024, 500
+# Rendered at 3x and reduced with Lanczos: the tilted phones (CSS rotate) come out sharp, not blurred.
+SCALE = 3
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "templates" / "feature.html"
 
@@ -71,7 +73,7 @@ def crop_screen(src, dst, crop):
     image = Image.open(src).convert("RGB")
     top = crop.get("top", 0)
     bottom = crop.get("bottom", 0)
-    image.crop((0, top, image.width, image.height - bottom)).save(dst, quality=95)
+    image.crop((0, top, image.width, image.height - bottom)).convert("RGB").save(dst, quality=100, subsampling=0)
     return image.width / (image.height - top - bottom)
 
 
@@ -90,6 +92,19 @@ def prepare_logo(logo, dst):
                 distance = abs(r - br) + abs(g - bg) + abs(b - bb)
                 alpha = 0 if distance < tolerance else min(a, distance * 6)
                 pixels[x, y] = (r, g, b, alpha)
+    # Rounded corners by default, like the icon in the store; "oval" (a circle for a square logo) or "none".
+    shape = logo.get("shape", "rounded")
+    if shape in ("rounded", "oval"):
+        mask = Image.new("L", (image.width * 4, image.height * 4), 0)
+        draw = ImageDraw.Draw(mask)
+        box = (0, 0, mask.width - 1, mask.height - 1)
+        if shape == "oval":
+            draw.ellipse(box, fill=255)
+        else:
+            draw.rounded_rectangle(box, radius=int(min(mask.size) * 0.22), fill=255)
+        mask = mask.resize(image.size, Image.LANCZOS)
+        alpha = Image.composite(image.getchannel("A"), Image.new("L", image.size, 0), mask)
+        image.putalpha(alpha)
     image.save(dst)
 
 
@@ -97,7 +112,7 @@ def render(browser, html_path, png_path):
     url = html_path.resolve().as_uri()
     command = [
         browser, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-        "--force-device-scale-factor=1", f"--window-size={WIDTH},{HEIGHT}",
+        f"--force-device-scale-factor={SCALE}", f"--window-size={WIDTH},{HEIGHT}",
         "--virtual-time-budget=6000", "--allow-file-access-from-files",
         f"--screenshot={png_path}", url,
     ]
@@ -168,8 +183,9 @@ def build_locale(config, locale, data, browser, output_dir):
     raw = work / "render.png"
     render(browser, html_path, raw)
     image = Image.open(raw).convert("RGB")  # Play rejects feature graphics with alpha
-    if image.size != (WIDTH, HEIGHT):
-        fail(f"{locale}: rendered {image.size}, expected {WIDTH}x{HEIGHT}")
+    if image.size != (WIDTH * SCALE, HEIGHT * SCALE):
+        fail(f"{locale}: rendered {image.size}, expected {WIDTH * SCALE}x{HEIGHT * SCALE}")
+    image = image.resize((WIDTH, HEIGHT), Image.LANCZOS)
     out = output_dir / f"feature-graphic-{locale}.png"
     image.save(out, optimize=True)
     size_mb = out.stat().st_size / 1024 / 1024

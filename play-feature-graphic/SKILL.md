@@ -34,7 +34,7 @@ Ejemplo real (Bible Versions): `D:/Documents/BibleVersions/Images/feature-graphi
 | Funciones | pantalla de inicio (tarjetas o accesos), menú, `strings.xml`, notas de versión, ficha actual de Play | igual |
 
 - **Paleta:** `bg` = fondo oscuro de la app (si solo tiene tema claro, usar el tono de marca más oscuro); `accent` = el color más vivo de la marca (a menudo el del logo: lee el píxel con PIL); `accent_soft` = acento suavizado de la UI; `deep` = verde/azul oscuro de marca para el brillo de esquina. Comprobar contraste: el texto del chip resaltado (`on_accent`) sobre `accent` debe ser ≥ 4.5:1.
-- **Logo:** si el ícono tiene fondo sólido, usar `crop` para quedarse solo con el símbolo (sin el texto del ícono, que repetiría el título) y `remove_bg` con el color de ese fondo. Mirar el resultado en `work/<locale>/logo.png`.
+- **Logo:** si el ícono tiene fondo sólido, usar `crop` para quedarse solo con el símbolo (sin el texto del ícono, que repetiría el título) y `remove_bg` con el color de ese fondo. Mirar el resultado en `work/<locale>/logo.png`. El logo sale **con esquinas redondeadas por defecto** (`"shape": "rounded"`, radio del 22 %, como el ícono en la tienda): un ícono de esquinas rectas se ve recortado a mano. `"shape": "oval"` lo recorta en óvalo y `"none"` lo deja como está (logos ya transparentes o con su propia forma).
 - **Funciones:** elegir las 3 que más venden, la **novedad o diferencial** primero (`hero_chip`). 1 a 3 palabras cada una.
 
 ### 2. Elegir las capturas
@@ -89,6 +89,8 @@ Guardarlo junto a la salida (por ejemplo `<carpeta de imágenes>/feature-graphic
 python -I ~/.claude/skills/play-feature-graphic/scripts/build_feature_graphic.py <config.json>
 python -I ~/.claude/skills/play-feature-graphic/scripts/build_feature_graphic.py <config.json> --locale es-419
 ```
+
+Se renderiza a 3x y se reduce con Lanczos, así los teléfonos inclinados salen nítidos (a 1x la rotación CSS los deja borrosos).
 
 Salida: `<output_dir>/feature-graphic-<locale>.png` y `work/<locale>/` (capturas recortadas, logo y el `feature.html` renderizado, útil para ajustes finos).
 

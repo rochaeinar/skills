@@ -8,7 +8,8 @@ developer accounts. Uses the Google Play Android Developer API v3 with a service
     python play.py versions [--app ...]                 every versionCode Play knows, as JSON
     python play.py pull     [--app ...] [--images]      the published listing -> files (start here)
     python play.py diff     [--app ...]                 what push-listing would change
-    python play.py push-listing [--app ...] [--yes]     texts, video and images (only what changed)
+    python play.py push-listing [--app ...] [--yes] [--only en-US,es-419] [--batch 5] [--parallel 8]
+                                                        texts, video and images (only what changed)
     python play.py release  <app.aab> [--app ...] [--track internal] [--rollout 0.1] [--yes]
     python play.py promote  --from internal --to production [--rollout 0.1] [--draft] [--app ...] [--yes]
     python play.py retire   --track alpha [--app ...] [--yes]   halt a testing track's releases (never production)
@@ -35,8 +36,10 @@ import base64
 import ctypes
 import ctypes.wintypes as w
 import hashlib
+import http.client
 import json
 import os
+import random
 import re
 import sys
 import threading
@@ -148,6 +151,8 @@ def _token(profile):
 
 # A flaky connection resets uploads now and then: each call retries, waiting up to a minute.
 RETRIES = 10
+# Resumable upload chunk: a multiple of 256 KB, as the protocol requires (except the last one).
+UPLOAD_CHUNK = 256 * 1024
 
 class Api:
     def __init__(self, profile, package):
@@ -188,6 +193,82 @@ class Api:
             if e.code == 404 and "edits" in path and not self.edit:
                 detail += "\nThe app does not exist in Play Console, or it has no first release uploaded by hand yet."
             fail(f"{method} {path.split('?')[0]}: HTTP {e.code} {detail[:1200]}")
+
+    def upload_resumable(self, path, data, mime, label=""):
+        """Uploads a file with Google's resumable protocol (developers.google.com/android-publisher/upload):
+        a session, then 256 KB chunks; after a cut connection it asks the session how many bytes Play
+        already has and goes on from there, instead of sending the whole file again. Backoff 2^n s plus
+        up to 1 s of jitter; a lost session (404/410) starts over. Keeps one connection per thread."""
+        total = len(data)
+        host = urllib.parse.urlsplit(UPLOAD).netloc
+        local = self._conn if hasattr(self, "_conn") else None
+        if local is None:
+            self._conn = local = threading.local()
+
+        def request(method, url, body=b"", headers=None):
+            for attempt in range(RETRIES):
+                try:
+                    conn = getattr(local, "c", None)
+                    if conn is None:
+                        conn = local.c = http.client.HTTPSConnection(host, timeout=120)
+                    conn.request(method, url, body=body, headers={"Authorization": f"Bearer {token(self.profile)}",
+                                                                  **(headers or {})})
+                    r = conn.getresponse()
+                    return r.status, dict(r.getheaders()), r.read()
+                except (OSError, http.client.HTTPException) as e:
+                    if getattr(local, "c", None):
+                        local.c.close()
+                        local.c = None
+                    if attempt == RETRIES - 1:
+                        fail(f"{label}: upload failed after {RETRIES} tries: {e}")
+                    wait = min(32, 2 ** attempt) + random.random()
+                    print(f"  ({label}: {type(e).__name__} {e}; retrying in {wait:.1f} s)")
+                    time.sleep(wait)
+                    if method == "PUT" and body:
+                        return 0, {}, b""  # the chunk loop asks the session where to go on
+
+        while True:  # one session; a new one only if Play lost it
+            base = urllib.parse.urlsplit(UPLOAD).path
+            status, headers, body = request(
+                "POST", f"{base}/{self.package}{path}?uploadType=resumable", b"",
+                {"X-Upload-Content-Type": mime, "X-Upload-Content-Length": str(total), "Content-Length": "0"})
+            if status != 200:
+                fail(f"{label}: starting the upload: HTTP {status} {body[:400]!r}")
+            session = {k.lower(): v for k, v in headers.items()}["location"]
+            parts = urllib.parse.urlsplit(session)
+            url = f"{parts.path}?{parts.query}"
+            offset, resets = 0, 0
+            while True:
+                end = min(offset + UPLOAD_CHUNK, total) - 1
+                status, headers, body = request("PUT", url, data[offset:end + 1], {
+                    "Content-Type": mime, "Content-Range": f"bytes {offset}-{end}/{total}"})
+                if status == 0:  # connection cut: ask how many bytes Play has
+                    resets += 1
+                    status, headers, body = request("PUT", url, b"", {"Content-Range": f"bytes */{total}",
+                                                                      "Content-Length": "0"})
+                if status in (200, 201):
+                    return json.loads(body) if body else {}
+                if status == 308:
+                    rng = {k.lower(): v for k, v in headers.items()}.get("range")
+                    offset = int(rng.split("-")[1]) + 1 if rng else 0
+                    continue
+                if status in (404, 410):
+                    print(f"  ({label}: upload session lost (HTTP {status}); starting again)")
+                    break
+                if status >= 500:
+                    wait = min(32, 2 ** min(resets, 5)) + random.random()
+                    resets += 1
+                    print(f"  ({label}: HTTP {status}; retrying in {wait:.1f} s)")
+                    time.sleep(wait)
+                    status, headers, body = request("PUT", url, b"", {"Content-Range": f"bytes */{total}",
+                                                                      "Content-Length": "0"})
+                    if status == 308:
+                        rng = {k.lower(): v for k, v in headers.items()}.get("range")
+                        offset = int(rng.split("-")[1]) + 1 if rng else 0
+                        continue
+                    if status in (200, 201):
+                        return json.loads(body) if body else {}
+                fail(f"{label}: HTTP {status} {body[:400]!r}")
 
     def open(self):
         self.edit = self.call("POST", "/edits", {})["id"]
@@ -512,8 +593,8 @@ def apply_listing(api, cfg):
     return changes
 
 
-# Languages whose images are uploaded at the same time.
-PARALLEL_LANGUAGES = 4
+# Languages whose images are uploaded at the same time (push-listing --parallel).
+PARALLEL_LANGUAGES = 8
 
 
 def upload_images(api, lang, items):
@@ -523,9 +604,11 @@ def upload_images(api, lang, items):
         # A retried upload whose first try did reach Play leaves a duplicate: check and redo.
         for attempt in range(3):
             api.call("DELETE", api.e(f"/listings/{lang}/{t}"))
-            for f in files:
+            for k, f in enumerate(files, 1):
                 mime = "image/png" if f.suffix.lower() == ".png" else "image/jpeg"
-                api.call("POST", api.e(f"/listings/{lang}/{t}"), raw=f.read_bytes(), content_type=mime, upload=True)
+                t1 = time.time()
+                api.upload_resumable(api.e(f"/listings/{lang}/{t}"), f.read_bytes(), mime, f"{lang} {t} {f.name}")
+                print(f"  [{lang}] {t} {k}/{len(files)} {f.name} ({f.stat().st_size // 1024} KB) in {time.time() - t1:.1f} s")
             got = [i.get("sha256") for i in api.call("GET", api.e(f"/listings/{lang}/{t}")).get("images", [])]
             if got == want:
                 break
@@ -537,20 +620,40 @@ def upload_images(api, lang, items):
 
 
 def cmd_push_listing(args):
+    global PARALLEL_LANGUAGES
+    PARALLEL_LANGUAGES = max(1, args.parallel)
     cfg = find_app(args.app)
-    api = Api(cfg["profile"], cfg["package"])
-    api.open()
-    try:
-        if not apply_listing(api, cfg):
-            return
-        api.call("POST", api.e(":validate"))
-        if not args.yes:
-            print("\nValidated by Google, NOT published (dry run). Run again with --yes to publish.")
-            return
-        api.commit()
-        print("\nOK: listing published.")
-    finally:
-        api.discard()
+    langs = languages(cfg)
+    if args.only:
+        only = [x.strip() for x in args.only.split(",") if x.strip()]
+        unknown = [x for x in only if x not in langs]
+        if unknown:
+            fail(f"Not languages of the listing: {', '.join(unknown)}")
+        langs = only
+    # Batches: a network cut only loses its own batch; the batches already committed stay published.
+    size = args.batch if args.batch > 0 else len(langs)
+    batches = [langs[i:i + size] for i in range(0, len(langs), size)]
+    started = time.time()
+    for n, batch in enumerate(batches, 1):
+        part = {**cfg, "languages": batch, "hold": []}
+        label = f"batch {n}/{len(batches)} ({', '.join(batch)})" if len(batches) > 1 else ", ".join(batch)
+        print(f"\n== {label}: opening an edit")
+        t0 = time.time()
+        api = Api(cfg["profile"], cfg["package"])
+        api.open()
+        try:
+            if not apply_listing(api, part):
+                print(f"== {label}: nothing to change")
+                continue
+            api.call("POST", api.e(":validate"))
+            if not args.yes:
+                print(f"== {label}: validated by Google, NOT published (dry run)")
+                continue
+            api.commit()
+            print(f"== {label}: published in {time.time() - t0:.0f} s (total {time.time() - started:.0f} s)")
+        finally:
+            api.discard()
+    print("\nOK: listing published." if args.yes else "\nDry run: run again with --yes to publish.")
 
 
 def release_notes(cfg, version_code):
@@ -869,7 +972,7 @@ def main():
     # Windows consoles default to cp1252: print accents and any Unicode from the API safely.
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("auth"); a.add_argument("key"); a.add_argument("--profile", required=True)
@@ -880,6 +983,11 @@ def main():
             s.add_argument("--images", action="store_true")
         if name == "push-listing":
             s.add_argument("--yes", action="store_true")
+            s.add_argument("--only", help="comma-separated languages: push only these")
+            s.add_argument("--batch", type=int, default=0,
+                           help="languages per edit: each batch is validated and committed on its own (with --yes)")
+            s.add_argument("--parallel", type=int, default=PARALLEL_LANGUAGES,
+                           help="languages uploading images at the same time")
     for name in ("release", "publish"):
         rl = sub.add_parser(name); rl.add_argument("bundle"); rl.add_argument("--app")
         rl.add_argument("--track", default="internal"); rl.add_argument("--rollout", type=float, default=None)

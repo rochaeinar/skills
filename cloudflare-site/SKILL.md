@@ -22,10 +22,25 @@ Comandos: `init`, `auth`, `new`, `assets`, `import`, `capture`, `licenses`, `leg
 
 **La web no se entrega sola:** la app enlaza su sitio desde Acerca de y muestra la privacidad, los términos y las licencias que la web publica; Google Play recibe la URL de privacidad. Guía completa: `references/app-integration.md` (pasos 1b, 5b y 7).
 
+## Cómo se trabaja: todas las preguntas al principio, después solo
+
+1. **Detectar sin preguntar**: `web.py status`, el `app.json` de la app (`D:/Documents/Apps/<App>/app.json`: paquete, perfiles, carpetas, `web.domain`), idiomas de la app (`locales_config.xml`), si ya hay sitio, ficha de Play y video, teléfono (`adb devices`; los `test_devices` del `app.json` se pueden usar sin pedir permiso).
+2. **Una sola ronda de preguntas** (AskUserQuestion, solo lo que no salió del paso 1):
+   - Subdominio y cuenta (proponer el de `app.json` o `<app>.<zona>`).
+   - Idiomas de la web: **por defecto solo inglés y español** (no se pregunta). Otros idiomas solo si el usuario los pide explícitamente; el análisis puede servir para traducir a todos los de la app, pero no se hace sin que lo diga.
+   - Público y edad (para la privacidad y Play): general / mayores de 13 / mayores de 18.
+   - **¿Aprobar el diseño automáticamente?** No (por defecto): se trabaja solo hasta el diseño y se para a que el usuario elija. Sí: Claude elige la mejor dirección y sigue solo hasta la vista previa publicada.
+   - Lo que el análisis no puede decidir (p. ej. nombrar a un competidor en la web, un dominio ocupado).
+3. **Trabajo autónomo sin más preguntas**, en orden: 0 crear sitio → 1 análisis (las funciones las elige Claude con el análisis; no se piden) → 1b documentos legales → 2 recursos → 3 capturas (con el teléfono de prueba) → 4 diseño. Las decisiones que surjan se toman con el criterio del análisis y se anotan en `content/decisiones.md`; nada de pausas para confirmar pasos intermedios.
+4. **Parada única** (salvo que el usuario dijera "aprobar el diseño automáticamente"): al terminar los mockups, un informe con el enlace del diseño, las 2-3 direcciones, las funciones elegidas, los documentos legales para revisar (`assets/legal/*.md`) y las decisiones tomadas. Con diseño automático, la parada es después del paso 7.1 (vista previa en `preview.<project>.pages.dev`) con el mismo informe.
+5. Producción y DNS siempre con la aprobación del usuario después de ver la vista previa (regla de abajo).
+
+Si un paso no se puede completar (sin teléfono, sin token, falla de la API), se sigue con lo que no depende de él y se informa al final; solo se para si nada más puede avanzar.
+
 ## Flujo para una app nueva
 
 ### 0. Crear el sitio
-`web.py new <slug> --profile <cuenta> --domain <sub.dominio> --package <applicationId> --name "<App>" --app-project <carpeta> --assets <carpeta de imágenes>`, luego `npm install` en el monorepo. **Pedir al usuario** las rutas del proyecto de la app y de su carpeta de imágenes (no están en el repo) y el acceso a ellas si no están en el directorio de trabajo. Cada app tiene su carpeta en `D:/Documents/Apps/<App>/` (`Images/`, `play/`…), nunca suelta en Documents. `play_dir` sale de `play-console` (si ya registró el paquete) o es `<carpeta de la app>/play`.
+`web.py new <slug> --profile <cuenta> --domain <sub.dominio> --package <applicationId> --name "<App>" --app-project <carpeta> --assets <carpeta de imágenes>`, luego `npm install` en el monorepo. Las rutas del proyecto de la app y de su carpeta de imágenes salen de `app.json` (app-init); solo si no existe se preguntan en la ronda inicial. Cada app tiene su carpeta en `D:/Documents/Apps/<App>/` (`Images/`, `play/`…), nunca suelta en Documents. `play_dir` sale de `play-console` (si ya registró el paquete) o es `<carpeta de la app>/play`.
 
 ### 1. Análisis exhaustivo de la app (no superficial)
 Hacerlo directamente (sin subagentes, salvo que el usuario los pida) y escribirlo en `sites/<slug>/content/analysis.md` (plantilla incluida). Recorrer, para una app Android:
@@ -36,24 +51,25 @@ Hacerlo directamente (sin subagentes, salvo que el usuario los pida) y escribirl
 - Límites reales (p. ej. "hasta 4 versiones en paralelo en teléfono"): **toda afirmación de la web se verifica en el código** y se anota con `archivo:línea`.
 - Lo ya escrito: `CLAUDE.md` y `plans/` del repo, la ficha de Play (`play-console pull`: `listing/<lang>/full.txt`), notas de versión, guion del video promocional (`app-promo-video`: `video.json`), `git log` de las funciones recientes.
 - Identidad visual: `colors.xml`/temas (claro y oscuro), tipografías, logo y su SVG.
-Resultado: inventario de funciones con beneficio, evidencia y prioridad; diferenciadores; datos para la política de privacidad; palabras clave. Presentar al usuario el resumen y las 5-8 funciones elegidas para la web.
+Resultado: inventario de funciones con beneficio, evidencia y prioridad; diferenciadores; datos para la política de privacidad; palabras clave. Elegir las 5-8 funciones de la web con ese criterio (sin preguntar) y seguir; van en el informe de la parada.
 
 ### 1b. Documentos de la app (privacidad, términos, licencias)
-Según `references/app-integration.md` §1-2: qué tiene la app (pila, Acerca de, navegación, tema, idiomas) y el análisis de datos (manifiesto final, red, SDK, almacenamiento, respaldo, registros, edad). `web.py licenses <slug>` hace el inventario de las dependencias del release con su licencia (`content/licenses-inventory.md`). Con eso se redactan `app/src/main/assets/legal/{privacy,terms,licenses}.md` **solo en inglés (nunca se traducen, ni en la app ni en la web)** desde `templates/android/legal/`: **cada frase verificada en el código**, nada copiado del ejemplo. Son documentos importantes: entregárselos al usuario para que los revise (no es asesoría legal).
+Según `references/app-integration.md` §1-2: qué tiene la app (pila, Acerca de, navegación, tema, idiomas) y el análisis de datos (manifiesto final, red, SDK, almacenamiento, respaldo, registros, edad). `web.py licenses <slug>` hace el inventario de las dependencias del release con su licencia (`content/licenses-inventory.md`). Con eso se redactan `app/src/main/assets/legal/{privacy,terms,licenses}.md` **solo en inglés (nunca se traducen, ni en la app ni en la web)** desde `templates/android/legal/`: **cada frase verificada en el código**, nada copiado del ejemplo. Son documentos importantes: van en el informe de la parada para que el usuario los revise (no es asesoría legal); no se espera su revisión para seguir con el diseño.
 
 ### 2. Recursos existentes
 `web.py assets <slug>` hace el inventario de `assets_dir` (`content/assets-inventory.md`: tamaño y duración). Mirar con Read las candidatas (capturas por idioma, imagen destacada, logo, videos promocionales ya hechos y sus clips en `promo-video/clips`). Las capturas deben ser reales, del idioma de cada página y sin defectos (textos rotos, datos personales, barra de estado sucia).
 
 ### 3. Capturas del teléfono (si faltan)
-Pedir al usuario que conecte el teléfono y guiarlo: USB, desbloqueado, **Opciones de desarrollador → Depuración USB**, aceptar "¿Permitir depuración USB?"; comprobar con `adb devices`. Luego:
+Usar el teléfono de prueba conectado (`test_devices` de `app.json`: se pueden borrar y restaurar sus datos; restaurar los respaldos de demo de la app en cada idioma). Si no hay ninguno conectado, seguir con las capturas existentes y anotar las que faltan. Para guiar a conectar uno: USB, desbloqueado, **Opciones de desarrollador → Depuración USB**, aceptar "¿Permitir depuración USB?"; comprobar con `adb devices`. Luego:
 - Pantalla: `web.py capture <slug> shot <nombre>`; video corto: `web.py capture <slug> record <nombre> --seconds 15` (el usuario hace la acción mientras graba). Se guardan en `<assets_dir>/web-captures/`.
 - Si el repo de la app tiene flujos Maestro (`.maestro/promo/`), reutilizarlos para escenas repetibles.
 - Respaldar y restaurar los ajustes del teléfono y de la app que se toquen (reglas del `CLAUDE.md` de la app).
 - Revisar cada captura con Read y luego `web.py import <slug> <archivo> --trim --to screens/<lang> --name <función>-<light|dark>`: `--trim` quita la barra de estado (franja negra superior) y la de navegación (48 dp abajo). Las imágenes van a `src/assets/` (Astro genera AVIF/WebP en el build); los videos se recomprimen sin sonido a ≤1080 px con póster en `public/media/` (límite de Pages: 25 MiB por archivo). Videos largos con sonido: el de YouTube (`youtube.<lang>`), con su miniatura propia en `src/assets/video/poster-<lang>.jpg` (la de `app-promo-video`, `upload/<video>/thumbnail.jpg`: la `maxresdefault` de YouTube no existe en todos los videos y sale gris).
+- **Siempre con capturas reales, en claro y oscuro** (no es opcional ni se pregunta): cada función que muestra la web tiene su captura en cada idioma del sitio y en los dos temas, y el sitio siempre tiene tema claro y oscuro.
 - **Una captura por función, idioma y tema**: `src/assets/screens/<lang>/<función>-light.jpg` y `-dark.jpg`. `<Shot name lang>` (`src/components/Shot.astro`) muestra la del tema de la página; sin una de las dos usa la otra; sin ese idioma usa la del idioma de respaldo y el build lo avisa (`WARNING [Shot]`): eso queda pendiente de captura. Tablet: `src/assets/tablet/<lang>/<función>-light|dark.jpg` (horizontal, sin barras) y `<Shot device="tablet">` (marco de tablet; `size="sm"` para tarjetas). Los idiomas que la app no tiene usan las capturas en inglés.
 
 ### 4. Mockups en Claude Design (antes de programar)
-Con la herramienta Artifact: `action: "quickstart"`, `intent: "design"`, y seguir sus instrucciones para crear el diseño. Mockups de la landing en **escritorio y teléfono**, con las capturas y textos reales del análisis, acordes al tema de la app (paleta y tipografía de la app, tono). Nivel: web de producto de primera línea (jerarquía clara, mucho aire, tipografía grande, profundidad sutil, animaciones discretas, claro y oscuro). Proponer 2-3 direcciones si el usuario no tiene una idea, iterar con sus comentarios y **no implementar hasta que apruebe una**.
+Con la herramienta Artifact: `action: "quickstart"`, `intent: "design"`, y seguir sus instrucciones para crear el diseño. Mockups de la landing en **escritorio y teléfono**, con las capturas y textos reales del análisis, acordes al tema de la app (paleta y tipografía de la app, tono). Nivel: web de producto de primera línea (jerarquía clara, mucho aire, tipografía grande, profundidad sutil, animaciones discretas, claro y oscuro). Proponer 2-3 direcciones e **implementar solo la que apruebe el usuario** (la parada única), salvo que en la ronda inicial eligiera aprobar el diseño automáticamente: entonces Claude elige la mejor, anota por qué en `content/decisiones.md` y sigue.
 
 ### 5. Implementar en Astro
 - `src/styles/theme.css`: los tokens del mockup aprobado, en **claro y oscuro**: el oscuro se aplica si el sistema está en oscuro y el visitante no eligió claro, o si eligió oscuro (`html[data-theme]`, botón `ThemeToggle` + `ThemeScript` en el `<head>`, ya en el `Layout`). Fuentes de `@fontsource` alojadas en el sitio; precargar en el `Layout` las dos principales (subconjunto latino) para que el texto no salte.
