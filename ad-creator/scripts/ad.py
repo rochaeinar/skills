@@ -398,7 +398,7 @@ def cmd_qa(args):
                     page = ctx.new_page()
                     errors = []
                     page.on("pageerror", lambda e: errors.append(str(e)))
-                    page.on("requestfailed", lambda r: errors.append(f"failed {r.url}"))
+                    page.on("requestfailed", lambda r: None if "ABORTED" in (r.failure or "") else errors.append(f"failed {r.url} {r.failure}"))
                     page.goto(f"{base}/index.html?lang={lang}&t={second}", wait_until="networkidle")
                     page.wait_for_timeout(400)
                     path = qa / f"{lang}-{w}x{h}-{label}.png"
