@@ -782,9 +782,60 @@ def parent_site(root, cfg):
     return best
 
 
-def parent_entry(parent):
-    return {"slug": parent["slug"], "name": parent["name"], "url": f"https://{parent['domain']}/",
-            "locales": parent["locales"], "default_locale": parent["default_locale"]}
+SWITCHER_DIR = "apps"  # public/apps/ of an app site: the icons of the apps switcher (AppSwitcher)
+
+
+def switcher_file(name, src):
+    return f"/{SWITCHER_DIR}/{name}{Path(src).suffix or '.svg'}"
+
+
+def parent_entry(parent, apps):
+    """site.json parent of an app site: the main site, its logo and every app of the domain for the
+    header's apps switcher (icons and logo copied to public/apps/ by copy_switcher_files)."""
+    entry = {"slug": parent["slug"], "name": parent["name"], "url": f"https://{parent['domain']}/",
+             "locales": parent["locales"], "default_locale": parent["default_locale"]}
+    for key, name in (("logo", "_main"), ("logo_dark", "_main-dark")):
+        if parent.get(key):
+            entry[key] = switcher_file(name, parent[key])
+    entry["apps"] = [{"slug": a["slug"], "name": a["name"], "website": a["website"], "locales": a.get("locales", ["en"]),
+                      "default_locale": a.get("default_locale", "en"), "icon": switcher_file(a["slug"], a["icon"]),
+                      "tile": bool(a.get("tile")), "tagline": a.get("tagline", {})}
+                     for a in apps if a.get("website")]
+    return entry
+
+
+def copy_switcher_files(parent, apps, child):
+    """The main site's logo and the app icons, from the main site's public/ to the app site's public/apps/."""
+    pairs = [(parent.get(k), switcher_file(n, parent[k])) for k, n in (("logo", "_main"), ("logo_dark", "_main-dark")) if parent.get(k)]
+    pairs += [(a["icon"], switcher_file(a["slug"], a["icon"])) for a in apps if a.get("website")]
+    missing = []
+    for src, dst in pairs:
+        source = parent["_dir"] / "public" / src.lstrip("/")
+        target = child["_dir"] / "public" / dst.lstrip("/")
+        if not source.exists():
+            missing.append(src)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists() or target.read_bytes() != source.read_bytes():
+            shutil.copy2(source, target)
+    return missing
+
+
+def children(root, parent):
+    return [c for c in (site(root, s) for s in all_sites(root)) if (parent_site(root, c) or {}).get("slug") == parent["slug"]]
+
+
+def sync_children(root, parent):
+    """Every app site of the domain gets the current list of apps (its header's switcher)."""
+    apps = load_apps(parent)
+    for child in children(root, parent):
+        entry = parent_entry(parent, apps)
+        if child.get("parent") and child["parent"] != entry:
+            child["parent"] = entry
+            write_site_json(child)
+            print(f"  updated the apps switcher of {child['slug']}")
+        for m in copy_switcher_files(parent, apps, child):
+            print(f"  WARNING: {parent['slug']}/public{m} does not exist (icon for the apps switcher)")
 
 
 def load_apps(parent):
@@ -830,7 +881,8 @@ def link_plan(root, cfg):
     old = next((a for a in apps if a.get("slug") == cfg["slug"] or a.get("website", "").rstrip("/") == own), None)
     card = app_card(cfg, parent, old)
     changes = []
-    if cfg.get("parent") != parent_entry(parent):
+    new_apps = [card if a is old else a for a in apps] if old else apps + [card]
+    if cfg.get("parent") != parent_entry(parent, new_apps):
         changes.append(f"sites/{cfg['slug']}/site.json: parent = {parent['name']} (https://{parent['domain']}/)")
     if old != card:
         changes.append(f"sites/{parent['slug']}/{APPS_FILE}: {'update' if old else 'add'} the card of {cfg['name']}")
@@ -844,8 +896,6 @@ def link_plan(root, cfg):
 
 def apply_link(root, cfg, plan):
     parent, apps, old, card, icon, logo = plan
-    cfg["parent"] = parent_entry(parent)
-    write_site_json(cfg)
     apps = [card if a is old else a for a in apps] if old else apps + [card]
     path = parent["_dir"] / APPS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -853,6 +903,9 @@ def apply_link(root, cfg, plan):
     if not icon.exists() and logo.exists():
         icon.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(logo, icon)
+    cfg["parent"] = parent_entry(parent, apps)
+    write_site_json(cfg)
+    sync_children(root, parent)  # the other app sites list the new or changed app too
 
 
 def cmd_link(args):
@@ -865,6 +918,7 @@ def cmd_link(args):
         print(f"{args.slug}: no main site for {cfg['domain']} in the monorepo (a site whose domain is its parent domain). Nothing to link.")
         return
     if not changes:
+        sync_children(root, plan[0])  # icons or taglines changed in the main site's apps.json
         print(f"OK: {args.slug} and {plan[0]['slug']} already link each other")
         return
     print("Plan:\n" + "\n".join(f"  - {c}" for c in changes))
@@ -989,6 +1043,10 @@ def link_problems(root, cfg, dist):
             problems.append(f"not linked with its main site {parent['domain']}: web.py link {cfg['slug']} --yes")
         elif f"https://{parent['domain']}/" not in html:
             problems.append(f"the home page has no link to https://{parent['domain']}/ (ParentLink in the Layout footer)")
+        elif cfg["parent"] != parent_entry(parent, load_apps(parent)):
+            problems.append(f"the apps switcher is out of date with {parent['slug']}/{APPS_FILE}: web.py link {cfg['slug']} --yes")
+        elif "app-switcher" not in html:
+            problems.append("the header has no apps switcher (AppSwitcher from @sites/ui in the Layout header)")
         if not any(a.get("website", "").rstrip("/") == f"https://{cfg['domain']}" for a in load_apps(parent)):
             problems.append(f"the main site {parent['slug']} does not list this site: web.py link {cfg['slug']} --yes")
     if (cfg["_dir"] / APPS_FILE).exists():

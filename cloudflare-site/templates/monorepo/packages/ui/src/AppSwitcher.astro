@@ -1,0 +1,109 @@
+---
+// "Apps" button in the header: a panel with the main site of the domain and every app of it, the
+// current one marked, and the way back to the main site (design option C, approved 2026-11-18).
+// Data: site.json parent (written by web.py link: parent.apps, the icons copied to public/apps/).
+// The main site passes its own src/apps.json and no `current`. Without JS it still opens (details).
+import { siteHref } from "./links";
+
+interface App { slug: string; name: string; website: string; locales: string[]; default_locale: string; icon: string; tile?: boolean; tagline?: Record<string, string> }
+interface Parent { slug: string; name: string; url: string; locales: string[]; default_locale: string; logo?: string; logo_dark?: string; apps?: App[] }
+interface Labels { button?: string; tagline?: string; goto?: string; current?: string }
+interface Props { parent?: Parent | null; lang: string; current?: string; labels?: Labels; home?: boolean; class?: string }
+const { parent, lang, current, labels = {}, home = false, class: cls } = Astro.props;
+
+const DEFAULTS: Record<string, Required<Labels>> = {
+  en: { button: "Apps", tagline: "Focused Android apps", goto: "Go to {host}", current: "You are here" },
+  es: { button: "Apps", tagline: "Apps Android enfocadas", goto: "Ir a {host}", current: "Estás aquí" },
+};
+const base = DEFAULTS[lang] ?? DEFAULTS.en;
+const text = { ...base, ...Object.fromEntries(Object.entries(labels).filter(([, v]) => v)) } as Required<Labels>;
+const apps = parent?.apps ?? [];
+const host = parent ? new URL(parent.url).host : "";
+const mainHref = parent ? siteHref(parent.url, parent.locales, parent.default_locale, lang) : "";
+---
+{parent && apps.length > 0 && (
+  <details class:list={["app-switcher", cls]}>
+    <summary aria-label={`${text.button}: ${parent.name}`}>
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg>
+      <span class="as-label">{text.button}</span>
+    </summary>
+    <div class="as-panel">
+      <a class="as-head" href={mainHref}>
+        {parent.logo && <img class:list={["as-logo", { "as-light": parent.logo_dark }]} src={parent.logo} alt="" width="26" height="28" />}
+        {parent.logo_dark && <img class="as-logo as-dark" src={parent.logo_dark} alt="" width="26" height="28" />}
+        <span><strong>{parent.name}</strong><small>{text.tagline}</small></span>
+      </a>
+      <ul>
+        {apps.map((a) => (
+          <li>
+            <a href={a.slug === current ? (home ? "#" : "/") : siteHref(a.website, a.locales, a.default_locale, lang)}
+               aria-current={a.slug === current ? "page" : undefined}>
+              {a.tile ? <span class="as-icon as-tile"><img src={a.icon} alt="" width="26" height="26" /></span>
+                      : <img class="as-icon" src={a.icon} alt="" width="36" height="36" />}
+              <span class="as-text"><strong>{a.name}</strong>{a.tagline && <small>{a.tagline[lang] ?? a.tagline.en}</small>}</span>
+              {a.slug === current && (
+                <svg class="as-check" role="img" aria-label={text.current} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>
+              )}
+            </a>
+          </li>
+        ))}
+      </ul>
+      {current !== undefined && <a class="as-main" href={mainHref}><span>{text.goto.replace("{host}", host)}</span><span aria-hidden="true">→</span></a>}
+    </div>
+  </details>
+)}
+<script>
+  // Close on a click outside or Escape (a <details> only closes from its own summary).
+  for (const el of document.querySelectorAll<HTMLDetailsElement>("details.app-switcher")) {
+    document.addEventListener("click", (e) => { if (el.open && !el.contains(e.target as Node)) el.open = false; });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && el.open) { el.open = false; el.querySelector("summary")?.focus(); } });
+  }
+</script>
+<style>
+  /* Colors from the site's theme tokens, with fallbacks (sites name them differently). */
+  .app-switcher { position: relative; --as-bg: var(--surface, var(--card, #fff)); --as-text: var(--text, #111);
+                  --as-muted: var(--muted, #5b6660); --as-line: var(--border, rgb(0 0 0 / .1));
+                  --as-accent: var(--accent, #17713f); --as-soft: var(--accent-soft, var(--tint, var(--chip, rgb(0 0 0 / .05)))); }
+  summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 11px;
+            border-radius: 999px; border: 1px solid var(--as-line); color: var(--as-text); font-size: 14px; font-weight: 600;
+            user-select: none; transition: border-color .15s, background .15s; }
+  summary::-webkit-details-marker { display: none; }
+  summary svg { color: var(--as-accent); }
+  summary:hover, details[open] > summary { border-color: var(--as-accent); background: var(--as-soft); }
+  summary:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; }
+  .as-panel { position: absolute; inset-inline-end: 0; top: calc(100% + 10px); z-index: 50; width: min(340px, calc(100vw - 32px));
+              box-sizing: border-box; background: var(--as-bg); color: var(--as-text); border: 1px solid var(--as-line);
+              border-radius: 20px; padding: 10px; box-shadow: 0 30px 60px -20px rgb(0 0 0 / .35); text-align: start; }
+  .as-panel a { text-decoration: none; color: inherit; }
+  .as-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--as-line); }
+  .as-head span, .as-text { display: flex; flex-direction: column; min-width: 0; }
+  .as-head strong, .as-text strong { font-size: 14px; line-height: 1.3; }
+  .as-panel small { font-size: 12px; line-height: 1.35; color: var(--as-muted); }
+  .as-logo { width: 26px; height: 28px; flex: none; }
+  .as-dark { display: none; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  li a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; min-height: 44px; box-sizing: border-box; }
+  li a:hover, li a:focus-visible { background: var(--as-soft); }
+  li a[aria-current] { background: var(--as-soft); }
+  .as-icon { width: 36px; height: 36px; border-radius: 10px; flex: none; }
+  .as-tile { display: grid; place-items: center; background: var(--as-soft); }
+  .as-text { flex: 1 1 auto; }
+  .as-check { color: var(--as-accent); flex: none; }
+  .as-main { margin-top: 6px; padding: 12px; border-top: 1px solid var(--as-line); display: flex; justify-content: space-between;
+             font-size: 14px; font-weight: 600; color: var(--as-accent) !important; }
+  .as-main:hover { text-decoration: underline; }
+  /* Phones: the button is icon-only and the panel spans the screen under the header (--as-top to adjust). */
+  @media (max-width: 600px) {
+    .as-label { display: none; }
+    summary { width: 40px; padding: 0; justify-content: center; }
+    .as-panel { position: fixed; inset-inline: 16px; top: var(--as-top, 76px); width: auto; }
+  }
+</style>
+<style is:global>
+  html[data-theme="dark"] .app-switcher .as-light { display: none; }
+  html[data-theme="dark"] .app-switcher .as-dark { display: block; }
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) .app-switcher .as-light { display: none; }
+    html:not([data-theme="light"]) .app-switcher .as-dark { display: block; }
+  }
+</style>

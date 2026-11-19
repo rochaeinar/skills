@@ -7,6 +7,7 @@ import ThemeToggle from "@sites/ui/ThemeToggle.astro";
 import LangSuggest from "@sites/ui/LangSuggest.astro";
 import LangPicker from "@sites/ui/LangPicker.astro";
 import ParentLink from "@sites/ui/ParentLink.astro";
+import AppSwitcher from "@sites/ui/AppSwitcher.astro";
 import { Image } from "astro:assets";
 import logo from "../assets/logo.svg";
 import { existsSync } from "node:fs";
@@ -47,6 +48,8 @@ const anchor = (id: string) => (home ? `#${id}` : `${localePath(lang)}#${id}`);
           {tx.nav.links.map((l) => <a href={anchor(l.id)}>{l.label}</a>)}
         </nav>
         <div class="tools">
+          {/* "Apps" panel: the main site of the domain and its other apps (site.json parent, web.py link) */}
+          <AppSwitcher parent={site.parent} lang={lang} current={site.slug} home={home} />
           {locales.length > 1 && (
             <LangPicker lang={lang} path={path} locales={locales} defaultLocale={defaultLocale}
                         labels={{ ...tx.langPicker, close: tx.langSuggest.close }} />
