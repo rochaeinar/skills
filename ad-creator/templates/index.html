@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>__TITLE__</title>
+<!--
+  __TITLE__ interstitial (custom_web), made by the ad-creator skill from the app's vertical promo video.
+  - Fullscreen WebView (AdActivity): the native close button sits top-right, so that corner stays empty.
+    Only the first 5 s are mandatory: the hook and the first feature fit in them.
+  - The WebView is preloaded hidden: the timeline starts (and restarts from the hook) each time the page
+    becomes visible, and only then fetches the images after the first feature.
+  - ?lang=es|en (the app adds it), ?cta=<url> overrides the store link, ?t=<seconds> freezes the ad at
+    that moment (preview only). A tap anywhere opens #ctaButton, the link the app intercepts and logs.
+  - Images in img/ are served with a long cache: to change one, give it a new file name (build does).
+  Generated file: edit ad.json and run ad.py build, not this page.
+-->
+<style>
+:root{--bg:__BG__;--bg2:__BG2__;--accent:__ACCENT__;--text:__TEXT__;--sub:__SUB__;--r:__RATIO__;
+  --ph:min(60vh,124vw,calc(100vh - 290px));--pad:min(1.1vh,2.4vw)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:Roboto,"Segoe UI",-apple-system,Arial,sans-serif;-webkit-tap-highlight-color:transparent;user-select:none}
+body{background:radial-gradient(130% 75% at 50% 0%,var(--bg2) 0%,var(--bg) 62%)}
+.stage{position:fixed;inset:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.scene{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .35s ease,visibility 0s linear .35s}
+.scene.on{opacity:1;visibility:visible;transition:opacity .35s ease}
+.top{position:absolute;z-index:5;top:calc(env(safe-area-inset-top) + 14px);left:16px;display:flex;align-items:center;gap:8px;pointer-events:none}
+.top img{width:30px;height:30px;border-radius:8px;display:block}
+.top b{font-size:15px;font-weight:700;letter-spacing:.2px}
+.adtag{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#12181a;background:#e9efe5;border-radius:4px;padding:2px 5px}
+
+/* hook: the AI scene full screen with the question on top (slow push-in) */
+.hook img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hook.on img{animation:kb 3.6s ease-out both}
+@keyframes kb{from{transform:scale(1.02)}to{transform:scale(1.1)}}
+.hook:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,15,.72) 0%,rgba(10,14,15,.15) 42%,rgba(10,14,15,.1) 62%,rgba(10,14,15,.85) 100%)}
+.q{position:absolute;z-index:2;left:7vw;right:7vw;top:15vh;text-align:center;font-weight:800;font-size:min(8.6vw,5.2vh);line-height:1.14;text-shadow:0 3px 18px rgba(0,0,0,.55)}
+
+/* features: the title word by word, the phone entering tilted with a spring and ending straight */
+h2{position:absolute;left:6vw;right:6vw;top:calc(env(safe-area-inset-top) + 68px);text-align:center;font-weight:800;font-size:min(7.4vw,4.2vh);line-height:1.15}
+.k{color:var(--accent)}
+.w{display:inline-block;opacity:0;transform:translateY(.45em)}
+.on .w{animation:word .42s cubic-bezier(.2,.9,.3,1.2) forwards}
+@keyframes word{to{opacity:1;transform:none}}
+.phone{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 68px + min(7.4vw,4.2vh)*2.5 + 14px);
+  box-sizing:content-box;height:var(--ph);aspect-ratio:var(--r);margin-left:calc(var(--ph)*var(--r)/-2 - var(--pad));
+  border-radius:min(5.4vh,11.7vw);background:#0a0d0e;padding:var(--pad);
+  box-shadow:0 0 0 1.5px #3a4744 inset,0 26px 60px -18px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.06)}
+.screen{position:relative;width:100%;height:100%;border-radius:min(4.4vh,9.6vw);overflow:hidden;background:#161b1d}
+.screen img{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .22s ease}
+.screen img.on{opacity:1}
+.screen img.f.on{z-index:2}
+.screen img.f:first-child{z-index:0}
+/* optional tap ripple (ad.json "tap"): where the user taps in the first frame */
+.tap{position:absolute;z-index:3;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.9);background:rgba(255,255,255,.22);opacity:0;pointer-events:none}
+.on .tap{animation:tap .6s ease-out .45s both}
+@keyframes tap{0%{opacity:0;transform:scale(.35)}30%{opacity:1}100%{opacity:0;transform:scale(1.35)}}
+.on .phone{animation:enter .8s cubic-bezier(.18,1.35,.4,1) both,drift 2s ease-out .8s both}
+@keyframes enter{from{opacity:0;transform:translateY(9vh) rotate(-7deg) scale(.9)}to{opacity:1;transform:none}}
+@keyframes drift{to{transform:scale(1.015)}}
+
+/* outro: the logo grows in (its parts: the first settles, the others swim in), tagline, big store button */
+.outro{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;text-align:center;padding:0 8vw 4vh}
+.outro .logo{position:relative;width:min(58vw,31vh);height:min(58vw,31vh);margin-bottom:-1vh}
+.logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.on .base{animation:settle .5s cubic-bezier(.33,1,.68,1) both}
+@keyframes settle{from{opacity:.35;transform:translateY(-3%)}to{opacity:1;transform:none}}
+.part{opacity:0;transform-origin:70% 30%}
+.on .part{animation:swim .9s linear 1.1s both}
+@keyframes swim{0%{opacity:0;transform:translate(-20%,20%) rotate(0)}10%{opacity:.6;transform:translate(-14.6%,14.6%) rotate(4.8deg)}20%{opacity:1;transform:translate(-10.2%,10.2%) rotate(2.3deg)}30%{transform:translate(-6.9%,6.9%) rotate(-1.2deg)}40%{transform:translate(-4.3%,4.3%) rotate(-1.5deg)}50%{transform:translate(-2.5%,2.5%) rotate(-.1deg)}60%{transform:translate(-1.3%,1.3%) rotate(.4deg)}75%{transform:translate(-.3%,.3%) rotate(0)}100%{opacity:1;transform:none}}
+.on.outro .logo{animation:grow .6s cubic-bezier(.2,1.2,.4,1) both}
+@keyframes grow{from{transform:scale(.9)}to{transform:none}}
+.outro .store{width:min(68vw,300px);height:auto;margin-top:1.6vh;border-radius:12px;filter:drop-shadow(0 12px 26px rgba(0,0,0,.6))}
+.on.outro .store{animation:pop .6s cubic-bezier(.2,1.4,.4,1) .45s both,bump 1.6s ease-in-out 1.1s infinite}
+@keyframes bump{50%{transform:scale(1.06)}}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+.outro .name{font-size:min(7vw,4vh);font-weight:800}
+.outro p{font-size:min(4.6vw,2.6vh);color:var(--sub);max-width:24ch}
+.outro .free{font-size:min(5.6vw,3.2vh);font-weight:800;color:var(--accent)}
+
+/* store button: always visible (hidden in the outro, which shows a big one) */
+.cta{position:absolute;z-index:6;left:50%;bottom:calc(env(safe-area-inset-bottom) + 4.5vh);transform:translateX(-50%);display:block;line-height:0;
+  border-radius:10px;filter:drop-shadow(0 10px 22px rgba(0,0,0,.55));transition:opacity .3s}
+.cta img{width:min(56vw,250px);height:auto;display:block}
+.cta.off{opacity:0;pointer-events:none}
+.dots{position:absolute;z-index:6;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 1.6vh);display:flex;justify-content:center;gap:5px}
+.dots i{width:5px;height:5px;border-radius:3px;background:rgba(255,255,255,.28);transition:width .3s,background .3s}
+.dots i.on{width:16px;background:var(--accent)}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}.w{opacity:1;transform:none}.part{opacity:1}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="top"><img id="icon" alt="" width="30" height="30"><b id="appname"></b><span class="adtag" data-i18n="ad"></span></div>
+  <div id="scenes"></div>
+  <a class="cta" id="ctaButton" href="#"><img id="badge" alt="" width="480" height="143"></a>
+  <div class="dots" aria-hidden="true"></div>
+</div>
+<script>
+(function () {
+  var C = /*__CONFIG__*/null;
+  function param(n) { var m = new RegExp("[?&]" + n + "=([^&]+)").exec(location.search); return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : null; }
+  var asked = (param("lang") || navigator.language || C.default_lang).toLowerCase().slice(0, 2);
+  var lang = C.text[asked] ? asked : C.default_lang;
+  var t = C.text[lang];
+  document.documentElement.lang = lang;
+  document.getElementById("appname").textContent = C.app;
+
+  // Scenes from the config: hook, features (2-3 real frames of the recording each), outro.
+  var root = document.getElementById("scenes");
+  C.scenes.forEach(function (sc) {
+    var s = document.createElement("section");
+    s.className = "scene";
+    if (sc.type === "hook") {
+      s.className += " hook";
+      s.innerHTML = '<img alt="" width="540" height="960"><p class="q" data-t="hook"></p>';
+    } else if (sc.type === "feature") {
+      s.setAttribute("data-shot", sc.id);
+      s.innerHTML = '<h2 data-t="' + sc.id + '"></h2><div class="phone"><div class="screen"></div></div>';
+      var screen = s.querySelector(".screen"), n = (sc.frames || {})[lang] || 0;
+      for (var k = 1; k <= n; k++) {
+        var img = document.createElement("img");
+        img.alt = ""; img.width = C.frame[0]; img.height = C.frame[1]; img.className = "f";
+        img.setAttribute("data-src", "img/" + C.img[lang + "-" + sc.id + "-" + k]);
+        screen.appendChild(img);
+      }
+      var tap = (sc.tap || {})[lang];
+      if (tap) {
+        var i = document.createElement("i");
+        i.className = "tap"; i.style.left = tap[0] * 100 + "%"; i.style.top = tap[1] * 100 + "%";
+        screen.appendChild(i);
+      }
+    } else {
+      s.className += " outro";
+      var parts = C.logo.parts.map(function (p) { return '<img class="part" alt="" data-src="img/' + p + '">'; }).join("");
+      s.innerHTML = '<div class="logo" role="img" aria-label="' + C.app + '"><img class="base" alt="" data-src="img/' + C.logo.base + '">' + parts + "</div>"
+        + (C.logo.name ? '<span class="name">' + C.app + "</span>" : "")
+        + '<p data-i18n="tagline"></p><span class="free" data-i18n="free"></span><img class="store" id="store" alt="" width="480" height="143">';
+    }
+    root.appendChild(s);
+  });
+
+  // Words appear one after another; the highlighted part (the keyword) is in the accent color.
+  function words(el, line) {
+    var text = line[0], key = line[1] || "", at = key ? text.indexOf(key) : -1, html = "", n = 0;
+    function add(part, cls) {
+      html += part.replace(/\S+/g, function (w) {
+        return '<span class="w' + cls + '" style="animation-delay:' + (0.12 + n++ * 0.09).toFixed(2) + 's">' + w + "</span>";
+      });
+    }
+    if (at < 0) { add(text, ""); el.innerHTML = html; return; }
+    // punctuation right after the keyword ("contexto?") stays on its line, in the text color
+    var after = text.slice(at + key.length), stuck = /^\S*/.exec(after)[0];
+    add(text.slice(0, at), "");
+    var lastSpace = key.lastIndexOf(" ");
+    add(key.slice(0, lastSpace + 1), " k");
+    html += '<span style="white-space:nowrap">';
+    add(key.slice(lastSpace + 1), " k");
+    if (stuck) html += '<span class="w" style="animation-delay:' + (0.12 + n++ * 0.09).toFixed(2) + 's">' + stuck + "</span>";
+    html += "</span>";
+    add(after.slice(stuck.length), "");
+    el.innerHTML = html;
+  }
+  document.querySelectorAll("[data-t]").forEach(function (el) { words(el, t[el.getAttribute("data-t")]); });
+  document.querySelectorAll("[data-i18n]").forEach(function (el) { el.textContent = t[el.getAttribute("data-i18n")]; });
+
+  var cta = document.getElementById("ctaButton");
+  cta.href = param("cta") || C.play;
+  var badge = document.getElementById("badge");
+  badge.alt = t.badge; cta.setAttribute("aria-label", t.badge);
+
+  var AT = { 1: [0], 2: [0, 1.3], 3: [0, 0.95, 1.85] };  // seconds into the scene when each frame appears
+  var scenes = [].slice.call(document.querySelectorAll(".scene"));
+  function imgs(i) { return scenes[i].querySelectorAll(".screen img.f"); }
+  function load(img) { if (!img.getAttribute("src")) img.src = img.getAttribute("data-src"); }
+  // Images: the hook and the first feature now (the app waits for the page load), the rest once on screen.
+  function src(i) {
+    var s = scenes[i];
+    if (s.classList.contains("hook")) s.querySelector("img").src = "img/" + C.img.hook;
+    else [].forEach.call(s.querySelectorAll("img[data-src]"), load);
+  }
+  document.getElementById("icon").src = "img/" + C.img.icon;
+  badge.src = "img/" + C.img["badge-" + lang];
+  var store = document.getElementById("store");
+  if (store) { store.src = badge.src; store.alt = t.badge; }
+  src(0); src(1);
+
+  var DUR = C.scenes.map(function (s) { return s.seconds; });
+  var dots = document.querySelector(".dots");
+  for (var d = 1; d < scenes.length - 1; d++) dots.appendChild(document.createElement("i"));
+  var dotEls = dots.children;
+
+  var seek = parseFloat(param("t")) || 0;
+  function loaded(img) { return seek || (img.complete && img.naturalWidth > 0); }
+  function ready(i) { var img = scenes[i].querySelector(".screen img, .hook img"); return !img || loaded(img); }
+  var cur = -1, until = 0, start = 0, clock = 0, last = null, shownAt = 0, shownFrame = -1;
+  // the frame for this moment of the scene; one that has not arrived yet keeps the previous one
+  function frames() {
+    var list = imgs(cur);
+    if (!list.length) return;
+    var at = C.scenes[cur].at || AT[list.length], want = 0;
+    for (var k = 1; k < list.length; k++) if (clock - start >= at[k] && loaded(list[k])) want = k;
+    if (want === shownFrame) return;
+    shownFrame = want;
+    for (var j = 0; j < list.length; j++) list[j].classList.toggle("on", j <= want);
+  }
+  function show(i) {
+    if (cur >= 0) scenes[cur].classList.remove("on");
+    cur = i;
+    var s = scenes[i];
+    s.classList.remove("on"); void s.offsetWidth; s.classList.add("on");  // restart its CSS animations
+    for (var k = 0; k < dotEls.length; k++) dotEls[k].classList.toggle("on", k === i - 1);
+    cta.classList.toggle("off", s.classList.contains("outro"));
+    start = until; until += DUR[i]; shownFrame = -1;
+    frames();
+  }
+  function next() {
+    var i = (cur + 1) % scenes.length;
+    // a screen whose image has not arrived (slow network) is skipped, never shown empty
+    while (i !== 0 && !scenes[i].classList.contains("outro") && !ready(i)) i = (i + 1) % scenes.length;
+    show(i);
+  }
+  function restart() {
+    clock = 0; until = 0; last = null; shownAt = performance.now();
+    show(0);
+    if (seek) {
+      for (var i = 1; i < scenes.length; i++) src(i);
+      while (until <= seek) next();
+      clock = seek; frames();
+      var local = (seek - start) * 1000;
+      document.getAnimations().forEach(function (a) { a.pause(); a.currentTime = local; });
+      [].forEach.call(document.querySelectorAll(".screen img"), function (img) { img.style.transition = "none"; });
+    }
+  }
+  var rest = false;
+  function frame(ts) {
+    // rAF only runs while the WebView is on screen (not while it is preloaded hidden): the first frame
+    // is the moment the ad appears, and a long gap means it was hidden, so it starts over
+    if (last === null) shownAt = performance.now();
+    if (!rest) { rest = true; for (var i = 2; i < scenes.length; i++) src(i); }
+    if (last !== null && ts - last > 1000) restart();
+    else if (last !== null && !seek) clock += (ts - last) / 1000;
+    last = ts;
+    if (clock >= until) next();
+    frames();
+    requestAnimationFrame(frame);
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) restart(); });
+  restart();
+  requestAnimationFrame(frame);
+
+  // A tap anywhere opens the store (the same link as the button), except in the first 0.6 s on screen,
+  // so a tap meant for the app that lands as the ad appears is not counted as a click.
+  document.body.addEventListener("click", function (e) {
+    if (performance.now() - shownAt < 600) { e.preventDefault(); return; }
+    if (!e.target.closest("#ctaButton")) cta.click();
+  });
+})();
+</script>
+</body>
+</html>
